@@ -261,6 +261,17 @@
   .opt:last-child { border-bottom: 0; }
   .opt:active { background: var(--soft); }
 
+  .netbar { margin: 12px 14px; border-radius: 12px; padding: 12px 14px; display: flex;
+    align-items: center; gap: 11px; font-size: 13px; line-height: 1.45; }
+  .netbar.off { background: var(--amber-soft); color: var(--amber); }
+  .netbar.wait { background: var(--blue-soft); color: var(--blue); }
+  .netbar svg { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor;
+    stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .netbar b { font-weight: 600; }
+  .netbar button { margin-left: auto; flex: none; font-size: 12.5px; font-weight: 600;
+    padding: 7px 13px; border-radius: 9px; background: #fff; color: inherit;
+    border: 1px solid currentColor; }
+  .pill.q { background: var(--blue-soft); color: var(--blue); }
   .empty { padding: 56px 28px; text-align: center; color: var(--ink3);
     font-size: 13.5px; line-height: 1.7; }
   .sk { background: var(--card); border-radius: var(--r); margin: 12px 14px; height: 68px;
@@ -336,6 +347,7 @@
     .wk > div[id^="at"] { width: 100%; }
     .att, .nt { max-width: 520px; }
 
+    .netbar { margin: 20px 32px; padding: 14px 20px; }
     .fail { margin: 0 32px 10px; padding: 14px 20px; }
     .note { margin: 16px 32px; padding: 14px 20px; }
     .empty { padding: 80px 32px; font-size: 15px; }
@@ -430,6 +442,7 @@
   <div class="bar hide" id="tSrnBar">
     <div class="f"><label>SRN</label><select id="tSrn" class="ctl" onchange="refreshDay()"></select></div>
   </div>
+  <div id="netBar" class="netbar hide"></div>
   <div id="tBody"></div>
   <div class="ft">
     <span id="tInfo"></span>
@@ -636,8 +649,11 @@ var BEAT = null;
 var USERS = [];
 var PICK = null;
 var REPCACHE = {};
+var QN = 0;
+var DB = null;
+var FLUSHING = false;
 var SRVVER = '';
-var APPVER = '2026-08-29-i';
+var APPVER = '2026-08-29-j';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -730,10 +746,71 @@ function api(action, body) {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(p)
-  }).then(function (r) { return r.json(); }).then(function (d) {
+  }).then(function (r) { return r.json(); }, function () {
+    var err = new Error('No internet right now.');
+    err.offline = true;
+    throw err;
+  }).then(function (d) {
     if (!d.ok) throw new Error(d.error || 'Something went wrong.');
     return d;
   });
+}
+
+function idb() {
+  return new Promise(function (res, rej) {
+    if (DB) { res(DB); return; }
+    if (!window.indexedDB) { rej(new Error('no idb')); return; }
+    var r = indexedDB.open('cc_queue', 1);
+    r.onupgradeneeded = function () {
+      if (!r.result.objectStoreNames.contains('q')) {
+        r.result.createObjectStore('q', { keyPath: 'id' });
+      }
+    };
+    r.onsuccess = function () { DB = r.result; res(DB); };
+    r.onerror = function () { rej(r.error); };
+  });
+}
+
+function qRun(mode, fn) {
+  return idb().then(function (db) {
+    return new Promise(function (res, rej) {
+      var t = db.transaction('q', mode);
+      var out = fn(t.objectStore('q'));
+      t.oncomplete = function () { res(out && out.result !== undefined ? out.result : out); };
+      t.onerror = function () { rej(t.error); };
+    });
+  });
+}
+
+function qPut(item) { return qRun('readwrite', function (st) { return st.put(item); }); }
+function qDel(id) { return qRun('readwrite', function (st) { return st.delete(id); }); }
+function qAll() { return qRun('readonly', function (st) { return st.getAll(); }); }
+
+function qCount() {
+  return qAll().then(function (items) {
+    QN = items.length;
+    paintNet();
+    return QN;
+  }).catch(function () { return 0; });
+}
+
+function paintNet() {
+  var el = $('netBar');
+  if (!el) return;
+  var off = !navigator.onLine;
+  if (!off && !QN) { el.className = 'netbar hide'; el.innerHTML = ''; return; }
+  if (QN) {
+    el.className = 'netbar wait';
+    el.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>' +
+      '<span><b>' + QN + ' department' + (QN > 1 ? 's' : '') + ' waiting to send.</b> ' +
+      (off ? 'Network aate hi apne aap chali jayegi.' : 'Tap to send now.') + '</span>' +
+      (off ? '' : '<button onclick="flushQueue(true)">Send now</button>');
+  } else {
+    el.className = 'netbar off';
+    el.innerHTML = '<svg viewBox="0 0 24 24"><path d="M1 1l22 22M16.7 11.7a6 6 0 0 0-3.4-1.6M5 12.5a10 10 0 0 1 3.6-2.3M2 8.8a15 15 0 0 1 4.2-2.5M20.9 8.8a15 15 0 0 0-8.3-3.7"/><path d="M12 20h.01"/></svg>' +
+      '<span>No internet. Aap kaam karte raho \u2014 save phone mein ruk jayega.</span>';
+  }
+  el.classList.remove('hide');
 }
 
 function fail(e) {
@@ -860,6 +937,7 @@ function startBeat() {
   stopBeat();
   BEAT = setInterval(function () {
     if (!TOKEN || document.hidden) return;
+    flushQueue(false);
     api('me', {}).then(function (d) {
       USER = d.user;
     }).catch(function (e) {
@@ -875,6 +953,7 @@ function startBeat() {
   }, 60000);
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && TOKEN) {
+      flushQueue(false);
       api('me', {}).then(function (d) {
         USER = d.user;
       }).catch(function (e) {
@@ -1475,9 +1554,19 @@ function pickList() {
   $('tBody').innerHTML = skel(5);
   api('master', { checklist: LIST }).then(function (d) {
     MASTER = d;
+    cacheSet('cc_master_' + LIST, d);
     applyMaster();
     refreshDay();
-  }).catch(fail);
+  }).catch(function (e) {
+    var m = cacheGet('cc_master_' + LIST);
+    if (e.offline && m) {
+      MASTER = m;
+      applyMaster();
+      refreshDay();
+      return;
+    }
+    fail(e);
+  });
 }
 
 function refreshDay() {
@@ -1493,9 +1582,19 @@ function refreshDay() {
   }
   $('tBody').innerHTML = skel(5);
   api('day', { checklist: LIST, date: date, srn: srn }).then(function (d) {
+    cacheSet(dayKey(), d.departments || []);
     buildDeps(d.departments || []);
+    applyQueued();
     renderToday();
-  }).catch(fail);
+  }).catch(function (e) {
+    if (e.offline) {
+      buildDeps(cacheGet(dayKey()) || []);
+      applyQueued();
+      renderToday();
+      return;
+    }
+    fail(e);
+  });
 }
 
 function buildDeps(saved) {
@@ -1525,8 +1624,39 @@ function buildDeps(saved) {
         note: prev.note || ''
       });
     }
-    DEPS.push({ department: dep.department, rows: out, saved: !!map[dep.department], dirty: false });
+    DEPS.push({
+      department: dep.department, rows: out,
+      saved: !!map[dep.department], dirty: false, queued: false
+    });
   }
+}
+
+function applyQueued() {
+  qAll().then(function (items) {
+    var srn = MASTER && MASTER.srn ? $('tSrn').value : '';
+    var date = $('tDay').value;
+    var hit = false;
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (it.checklist !== LIST || it.date !== date || it.srn !== srn) continue;
+      var rows = (it.payload.departments[0] || {}).rows || [];
+      for (var d = 0; d < DEPS.length; d++) {
+        if (DEPS[d].department !== it.department) continue;
+        DEPS[d].queued = true;
+        for (var r = 0; r < rows.length; r++) {
+          for (var w = 0; w < DEPS[d].rows.length; w++) {
+            if (DEPS[d].rows[w].work === rows[r].work) {
+              DEPS[d].rows[w].status = rows[r].status;
+              if (rows[r].photo) DEPS[d].rows[w].photo = rows[r].photo;
+              if (rows[r].note) DEPS[d].rows[w].note = rows[r].note;
+            }
+          }
+        }
+        hit = true;
+      }
+    }
+    if (hit) renderToday();
+  }).catch(function () { });
 }
 
 function stats(d) {
@@ -1549,7 +1679,7 @@ function totals() {
     t.yes += s.yes; t.no += s.no; t.wnd += s.wnd;
     t.marked += s.marked; t.all += s.all;
     if (s.marked) t.ready++;
-    if (s.marked && (!DEPS[d].saved || DEPS[d].dirty)) t.pending++;
+    if (s.marked && !DEPS[d].queued && (!DEPS[d].saved || DEPS[d].dirty)) t.pending++;
   }
   t.dept = (t.yes + t.no) ? Math.round(t.yes * 10000 / (t.yes + t.no)) / 100 : '';
   t.off = t.marked ? Math.round(t.yes * 10000 / t.marked) / 100 : '';
@@ -1570,8 +1700,9 @@ function renderToday() {
       '<span class="dot ' + (done ? 'ok' : (s.marked ? 'half' : '')) + '">' +
       (done ? '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>' : '') + '</span>' +
       '<div style="flex:1;min-width:0"><div class="n">' + esc(DEPS[d].department) +
-      (DEPS[d].dirty ? ' <span class="pill a">Not saved</span>'
-        : (DEPS[d].saved ? ' <span class="pill">Saved</span>' : '')) + '</div>' +
+      (DEPS[d].queued ? ' <span class="pill q">Waiting</span>'
+        : (DEPS[d].dirty ? ' <span class="pill a">Not saved</span>'
+          : (DEPS[d].saved ? ' <span class="pill">Saved</span>' : ''))) + '</div>' +
       '<div class="m">' + (s.marked
         ? s.marked + ' of ' + s.all + (s.no ? '  ·  ' + s.no + ' no' : '')
         : 'Not started') + '</div></div>' +
@@ -1581,6 +1712,7 @@ function renderToday() {
   $('tBody').innerHTML = h + '</div>';
   $('tInfo').textContent = t.marked + ' of ' + t.all + ' marked' +
     (t.pending ? '  ·  ' + t.pending + ' not saved' : '');
+  paintNet();
 }
 
 function openDept(d) {
@@ -1701,11 +1833,13 @@ function afterMark() {
 
 function paintFoot(s) {
   var dp = DEPS[CUR];
-  $('dLeft').textContent = (dp.saved && !dp.dirty)
-    ? 'Saved  ·  ' + s.marked + ' of ' + s.all
-    : ((s.all - s.marked) + ' left');
+  $('dLeft').textContent = dp.queued
+    ? 'Waiting to send'
+    : ((dp.saved && !dp.dirty)
+      ? 'Saved  ·  ' + s.marked + ' of ' + s.all
+      : ((s.all - s.marked) + ' left'));
   $('dSave').textContent = dp.saved ? 'Update' : 'Save';
-  $('dSave').disabled = !s.marked || (dp.saved && !dp.dirty);
+  $('dSave').disabled = !s.marked || (dp.saved && !dp.dirty) || (dp.queued && !dp.dirty);
 }
 
 function setNote(r, v) {
@@ -1743,6 +1877,100 @@ function pickPhoto(ev, r) {
     img.src = rd.result;
   };
   rd.readAsDataURL(f);
+}
+
+function qId(dept) {
+  return LIST + '|' + $('tDay').value + '|' + (MASTER.srn ? $('tSrn').value : '') + '|' + dept;
+}
+
+function queueSave(items, depts) {
+  var payload = {
+    checklist: LIST, date: $('tDay').value,
+    srn: MASTER.srn ? $('tSrn').value : '', departments: items
+  };
+  var jobs = [];
+  for (var i = 0; i < items.length; i++) {
+    jobs.push(qPut({
+      id: qId(items[i].department),
+      at: Date.now(),
+      checklist: LIST, date: payload.date, srn: payload.srn,
+      department: items[i].department,
+      payload: {
+        checklist: LIST, date: payload.date, srn: payload.srn,
+        departments: [items[i]]
+      }
+    }));
+  }
+  return Promise.all(jobs).then(function () {
+    for (var j = 0; j < depts.length; j++) {
+      DEPS[depts[j]].queued = true;
+      DEPS[depts[j]].dirty = false;
+    }
+    return qCount();
+  });
+}
+
+function flushQueue(loud) {
+  if (FLUSHING || !TOKEN || !navigator.onLine) return Promise.resolve(0);
+  FLUSHING = true;
+  var sent = 0;
+  var stop = false;
+  return qAll().then(function (items) {
+    if (!items.length) return 0;
+    if (loud) busy(true, 'Sending ' + items.length + ' saved department(s)');
+    var chain = Promise.resolve();
+    items.forEach(function (it) {
+      chain = chain.then(function () {
+        if (stop) return null;
+        return api('save', it.payload).then(function () {
+          sent++;
+          markSent(it);
+          return qDel(it.id);
+        }).catch(function (e) {
+          if (e.offline) { stop = true; return null; }
+          if (/sign in|switched off|password was changed/i.test(e.message)) {
+            stop = true;
+            return null;
+          }
+          if (loud) toast(it.department + ': ' + e.message, true);
+          return null;
+        });
+      });
+    });
+    return chain.then(function () { return sent; });
+  }).then(function (n) {
+    FLUSHING = false;
+    busy(false);
+    return qCount().then(function () {
+      if (n) {
+        SAVED = null;
+        HOMEDATA = null;
+        REPCACHE = {};
+        toast(n + ' department(s) sent to the sheet');
+        if (!$('pToday').classList.contains('hide')) renderToday();
+      } else if (loud) {
+        toast('Could not send right now. Will try again.', true);
+      }
+      return n;
+    });
+  }).catch(function () {
+    FLUSHING = false;
+    busy(false);
+    return 0;
+  });
+}
+
+function markSent(it) {
+  if (!MASTER || it.checklist !== LIST) return;
+  if (it.date !== $('tDay').value) return;
+  if ((MASTER.srn ? $('tSrn').value : '') !== it.srn) return;
+  for (var i = 0; i < DEPS.length; i++) {
+    if (DEPS[i].department === it.department) {
+      DEPS[i].queued = false;
+      DEPS[i].saved = true;
+      DEPS[i].dirty = false;
+    }
+  }
 }
 
 function packDept(d) {
@@ -1837,6 +2065,7 @@ function submitAll() {
   for (var d = 0; d < DEPS.length; d++) {
     var s = stats(d);
     if (!s.marked) continue;
+    if (DEPS[d].queued && !DEPS[d].dirty) continue;
     if (DEPS[d].saved && !DEPS[d].dirty) continue;
     idx.push(d);
     pack.push(packDept(d));
@@ -2009,17 +2238,50 @@ function removeWork(row) {
   }).catch(function (e) { busy(false); toast(e.message, true); });
 }
 
+function cacheSet(k, v) {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch (e) { }
+}
+
+function cacheGet(k) {
+  try {
+    var v = localStorage.getItem(k);
+    return v ? JSON.parse(v) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function dayKey() {
+  return 'cc_day_' + LIST + '|' + $('tDay').value + '|' + (MASTER && MASTER.srn ? $('tSrn').value : '');
+}
+
 function boot() {
   $('tDay').value = today();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () { });
+  window.addEventListener('online', function () {
+    paintNet();
+    flushQueue(false);
+  });
+  window.addEventListener('offline', paintNet);
+  qCount();
   if (!TOKEN) { showLogin(''); return; }
   busy(true, 'Opening');
   api('boot', {}).then(function (d) {
     busy(false);
+    cacheSet('cc_boot', d);
     USER = d.user;
     start(d);
   }).catch(function (e) {
     busy(false);
+    var saved = cacheGet('cc_boot');
+    if (e.offline && saved && saved.user) {
+      USER = saved.user;
+      start(saved);
+      toast('No internet. Purana data dikha raha hoon.');
+      return;
+    }
     localStorage.removeItem('cc_token');
     showLogin(/sign in|password|switched off/i.test(e.message) ? e.message : '');
   });
