@@ -635,10 +635,9 @@ var ADMINS = [];
 var BEAT = null;
 var USERS = [];
 var PICK = null;
-var GEO = false;
 var REPCACHE = {};
 var SRVVER = '';
-var APPVER = '2026-08-29-h';
+var APPVER = '2026-08-29-i';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -964,7 +963,6 @@ function start(boot) {
   $('hSub').textContent = USER.name;
   $('hoHi').textContent = greet() + ', ' + shortName(USER.name);
   SRVVER = boot.version || '';
-  GEO = !!boot.geo;
   LISTS = boot.checklists || [];
   var h = '';
   for (var i = 0; i < LISTS.length; i++) {
@@ -1747,28 +1745,6 @@ function pickPhoto(ev, r) {
   rd.readAsDataURL(f);
 }
 
-function getSpot() {
-  return new Promise(function (resolve) {
-    if (!GEO) { resolve({}); return; }
-    if (!navigator.geolocation) {
-      resolve({ err: 'This phone cannot give location. Ask the MIS team.' });
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(function (pos) {
-      resolve({
-        lat: pos.coords.latitude, lng: pos.coords.longitude,
-        acc: Math.round(pos.coords.accuracy || 0)
-      });
-    }, function (err) {
-      resolve({
-        err: err.code === 1
-          ? 'Location permission is off. Allow location for this app, then save again.'
-          : 'Could not get your location. Go near a window or outside and try again.'
-      });
-    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
-  });
-}
-
 function packDept(d) {
   var rows = [];
   for (var r = 0; r < DEPS[d].rows.length; r++) {
@@ -1788,15 +1764,10 @@ function saveDept() {
   var d = CUR;
   var s = stats(d);
   if (!s.marked) { toast('Mark at least one work first.', true); return; }
-  busy(true, GEO ? 'Checking location' : 'Saving ' + DEPS[d].department);
-  getSpot().then(function (spot) {
-    if (spot.err) throw new Error(spot.err);
-    busy(true, 'Saving ' + DEPS[d].department);
-    return api('save', {
-      checklist: LIST, date: $('tDay').value,
-      srn: MASTER.srn ? $('tSrn').value : '', departments: [packDept(d)],
-      lat: spot.lat, lng: spot.lng, acc: spot.acc
-    });
+  busy(true, 'Saving ' + DEPS[d].department);
+  api('save', {
+    checklist: LIST, date: $('tDay').value,
+    srn: MASTER.srn ? $('tSrn').value : '', departments: [packDept(d)]
   }).then(function () {
     busy(false);
     DEPS[d].saved = true;
@@ -1871,15 +1842,10 @@ function submitAll() {
     pack.push(packDept(d));
   }
   if (!pack.length) { toast('Nothing left to submit.', true); return; }
-  busy(true, GEO ? 'Checking location' : 'Submitting');
-  getSpot().then(function (spot) {
-    if (spot.err) throw new Error(spot.err);
-    busy(true, 'Submitting ' + pack.length + ' department(s)');
-    return api('save', {
-      checklist: LIST, date: $('tDay').value,
-      srn: MASTER.srn ? $('tSrn').value : '', departments: pack,
-      lat: spot.lat, lng: spot.lng, acc: spot.acc
-    });
+  busy(true, 'Submitting ' + pack.length + ' department(s)');
+  api('save', {
+    checklist: LIST, date: $('tDay').value,
+    srn: MASTER.srn ? $('tSrn').value : '', departments: pack
   }).then(function (r) {
     busy(false);
     for (var i = 0; i < idx.length; i++) {
