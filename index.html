@@ -214,8 +214,18 @@
   .gate .mk { width: 60px; height: 60px; border-radius: 17px; background: var(--blue);
     color: #fff; font-weight: 700; font-size: 21px; display: flex; align-items: center;
     justify-content: center; margin-bottom: 24px; }
-  .gate h2 { color: #fff; font-size: 23px; margin: 0 0 6px; font-weight: 600; letter-spacing: -.4px; }
-  .gate p { color: #8ea2b6; font-size: 13.5px; margin: 0 0 26px; }
+  .gate h2 { color: #fff; font-size: 21px; margin: 0; font-weight: 600; letter-spacing: -.4px; }
+  .gate p { color: #8ea2b6; font-size: 13px; margin: 3px 0 0; }
+  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
+  .brand .mk { margin-bottom: 0; width: 52px; height: 52px; font-size: 18px; border-radius: 14px; }
+  .ulist { max-height: 46vh; overflow-y: auto; margin-top: 14px;
+    -webkit-overflow-scrolling: touch; }
+  .backx { color: #8ea2b6; font-size: 13px; display: flex; align-items: center; gap: 7px;
+    margin-bottom: 20px; }
+  .backx svg { width: 16px; height: 16px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .hint { color: #6f8296 !important; font-size: 12px !important; margin-top: 14px !important;
+    text-align: center; }
   .gate .err { color: #ff9c8f; font-size: 13px; margin-bottom: 15px; }
   .gate .ctl { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.15);
     color: #fff; margin-bottom: 14px; }
@@ -349,17 +359,30 @@
 <body>
 
 <section id="pUser" class="gate">
-  <div class="mk">CC</div>
-  <h2>Who is using this phone?</h2>
-  <p>Tap your name, then enter your password once.</p>
+  <div class="brand">
+    <div class="mk">SG</div>
+    <div>
+      <h2>Compliance Checklist</h2>
+      <p>Star Global</p>
+    </div>
+  </div>
   <div id="uErr" class="err hide"></div>
-  <div id="uList"></div>
+  <label>Who is using this phone?</label>
+  <input type="text" id="uFind" class="ctl" placeholder="Type to find your name"
+    autocapitalize="none" spellcheck="false" oninput="filterNames()">
+  <div id="uList" class="ulist"></div>
 </section>
 
 <section id="pPass" class="gate hide">
-  <div class="mk" id="pAv"></div>
-  <h2 id="pName"></h2>
-  <p id="pDes"></p>
+  <button class="backx" onclick="showUsers()">
+    <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Change name</button>
+  <div class="brand">
+    <div class="mk" id="pAv"></div>
+    <div>
+      <h2 id="pName"></h2>
+      <p id="pDes"></p>
+    </div>
+  </div>
   <div id="pErr" class="err hide"></div>
   <label>Password</label>
   <div class="pwrap">
@@ -370,8 +393,7 @@
     </button>
   </div>
   <button class="btn w" onclick="doLogin()">Sign in</button>
-  <button class="btn w" style="margin-top:10px;background:transparent;color:#8ea2b6;border:1px solid rgba(255,255,255,.14)"
-    onclick="showUsers()">Not you? Change name</button>
+  <p class="hint">Ek baar sign in karne ke baad ye phone yaad rakhega.</p>
 </section>
 
 <section id="pHome" class="pane hide">
@@ -613,8 +635,10 @@ var ADMINS = [];
 var BEAT = null;
 var USERS = [];
 var PICK = null;
+var GEO = false;
+var REPCACHE = {};
 var SRVVER = '';
-var APPVER = '2026-08-29-g';
+var APPVER = '2026-08-29-h';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -760,11 +784,21 @@ function showUsers(msg) {
     }
     $('uList').innerHTML = h || '<div style="color:#8ea2b6;font-size:13px">' +
       'No one in the ACCESS sheet has app access yet.</div>';
+    $('uFind').value = '';
   }).catch(function (e) {
     $('uList').innerHTML = '';
     $('uErr').textContent = e.message;
     $('uErr').classList.remove('hide');
   });
+}
+
+function filterNames() {
+  var q = $('uFind').value.trim().toLowerCase();
+  var btns = $('uList').querySelectorAll('.ub');
+  for (var i = 0; i < btns.length; i++) {
+    var name = (USERS[i] ? USERS[i].name + ' ' + (USERS[i].designation || '') : '').toLowerCase();
+    btns[i].classList.toggle('hide', q && name.indexOf(q) === -1);
+  }
 }
 
 function choose(i) {
@@ -930,6 +964,7 @@ function start(boot) {
   $('hSub').textContent = USER.name;
   $('hoHi').textContent = greet() + ', ' + shortName(USER.name);
   SRVVER = boot.version || '';
+  GEO = !!boot.geo;
   LISTS = boot.checklists || [];
   var h = '';
   for (var i = 0; i < LISTS.length; i++) {
@@ -1257,13 +1292,20 @@ function stepMonth(n) {
   loadReport();
 }
 
+function drawReport(d) {
+  if (REP.kind === 'factory') repFactory(d.data);
+  else if (REP.kind === 'QMSS') repSrn(d.data);
+  else repChecklist(d.data);
+}
+
 function loadReport() {
   $('repMon').textContent = MONTHS[RM - 1] + ' ' + RY;
+  var key = REP.kind + '_' + RY + '_' + RM;
+  if (REPCACHE[key]) { drawReport(REPCACHE[key]); return; }
   $('repBody').innerHTML = skel(4);
   api('report', { kind: REP.kind, year: RY, month: RM }).then(function (d) {
-    if (REP.kind === 'factory') repFactory(d.data);
-    else if (REP.kind === 'QMSS') repSrn(d.data);
-    else repChecklist(d.data);
+    REPCACHE[key] = d;
+    drawReport(d);
   }).catch(function (e) {
     $('repBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
   });
@@ -1705,6 +1747,28 @@ function pickPhoto(ev, r) {
   rd.readAsDataURL(f);
 }
 
+function getSpot() {
+  return new Promise(function (resolve) {
+    if (!GEO) { resolve({}); return; }
+    if (!navigator.geolocation) {
+      resolve({ err: 'This phone cannot give location. Ask the MIS team.' });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      resolve({
+        lat: pos.coords.latitude, lng: pos.coords.longitude,
+        acc: Math.round(pos.coords.accuracy || 0)
+      });
+    }, function (err) {
+      resolve({
+        err: err.code === 1
+          ? 'Location permission is off. Allow location for this app, then save again.'
+          : 'Could not get your location. Go near a window or outside and try again.'
+      });
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
+  });
+}
+
 function packDept(d) {
   var rows = [];
   for (var r = 0; r < DEPS[d].rows.length; r++) {
@@ -1724,16 +1788,22 @@ function saveDept() {
   var d = CUR;
   var s = stats(d);
   if (!s.marked) { toast('Mark at least one work first.', true); return; }
-  busy(true, 'Saving ' + DEPS[d].department);
-  api('save', {
-    checklist: LIST, date: $('tDay').value,
-    srn: MASTER.srn ? $('tSrn').value : '', departments: [packDept(d)]
+  busy(true, GEO ? 'Checking location' : 'Saving ' + DEPS[d].department);
+  getSpot().then(function (spot) {
+    if (spot.err) throw new Error(spot.err);
+    busy(true, 'Saving ' + DEPS[d].department);
+    return api('save', {
+      checklist: LIST, date: $('tDay').value,
+      srn: MASTER.srn ? $('tSrn').value : '', departments: [packDept(d)],
+      lat: spot.lat, lng: spot.lng, acc: spot.acc
+    });
   }).then(function () {
     busy(false);
     DEPS[d].saved = true;
     DEPS[d].dirty = false;
     SAVED = null;
     HOMEDATA = null;
+    REPCACHE = {};
     toast(DEPS[d].department + ' saved');
     paintFoot(stats(d));
     nextUnsaved();
@@ -1801,10 +1871,15 @@ function submitAll() {
     pack.push(packDept(d));
   }
   if (!pack.length) { toast('Nothing left to submit.', true); return; }
-  busy(true, 'Submitting ' + pack.length + ' department(s)');
-  api('save', {
-    checklist: LIST, date: $('tDay').value,
-    srn: MASTER.srn ? $('tSrn').value : '', departments: pack
+  busy(true, GEO ? 'Checking location' : 'Submitting');
+  getSpot().then(function (spot) {
+    if (spot.err) throw new Error(spot.err);
+    busy(true, 'Submitting ' + pack.length + ' department(s)');
+    return api('save', {
+      checklist: LIST, date: $('tDay').value,
+      srn: MASTER.srn ? $('tSrn').value : '', departments: pack,
+      lat: spot.lat, lng: spot.lng, acc: spot.acc
+    });
   }).then(function (r) {
     busy(false);
     for (var i = 0; i < idx.length; i++) {
@@ -1813,6 +1888,7 @@ function submitAll() {
     }
     SAVED = null;
     HOMEDATA = null;
+    REPCACHE = {};
     toast(r.saved + ' department(s) saved');
     toToday();
   }).catch(function (e) { busy(false); fail(e); });
