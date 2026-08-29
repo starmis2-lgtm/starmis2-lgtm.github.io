@@ -1,1 +1,8 @@
-
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "in.starglobal.checklist",
+    "sha256_cert_fingerprints": ["C1:B3:98:24:CD:A2:7C:0D:75:21:F7:FB:78:EE:68:1F:54:DC:81:45:79:6F:78:3B:50:1F:8C:EC:95:28:A5:90"]
+  }
+}]
