@@ -1,0 +1,1988 @@
+<!-- ===== GITHUB REPO  ·  file name: index.html ===== -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101c2b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<title>Compliance Checklist</title>
+<style>
+  :root {
+    --nav: #101c2b;
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --line: #e6eaf0;
+    --soft: #f1f4f8;
+    --ink: #111d2b;
+    --ink2: #5b6b7d;
+    --ink3: #92a0b0;
+    --blue: #2563a8;
+    --blue-soft: #e9f0f8;
+    --good: #0d7a58;
+    --good-soft: #e6f4ee;
+    --bad: #c2362a;
+    --bad-soft: #fdeceb;
+    --amber: #a1740d;
+    --amber-soft: #fdf3e0;
+    --r: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.5;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; overscroll-behavior-y: contain;
+  }
+  .hide { display: none !important; }
+  button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; background: none; padding: 0; }
+  input, select, textarea { -webkit-appearance: none; appearance: none; }
+
+  .hdr { position: sticky; top: 0; z-index: 40; background: var(--nav); color: #fff;
+    padding: calc(12px + env(safe-area-inset-top)) 16px 15px; }
+  .hrow { display: flex; align-items: center; gap: 12px; }
+  .hdr h1 { font-size: 18px; margin: 0; font-weight: 600; letter-spacing: -.3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hdr .sub { font-size: 12.5px; color: #8ea2b6; margin-top: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib { width: 38px; height: 38px; border-radius: 11px; background: rgba(255,255,255,.1);
+    display: flex; align-items: center; justify-content: center; flex: none; }
+  .ib:active { background: rgba(255,255,255,.22); }
+  .ib svg { width: 19px; height: 19px; fill: none; stroke: #fff; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; }
+  .av { width: 38px; height: 38px; border-radius: 50%; background: var(--blue); color: #fff;
+    font-size: 13.5px; font-weight: 600; display: flex; align-items: center;
+    justify-content: center; flex: none; letter-spacing: .3px; }
+  .track { height: 5px; border-radius: 3px; background: rgba(255,255,255,.15);
+    overflow: hidden; margin-top: 13px; }
+  .track i { display: block; height: 100%; background: #2ecc94; transition: width .25s ease; }
+
+  .pane { padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
+  .pane.foot2 { padding-bottom: calc(152px + env(safe-area-inset-bottom)); }
+
+  .bar { background: var(--card); border-bottom: 1px solid var(--line);
+    padding: 12px 14px; display: flex; gap: 10px; align-items: flex-end; }
+  .f { flex: 1; min-width: 0; }
+  .f label { display: block; font-size: 10.5px; font-weight: 600; letter-spacing: .6px;
+    text-transform: uppercase; color: var(--ink3); margin-bottom: 6px; }
+  .ctl { width: 100%; border: 1px solid var(--line); border-radius: 11px;
+    padding: 12px 13px; background: #fff; outline: none; font-size: 14.5px; }
+  .ctl:focus { border-color: var(--blue); }
+  select.ctl { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2392a0b0' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 13px center; padding-right: 34px; }
+
+  .mon { display: flex; align-items: center; background: var(--card);
+    border-bottom: 1px solid var(--line); padding: 8px; }
+  .mon button { width: 42px; height: 42px; border-radius: 11px; display: flex;
+    align-items: center; justify-content: center; color: var(--ink2); }
+  .mon button:active { background: var(--soft); }
+  .mon svg { width: 20px; height: 20px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .mon .lb { flex: 1; text-align: center; font-size: 15.5px; font-weight: 600; }
+
+  .hero { margin: 14px; background: var(--nav); color: #fff; border-radius: 18px;
+    padding: 18px; display: flex; align-items: center; gap: 17px; }
+  .ring { width: 68px; height: 68px; flex: none; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 7; stroke-linecap: round; }
+  .ring .bg { stroke: rgba(255,255,255,.13); }
+  .hero .k { font-size: 10.5px; font-weight: 600; letter-spacing: .8px;
+    text-transform: uppercase; color: #8ea2b6; }
+  .hero .v { font-size: 31px; font-weight: 700; line-height: 1.08; letter-spacing: -.8px; }
+  .hero .m { font-size: 12.5px; color: #92a6ba; margin-top: 4px; }
+
+  .kpi { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 14px 16px; }
+  .kpi .b { background: var(--card); border-radius: var(--r); padding: 14px; }
+  .kpi .k { font-size: 11.5px; color: var(--ink2); }
+  .kpi .v { font-size: 23px; font-weight: 700; margin-top: 3px; letter-spacing: -.5px; }
+
+  .sec { padding: 8px 17px 9px; font-size: 11.5px; font-weight: 600;
+    letter-spacing: .6px; text-transform: uppercase; color: var(--ink3);
+    display: flex; align-items: center; gap: 10px; }
+  .sec button { margin-left: auto; font-size: 12px; font-weight: 600;
+    color: var(--blue); text-transform: none; letter-spacing: 0; }
+  .list { background: var(--card); border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .it { display: flex; align-items: center; gap: 13px; padding: 15px 16px;
+    border-bottom: 1px solid var(--soft); }
+  .it:last-child { border-bottom: 0; }
+  .it:active { background: var(--soft); }
+  .it .n { font-size: 14.5px; font-weight: 500; }
+  .it .m { font-size: 12px; color: var(--ink3); margin-top: 3px; }
+  .it .r { margin-left: auto; text-align: right; flex: none; }
+  .cv { color: var(--ink3); flex: none; }
+  .cv svg { width: 18px; height: 18px; fill: none; stroke: currentColor;
+    stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .dot { width: 23px; height: 23px; border-radius: 50%; flex: none; border: 2px solid #cdd7e2;
+    display: flex; align-items: center; justify-content: center; }
+  .dot.ok { border-color: var(--good); background: var(--good); }
+  .dot.ok svg { width: 12px; height: 12px; stroke: #fff; stroke-width: 3;
+    fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .dot.half { border-color: var(--blue); border-style: dashed; }
+  .ic { width: 38px; height: 38px; border-radius: 11px; background: var(--blue-soft);
+    color: var(--blue); display: flex; align-items: center; justify-content: center; flex: none; }
+  .ic svg { width: 19px; height: 19px; fill: none; stroke: currentColor;
+    stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+  .pill { font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: 20px;
+    background: var(--good-soft); color: var(--good); white-space: nowrap; }
+  .pill.a { background: var(--amber-soft); color: var(--amber); }
+  .g { color: var(--good); }
+  .a { color: var(--amber); }
+  .b { color: var(--bad); }
+  .num { font-size: 15.5px; font-weight: 600; letter-spacing: -.3px; }
+  .hdr .num { color: #fff; }
+  @media (min-width: 900px) { .hdr .num.g { color: var(--good); }
+    .hdr .num.a { color: var(--amber); } .hdr .num.b { color: var(--bad); } }
+
+  .sp { display: flex; height: 6px; border-radius: 4px; overflow: hidden;
+    background: var(--soft); margin-top: 9px; }
+  .sp i { display: block; height: 100%; }
+  .sp .y { background: var(--good); }
+  .sp .n { background: var(--bad); }
+  .sp .w { background: #d5a01d; }
+
+  .chips { display: flex; gap: 8px; padding: 12px 14px; background: var(--card);
+    border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
+  .chips button { flex: 1; padding: 12px 0; border-radius: 11px; font-size: 13px;
+    font-weight: 600; text-align: center; }
+  .chips .y { background: var(--good-soft); color: var(--good); }
+  .chips .n { background: var(--bad-soft); color: var(--bad); }
+  .chips .w { background: var(--amber-soft); color: var(--amber); }
+
+  .wk { background: var(--card); border-bottom: 1px solid var(--line); padding: 16px; }
+  .wk.no { background: var(--bad-soft); }
+  .wk .hd { display: flex; gap: 11px; }
+  .wk .ix { font-size: 11.5px; color: var(--ink3); min-width: 17px; padding-top: 3px; font-weight: 600; }
+  .wk .en { font-size: 14.5px; line-height: 1.45; font-weight: 500; }
+  .wk .hi { font-size: 12.5px; color: var(--ink2); margin-top: 5px; line-height: 1.45; }
+  .doer { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+    background: var(--soft); border-radius: 8px; padding: 5px 10px;
+    font-size: 12px; color: var(--ink2); }
+  .wk.no .doer { background: #fff; }
+  .doer svg { width: 13px; height: 13px; fill: none; stroke: var(--blue);
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .seg { display: flex; gap: 8px; margin-top: 13px; }
+  .seg button { flex: 1; padding: 14px 0; border-radius: 11px; font-size: 14px;
+    font-weight: 600; border: 1px solid var(--line); background: #fff; color: var(--ink2); }
+  .seg button.y { background: var(--good); border-color: var(--good); color: #fff; }
+  .seg button.n { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .seg button.w { background: #a8790c; border-color: #a8790c; color: #fff; }
+  .att { margin-top: 12px; background: #fff; border: 1px solid var(--line);
+    border-radius: 11px; padding: 12px; display: flex; align-items: center;
+    gap: 11px; font-size: 13px; color: var(--ink2); }
+  .att b { color: var(--bad); font-weight: 600; }
+  .att img { width: 46px; height: 46px; border-radius: 9px; object-fit: cover; }
+  .att svg { width: 21px; height: 21px; fill: none; stroke: var(--bad);
+    stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .att .x { margin-left: auto; color: var(--ink3); font-size: 21px; padding: 0 7px; }
+  .nt { width: 100%; margin-top: 10px; border: 1px solid var(--line);
+    border-radius: 11px; padding: 12px; font-size: 13.5px; outline: none; }
+
+  .fail { background: var(--card); border-left: 3px solid var(--bad);
+    padding: 13px 15px; margin: 0 14px 9px; font-size: 13.5px; line-height: 1.45; }
+  .fail .m { font-size: 11.5px; color: var(--ink3); margin-top: 4px; }
+  .note { margin: 12px 14px; background: var(--amber-soft); color: var(--amber);
+    border-radius: 12px; padding: 13px 15px; font-size: 13px; line-height: 1.55; }
+
+  .ft { position: fixed; left: 0; right: 0; bottom: calc(62px + env(safe-area-inset-bottom));
+    background: var(--card); border-top: 1px solid var(--line);
+    padding: 12px 14px; display: flex; gap: 10px; align-items: center; z-index: 35; }
+  .ft span { font-size: 13px; color: var(--ink2); flex: 1; font-weight: 500; }
+  .btn { background: var(--blue); color: #fff; font-size: 15px; font-weight: 600;
+    padding: 14px 22px; border-radius: 12px; }
+  .btn:active { opacity: .84; }
+  .btn.w { width: 100%; text-align: center; }
+  .btn.o { background: #fff; color: var(--blue); border: 1px solid var(--line); }
+  .btn.d { background: var(--bad); }
+  .btn[disabled] { background: #b8c6d5; }
+  .btn.o[disabled] { background: #fff; color: var(--ink3); }
+
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: var(--card);
+    border-top: 1px solid var(--line); display: flex; padding-bottom: env(safe-area-inset-bottom); }
+  .tabs button { flex: 1; padding: 10px 0 11px; display: flex; flex-direction: column;
+    align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--ink3); }
+  .tabs button.on { color: var(--blue); }
+  .tabs svg { width: 22px; height: 22px; fill: none; stroke: currentColor;
+    stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+  .gate { padding: 0 24px; min-height: 100vh; display: flex; flex-direction: column;
+    justify-content: center; background: var(--nav); }
+  .gate .mk { width: 60px; height: 60px; border-radius: 17px; background: var(--blue);
+    color: #fff; font-weight: 700; font-size: 21px; display: flex; align-items: center;
+    justify-content: center; margin-bottom: 24px; }
+  .gate h2 { color: #fff; font-size: 23px; margin: 0 0 6px; font-weight: 600; letter-spacing: -.4px; }
+  .gate p { color: #8ea2b6; font-size: 13.5px; margin: 0 0 26px; }
+  .gate .err { color: #ff9c8f; font-size: 13px; margin-bottom: 15px; }
+  .gate .ctl { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.15);
+    color: #fff; margin-bottom: 14px; }
+  .gate label { display: block; color: #8ea2b6; font-size: 10.5px; font-weight: 600;
+    letter-spacing: .6px; text-transform: uppercase; margin-bottom: 7px; }
+  .ub { width: 100%; text-align: left; background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 13px; padding: 15px;
+    margin-bottom: 10px; color: #fff; display: flex; align-items: center; gap: 13px; }
+  .ub:active { background: rgba(255,255,255,.17); }
+  .ub b { display: block; font-size: 15px; font-weight: 600; }
+  .pwrap { position: relative; margin-bottom: 14px; }
+  .pwrap .ctl { margin-bottom: 0; padding-right: 52px; }
+  .eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
+  .eye svg { width: 20px; height: 20px; fill: none; stroke: #8ea2b6; stroke-width: 1.9;
+    stroke-linecap: round; stroke-linejoin: round; }
+  .eye:active svg { stroke: #fff; }
+  .gate select.ctl { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%238ea2b6' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+  .ub .d { display: block; font-size: 12px; color: #92a6ba; margin-top: 2px; }
+
+  .mask { position: fixed; inset: 0; background: rgba(16,28,43,.5); z-index: 70;
+    display: flex; align-items: flex-end; }
+  .sheet { background: var(--card); width: 100%; border-radius: 20px 20px 0 0;
+    max-height: 84vh; display: flex; flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom); }
+  .sheet .sh { padding: 18px 18px 12px; display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--line); }
+  .sheet .sh h3 { margin: 0; font-size: 16.5px; font-weight: 600; flex: 1; letter-spacing: -.2px; }
+  .sheet .sb { overflow-y: auto; padding: 16px 18px; }
+  .sheet .sf { padding: 12px 18px 18px; border-top: 1px solid var(--line); display: flex; gap: 10px; }
+  .opt { padding: 14px 4px; border-bottom: 1px solid var(--soft); font-size: 14.5px; }
+  .opt:last-child { border-bottom: 0; }
+  .opt:active { background: var(--soft); }
+
+  .empty { padding: 56px 28px; text-align: center; color: var(--ink3);
+    font-size: 13.5px; line-height: 1.7; }
+  .sk { background: var(--card); border-radius: var(--r); margin: 12px 14px; height: 68px;
+    animation: p 1.2s ease-in-out infinite; }
+  @keyframes p { 0%, 100% { opacity: 1 } 50% { opacity: .5 } }
+  .toast { position: fixed; left: 14px; right: 14px; bottom: calc(154px + env(safe-area-inset-bottom));
+    background: var(--ink); color: #fff; padding: 15px 17px; border-radius: 13px;
+    font-size: 13.5px; z-index: 90; text-align: center; line-height: 1.45; }
+  .toast.e { background: var(--bad); }
+  .busy { position: fixed; inset: 0; background: rgba(16,28,43,.4); z-index: 95;
+    display: flex; align-items: center; justify-content: center; }
+  .busy div { background: #fff; border-radius: 14px; padding: 19px 28px;
+    font-size: 13.5px; color: var(--ink2); font-weight: 500; }
+
+  @media (min-width: 900px) {
+    body { padding-left: 232px; background: var(--bg); }
+
+    .tabs { top: 0; bottom: 0; right: auto; width: 232px; flex-direction: column;
+      border-top: 0; border-right: 1px solid var(--line); padding: 76px 12px 12px;
+      background: var(--nav); gap: 4px; }
+    .tabs::before { content: 'SG Compliance'; position: absolute; top: 26px; left: 20px;
+      color: #fff; font-size: 16px; font-weight: 600; letter-spacing: -.2px; }
+    .tabs button { flex: none; flex-direction: row; justify-content: flex-start;
+      gap: 13px; padding: 12px 14px; font-size: 14px; border-radius: 10px; color: #8ea2b6; }
+    .tabs button:hover { background: rgba(255,255,255,.07); color: #fff; }
+    .tabs button.on { background: rgba(255,255,255,.13); color: #fff; }
+    .tabs svg { width: 19px; height: 19px; }
+
+    .hdr { position: static; background: transparent; color: var(--ink);
+      padding: 26px 32px 18px; border-bottom: 1px solid var(--line); }
+    .hdr h1 { font-size: 24px; letter-spacing: -.5px; }
+    .hdr .sub { color: var(--ink2); font-size: 13.5px; }
+    .hdr .ib { background: #fff; border: 1px solid var(--line); }
+    .hdr .ib svg { stroke: var(--ink2); }
+    .hdr .num { font-size: 17px; }
+    .hdr .ib:active { background: var(--soft); }
+    .track { background: var(--line); }
+
+    .pane { padding: 0 0 48px; max-width: 1180px; }
+    .pane.foot2 { padding-bottom: 104px; }
+    .ft { left: 232px; bottom: 0; padding: 14px 32px; }
+
+    .bar, .mon, .chips { padding-left: 32px; padding-right: 32px;
+      background: transparent; border-bottom: 1px solid var(--line); }
+    .bar { gap: 16px; }
+    .bar .f { max-width: 300px; }
+    .mon .lb { text-align: left; flex: none; margin-left: 8px; min-width: 200px; }
+    .chips { position: static; gap: 12px; }
+    .chips button { flex: none; padding: 11px 26px; }
+
+    .hero { margin: 24px 32px; padding: 26px 30px; gap: 24px; border-radius: 18px; }
+    .ring { width: 84px; height: 84px; }
+    .hero .v { font-size: 38px; }
+
+    .kpi { grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 0 32px 24px; }
+    .kpi .b { padding: 18px 20px; }
+    .kpi .v { font-size: 26px; }
+
+    .sec { padding: 10px 32px 10px; font-size: 12px; }
+    .list { margin: 0 32px 26px; border: 1px solid var(--line);
+      border-radius: 14px; overflow: hidden; }
+    .it { padding: 16px 22px; }
+    .it:hover { background: var(--soft); }
+    .it .n { font-size: 15px; }
+    .it .m { font-size: 12.5px; }
+    .sp { max-width: 420px; }
+
+    .wk { padding: 18px 32px; display: flex; align-items: flex-start; gap: 28px; }
+    .wk .hd { flex: 1; min-width: 0; }
+    .wk .en { font-size: 15px; }
+    .seg { margin-top: 0; width: 320px; flex: none; }
+    .seg button { padding: 12px 0; }
+    .wk > div[id^="at"] { width: 100%; }
+    .att, .nt { max-width: 520px; }
+
+    .fail { margin: 0 32px 10px; padding: 14px 20px; }
+    .note { margin: 16px 32px; padding: 14px 20px; }
+    .empty { padding: 80px 32px; font-size: 15px; }
+    .sk { margin: 16px 32px; height: 76px; }
+
+    .toast { left: auto; right: 32px; bottom: 32px; max-width: 380px; }
+
+    .gate { padding: 0; align-items: center; }
+    .gate > * { width: 100%; max-width: 380px; margin-left: auto; margin-right: auto; }
+    .gate .mk { margin-left: auto; margin-right: auto; }
+
+    .mask { align-items: center; justify-content: center; }
+    .sheet { max-width: 520px; border-radius: 18px; max-height: 82vh; }
+  }
+
+  @media (min-width: 1400px) {
+    .pane { max-width: 1320px; }
+  }
+</style>
+</head>
+<body>
+
+<section id="pUser" class="gate">
+  <div class="mk">CC</div>
+  <h2>Who is using this phone?</h2>
+  <p>Tap your name, then enter your password once.</p>
+  <div id="uErr" class="err hide"></div>
+  <div id="uList"></div>
+</section>
+
+<section id="pPass" class="gate hide">
+  <div class="mk" id="pAv"></div>
+  <h2 id="pName"></h2>
+  <p id="pDes"></p>
+  <div id="pErr" class="err hide"></div>
+  <label>Password</label>
+  <div class="pwrap">
+    <input type="password" id="pIn" class="ctl" autocomplete="current-password" placeholder="Password">
+    <button class="eye" onclick="togglePw()" aria-label="Show password">
+      <svg viewBox="0 0 24 24" id="eyeOn"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+      <svg viewBox="0 0 24 24" id="eyeOff" class="hide"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 19c-7 0-11-7-11-7a18.5 18.5 0 0 1 5.1-5.9m3.9-1A10.1 10.1 0 0 1 12 5c7 0 11 7 11 7a18.6 18.6 0 0 1-2.2 3.2M9.9 9.9a3 3 0 1 0 4.2 4.2"/><path d="m1 1 22 22"/></svg>
+    </button>
+  </div>
+  <button class="btn w" onclick="doLogin()">Sign in</button>
+  <button class="btn w" style="margin-top:10px;background:transparent;color:#8ea2b6;border:1px solid rgba(255,255,255,.14)"
+    onclick="showUsers()">Not you? Change name</button>
+</section>
+
+<section id="pHome" class="pane hide">
+  <div class="hdr">
+    <div class="hrow">
+      <div style="flex:1;min-width:0">
+        <h1 id="hoHi"></h1>
+        <div class="sub" id="hoSub"></div>
+      </div>
+      <button class="ib" onclick="loadHome()" aria-label="Refresh">
+        <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6"/></svg></button>
+      <button class="av" onclick="go('me')" id="hoAv"></button>
+    </div>
+  </div>
+  <div id="hoBody"></div>
+</section>
+
+<section id="pToday" class="pane foot2 hide">
+  <div class="hdr">
+    <div class="hrow">
+      <div style="flex:1;min-width:0">
+        <h1>Data entry</h1>
+        <div class="sub" id="tSub"></div>
+      </div>
+      <button class="ib" onclick="refreshDay()" aria-label="Refresh">
+        <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6"/></svg></button>
+      <button class="av" onclick="go('me')" id="tAv"></button>
+    </div>
+  </div>
+  <div class="bar">
+    <div class="f"><label>Date</label><input type="date" id="tDay" class="ctl" onchange="refreshDay()"></div>
+    <div class="f"><label>Checklist</label><select id="tList" class="ctl" onchange="pickList()"></select></div>
+  </div>
+  <div class="bar hide" id="tSrnBar">
+    <div class="f"><label>SRN</label><select id="tSrn" class="ctl" onchange="refreshDay()"></select></div>
+  </div>
+  <div id="tBody"></div>
+  <div class="ft">
+    <span id="tInfo"></span>
+    <button class="btn o" onclick="go('review')">Review</button>
+  </div>
+</section>
+
+<section id="pDept" class="pane foot2 hide">
+  <div class="hdr">
+    <div class="hrow">
+      <button class="ib" onclick="toToday()" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div style="flex:1;min-width:0">
+        <h1 id="dName"></h1>
+        <div class="sub" id="dSub"></div>
+      </div>
+      <div class="num" id="dScore"></div>
+    </div>
+    <div class="track"><i id="dBar"></i></div>
+  </div>
+  <div class="chips">
+    <button class="y" onclick="markAll('Yes')">All yes</button>
+    <button class="n" onclick="markAll('No')">All no</button>
+    <button class="w" onclick="markAll('W.N.D')">All W.N.D</button>
+  </div>
+  <div id="dWorks"></div>
+  <div class="ft">
+    <span id="dLeft"></span>
+    <button class="btn o" onclick="nextDept()">Next</button>
+    <button class="btn" id="dSave" onclick="saveDept()">Save</button>
+  </div>
+</section>
+
+<section id="pReview" class="pane foot2 hide">
+  <div class="hdr">
+    <div class="hrow">
+      <button class="ib" onclick="toToday()" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div style="flex:1;min-width:0">
+        <h1>Review and submit</h1>
+        <div class="sub" id="rSub"></div>
+      </div>
+    </div>
+  </div>
+  <div id="rBody"></div>
+  <div class="ft"><button class="btn w" id="rBtn" onclick="submitAll()">Submit</button></div>
+</section>
+
+<section id="pHub" class="pane hide">
+  <div class="hdr">
+    <div class="hrow">
+      <div style="flex:1;min-width:0">
+        <h1>Reports</h1>
+        <div class="sub" id="hSub"></div>
+      </div>
+      <button class="av" onclick="go('me')" id="hAv"></button>
+    </div>
+  </div>
+  <div id="hBody"></div>
+</section>
+
+<section id="pRep" class="pane hide">
+  <div class="hdr">
+    <div class="hrow">
+      <button class="ib" onclick="go('hub')" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div style="flex:1;min-width:0">
+        <h1 id="repName"></h1>
+        <div class="sub" id="repSub"></div>
+      </div>
+    </div>
+  </div>
+  <div class="mon">
+    <button onclick="stepMonth(-1)" aria-label="Previous month">
+      <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <span class="lb" id="repMon"></span>
+    <button onclick="stepMonth(1)" aria-label="Next month">
+      <svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+  </div>
+  <div id="repBody"></div>
+</section>
+
+<section id="pDrill" class="pane hide">
+  <div class="hdr">
+    <div class="hrow">
+      <button class="ib" onclick="go('rep')" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div style="flex:1;min-width:0">
+        <h1 id="drName"></h1>
+        <div class="sub" id="drSub"></div>
+      </div>
+    </div>
+  </div>
+  <div id="drBody"></div>
+</section>
+
+<section id="pSaved" class="pane hide">
+  <div class="hdr">
+    <div class="hrow">
+      <div style="flex:1;min-width:0">
+        <h1>Saved entries</h1>
+        <div class="sub">Last 30 days</div>
+      </div>
+      <button class="ib" onclick="loadSaved()" aria-label="Refresh">
+        <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6"/></svg></button>
+    </div>
+  </div>
+  <div class="bar">
+    <div class="f"><label>Checklist</label><select id="sList" class="ctl" onchange="loadSaved()"></select></div>
+  </div>
+  <div id="sBody"></div>
+</section>
+
+<section id="pAdmin" class="pane hide">
+  <div class="hdr">
+    <div class="hrow">
+      <button class="ib" onclick="go('me')" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div style="flex:1;min-width:0">
+        <h1>Manage users</h1>
+        <div class="sub">Password and on/off</div>
+      </div>
+      <button class="ib" onclick="loadAdmin()" aria-label="Refresh">
+        <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6"/></svg></button>
+    </div>
+  </div>
+  <div id="adBody"></div>
+</section>
+
+<section id="pMe" class="pane hide">
+  <div class="hdr">
+    <div class="hrow">
+      <button class="ib" onclick="goHome()" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div style="flex:1;min-width:0"><h1>Account</h1></div>
+    </div>
+  </div>
+  <div id="meBody"></div>
+</section>
+
+<section id="pEdit" class="pane hide">
+  <div class="hdr">
+    <div class="hrow">
+      <button class="ib" onclick="go('me')" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div style="flex:1;min-width:0">
+        <h1>Edit checklist</h1>
+        <div class="sub" id="eSub"></div>
+      </div>
+      <button class="ib" onclick="openWork(null)" aria-label="Add work">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    </div>
+  </div>
+  <div class="bar">
+    <div class="f"><label>Checklist</label><select id="eList" class="ctl" onchange="loadWorks()"></select></div>
+  </div>
+  <div id="eBody"></div>
+</section>
+
+<nav class="tabs hide" id="tabs"></nav>
+<div id="sheet"></div>
+
+<script>
+var API = 'https://script.google.com/macros/s/AKfycbynigLnwV1U6SmD666rEo4FbuDLvs56SA4nCACkGqabl1Dp1wlmmIK2TdmSz4DdjSg/exec';
+
+var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+var ICO = {
+  factory: '<path d="M3 20h18M5 20V9l5 3V9l5 3V6l4 3v11"/>',
+  check: '<path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>',
+  people: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9"/>',
+  shield: '<path d="M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6l-8-4Z"/><path d="m9 12 2 2 4-4"/>',
+  box: '<path d="M20.6 8.4 12 3 3.4 8.4 12 14l8.6-5.6ZM3.4 8.4V16L12 21l8.6-5V8.4"/>',
+  tool: '<path d="M14.7 6.3a4 4 0 0 1 5 5L20 12l-8 8-4-4 8-8Z"/><path d="m3 21 4-4"/>',
+  edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>'
+};
+var REPORTS = [
+  { tab: 'paneFac', kind: 'factory', name: 'Factory Compliance', sub: 'Every checklist in one place', ico: 'factory' },
+  { tab: 'paneCp', kind: 'COMP', name: 'Compliance', sub: 'Month, week and department wise', ico: 'check' },
+  { tab: 'paneHr', kind: 'HR', name: 'HR Compliance', sub: 'Month, week and department wise', ico: 'people' },
+  { tab: 'paneQd', kind: 'QMSD', name: 'QMS Date Wise', sub: 'Month, week and department wise', ico: 'shield' },
+  { tab: 'paneQs', kind: 'QMSS', name: 'QMS SRN Wise', sub: 'Every SRN checked in the month', ico: 'box' },
+  { tab: 'paneTr', kind: 'TECHR', name: 'Tech Record', sub: 'Month, week and department wise', ico: 'tool' },
+  { tab: 'paneTe', kind: 'TECHE', name: 'Tech Equipment', sub: 'Month, week and department wise', ico: 'tool' }
+];
+
+var TOKEN = localStorage.getItem('cc_token') || '';
+var USER = null;
+var PICK = null;
+var LISTS = [];
+var LIST = '';
+var MASTER = null;
+var DEPS = [];
+var CUR = 0;
+var HOME = 'today';
+var SAVED = null;
+var REP = null;
+var RY = 0;
+var RM = 0;
+var WORKS = null;
+var HOMEDATA = null;
+var ADMINS = [];
+var BEAT = null;
+var USERS = [];
+var PICK = null;
+var SRVVER = '';
+var APPVER = '2026-08-29-g';
+
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function q(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+function p2(n) { return n < 10 ? '0' + n : '' + n; }
+function today() {
+  var d = new Date();
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+}
+function fmt(v) { return (v === '' || v === null || isNaN(v)) ? 'N/A' : Number(v).toFixed(2); }
+function dmy(v) {
+  var s = String(v == null ? '' : v).trim();
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3] + '-' + m[2] + '-' + m[1];
+  m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if (m) return p2(Number(m[1])) + '-' + p2(Number(m[2])) + '-' + m[3];
+  return s;
+}
+function cl(v) {
+  if (v === '' || v === null || isNaN(v)) return '';
+  return v >= 90 ? 'g' : (v >= 75 ? 'a' : 'b');
+}
+function ini(name) {
+  var s = String(name || '').replace(/^[A-Za-z]{2}\d+-/, '').trim();
+  var w = s.split(/\s+/);
+  return ((w[0] || '?').charAt(0) + (w[1] || '').charAt(0)).toUpperCase();
+}
+function ring(v) {
+  var pct = (v === '' || v === null || isNaN(v)) ? 0 : Math.max(0, Math.min(100, v));
+  var c = (v === '' || v === null || isNaN(v)) ? 'rgba(255,255,255,.28)'
+    : (v >= 90 ? '#2ecc94' : (v >= 75 ? '#e5b53f' : '#f07061'));
+  var L = 2 * Math.PI * 28;
+  return '<svg class="ring" viewBox="0 0 68 68"><circle class="bg" cx="34" cy="34" r="28"></circle>' +
+    '<circle cx="34" cy="34" r="28" stroke="' + c + '" stroke-dasharray="' +
+    (L * pct / 100).toFixed(1) + ' ' + L.toFixed(1) + '"></circle></svg>';
+}
+function sp(y, n, w) {
+  var t = y + n + w;
+  if (!t) return '';
+  return '<div class="sp"><i class="y" style="width:' + (y * 100 / t) + '%"></i>' +
+    '<i class="n" style="width:' + (n * 100 / t) + '%"></i>' +
+    '<i class="w" style="width:' + (w * 100 / t) + '%"></i></div>';
+}
+function cv() { return '<span class="cv"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>'; }
+function skel(n) {
+  var h = '';
+  for (var i = 0; i < (n || 4); i++) h += '<div class="sk"></div>';
+  return h;
+}
+function busy(on, msg) {
+  var el = $('busyBox');
+  if (on) {
+    if (el) return;
+    var d = document.createElement('div');
+    d.className = 'busy';
+    d.id = 'busyBox';
+    d.innerHTML = '<div>' + esc(msg || 'Loading') + '</div>';
+    document.body.appendChild(d);
+  } else if (el) { el.remove(); }
+}
+function toast(msg, bad) {
+  var t = document.createElement('div');
+  t.className = 'toast' + (bad ? ' e' : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function () { t.remove(); }, 3200);
+}
+function splitWork(t) {
+  var s = String(t || '');
+  var m = s.match(/[\u0900-\u097F]/);
+  if (m && m.index > 0) {
+    return {
+      en: s.substring(0, m.index).replace(/[\s\/|.\-]+$/, '').trim(),
+      hi: s.substring(m.index).trim()
+    };
+  }
+  return { en: s, hi: '' };
+}
+function closeSheet() { $('sheet').innerHTML = ''; }
+
+function api(action, body) {
+  var p = body || {};
+  p.action = action;
+  if (TOKEN) p.token = TOKEN;
+  return fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(p)
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.ok) throw new Error(d.error || 'Something went wrong.');
+    return d;
+  });
+}
+
+function fail(e) {
+  busy(false);
+  if (/sign in|switched off|password was changed/i.test(e.message)) {
+    localStorage.removeItem('cc_token');
+    TOKEN = '';
+    USER = null;
+    $('tabs').classList.add('hide');
+    showLogin(e.message);
+    return;
+  }
+  toast(e.message, true);
+}
+
+function only(id) {
+  var all = ['pUser', 'pPass', 'pHome', 'pToday', 'pDept', 'pReview', 'pHub', 'pRep',
+    'pDrill', 'pSaved', 'pMe', 'pEdit', 'pAdmin'];
+  for (var i = 0; i < all.length; i++) $(all[i]).classList.toggle('hide', all[i] !== id);
+  window.scrollTo(0, 0);
+}
+
+function showLogin(msg) {
+  showUsers(msg);
+}
+
+function showUsers(msg) {
+  stopBeat();
+  only('pUser');
+  closeSheet();
+  TOKEN = '';
+  if (msg) {
+    $('uErr').textContent = msg;
+    $('uErr').classList.remove('hide');
+  } else {
+    $('uErr').classList.add('hide');
+  }
+  $('uList').innerHTML = '<div style="color:#8ea2b6;font-size:13px">Loading names…</div>';
+  api('users', {}).then(function (d) {
+    USERS = d.users || [];
+    var h = '';
+    for (var i = 0; i < USERS.length; i++) {
+      h += '<button class="ub" onclick="choose(' + i + ')">' +
+        '<span class="av">' + esc(ini(USERS[i].name)) + '</span>' +
+        '<span style="flex:1;min-width:0"><b>' + esc(USERS[i].name) + '</b>' +
+        '<span class="d">' + esc(USERS[i].designation || USERS[i].email) + '</span></span></button>';
+    }
+    $('uList').innerHTML = h || '<div style="color:#8ea2b6;font-size:13px">' +
+      'No one in the ACCESS sheet has app access yet.</div>';
+  }).catch(function (e) {
+    $('uList').innerHTML = '';
+    $('uErr').textContent = e.message;
+    $('uErr').classList.remove('hide');
+  });
+}
+
+function choose(i) {
+  PICK = USERS[i];
+  $('pAv').textContent = ini(PICK.name);
+  $('pName').textContent = PICK.name;
+  $('pDes').textContent = PICK.designation || PICK.email;
+  $('pIn').value = '';
+  setPwVisible(false);
+  $('pErr').classList.add('hide');
+  only('pPass');
+  setTimeout(function () { $('pIn').focus(); }, 250);
+}
+
+function setPwVisible(on) {
+  $('pIn').type = on ? 'text' : 'password';
+  $('eyeOn').classList.toggle('hide', on);
+  $('eyeOff').classList.toggle('hide', !on);
+}
+
+function togglePw() {
+  setPwVisible($('pIn').type === 'password');
+}
+
+function doLogin() {
+  var pw = $('pIn').value;
+  if (!PICK) { showUsers(''); return; }
+  if (!pw) { pErr('Enter your password.'); return; }
+  busy(true, 'Signing in');
+  TOKEN = '';
+  api('login', { email: PICK.email, password: pw }).then(function (d) {
+    TOKEN = d.token;
+    USER = d.user;
+    localStorage.setItem('cc_token', TOKEN);
+    localStorage.setItem('cc_user', PICK.email);
+    $('pIn').value = '';
+    return api('boot', {});
+  }).then(function (b) {
+    busy(false);
+    start(b);
+  }).catch(function (e) {
+    busy(false);
+    pErr(e.message);
+  });
+}
+
+function pErr(m) {
+  $('pErr').textContent = m;
+  $('pErr').classList.remove('hide');
+}
+
+function stopBeat() {
+  if (BEAT) {
+    clearInterval(BEAT);
+    BEAT = null;
+  }
+}
+
+function startBeat() {
+  stopBeat();
+  BEAT = setInterval(function () {
+    if (!TOKEN || document.hidden) return;
+    api('me', {}).then(function (d) {
+      USER = d.user;
+    }).catch(function (e) {
+      if (/sign in|switched off|password was changed/i.test(e.message)) {
+        stopBeat();
+        localStorage.removeItem('cc_token');
+        TOKEN = '';
+        USER = null;
+        $('tabs').classList.add('hide');
+        showLogin(e.message);
+      }
+    });
+  }, 60000);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && TOKEN) {
+      api('me', {}).then(function (d) {
+        USER = d.user;
+      }).catch(function (e) {
+        if (/sign in|switched off|password was changed/i.test(e.message)) {
+          stopBeat();
+          localStorage.removeItem('cc_token');
+          TOKEN = '';
+          USER = null;
+          $('tabs').classList.add('hide');
+          showLogin(e.message);
+        }
+      });
+    }
+  });
+}
+
+function signOut() {
+  stopBeat();
+  api('logout', {}).catch(function () { });
+  TOKEN = '';
+  USER = null;
+  localStorage.removeItem('cc_token');
+  $('tabs').classList.add('hide');
+  showLogin('');
+}
+
+function myReports() {
+  var o = [];
+  for (var i = 0; i < REPORTS.length; i++) {
+    if (USER.tabs.indexOf(REPORTS[i].tab) !== -1) o.push(REPORTS[i]);
+  }
+  return o;
+}
+
+function buildTabs() {
+  var t = [{ id: 'home', name: 'Home', ico: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>' }];
+  if (USER.tabs.indexOf('paneEntry') !== -1) {
+    t.push({ id: 'today', name: 'Entry', ico: ICO.edit });
+  }
+  if (myReports().length) {
+    t.push({ id: 'hub', name: 'Reports', ico: '<path d="M3 20h18M6 16V9M11 16V5M16 16v-4M21 16v-7"/>' });
+  }
+  if (USER.tabs.indexOf('paneList') !== -1) {
+    t.push({ id: 'saved', name: 'Saved', ico: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>' });
+  }
+  t.push({ id: 'me', name: 'Account', ico: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8"/>' });
+  var h = '';
+  for (var i = 0; i < t.length; i++) {
+    h += '<button id="tb_' + t[i].id + '" onclick="go(\'' + t[i].id + '\')">' +
+      '<svg viewBox="0 0 24 24">' + t[i].ico + '</svg>' + t[i].name + '</button>';
+  }
+  $('tabs').innerHTML = h;
+  $('tabs').classList.remove('hide');
+  HOME = t[0].id;
+}
+
+function mark(id) {
+  var b = $('tabs').querySelectorAll('button');
+  for (var i = 0; i < b.length; i++) b[i].className = (b[i].id === 'tb_' + id) ? 'on' : '';
+}
+
+function goHome() { go(HOME); }
+function toToday() { renderToday(); go('today'); }
+
+function go(p) {
+  closeSheet();
+  if (p === 'home') { only('pHome'); mark('home'); if (!HOMEDATA) loadHome(); }
+  else if (p === 'today') { only('pToday'); mark('today'); }
+  else if (p === 'dept') { only('pDept'); mark('today'); }
+  else if (p === 'review') { only('pReview'); mark('today'); renderReview(); }
+  else if (p === 'hub') { only('pHub'); mark('hub'); renderHub(); }
+  else if (p === 'rep') { only('pRep'); mark('hub'); }
+  else if (p === 'drill') { only('pDrill'); mark('hub'); }
+  else if (p === 'saved') { only('pSaved'); mark('saved'); if (!SAVED) loadSaved(); }
+  else if (p === 'me') { only('pMe'); mark('me'); renderMe(); }
+  else if (p === 'edit') { only('pEdit'); mark('me'); }
+  else if (p === 'admin') { only('pAdmin'); mark('me'); loadAdmin(); }
+}
+
+function start(boot) {
+  buildTabs();
+  startBeat();
+  $('tAv').textContent = ini(USER.name);
+  $('hAv').textContent = ini(USER.name);
+  $('hoAv').textContent = ini(USER.name);
+  $('hSub').textContent = USER.name;
+  $('hoHi').textContent = greet() + ', ' + shortName(USER.name);
+  SRVVER = boot.version || '';
+  LISTS = boot.checklists || [];
+  var h = '';
+  for (var i = 0; i < LISTS.length; i++) {
+    h += '<option value="' + LISTS[i].key + '">' + esc(LISTS[i].label) + '</option>';
+  }
+  $('tList').innerHTML = h;
+  $('sList').innerHTML = h;
+  $('eList').innerHTML = h;
+  $('tDay').value = boot.today;
+  var n = new Date();
+  RY = n.getFullYear();
+  RM = n.getMonth() + 1;
+  if (!LISTS.length) {
+    LIST = '';
+    $('tBody').innerHTML = '<div class="empty">No checklist is given to you yet.<br>' +
+      'Ask the MIS team to add one in the ACCESS sheet.</div>';
+    $('tInfo').textContent = '';
+  } else {
+    LIST = LISTS[0].key;
+    if (boot.master) {
+      MASTER = boot.master;
+      applyMaster();
+      if (boot.day) {
+        buildDeps(boot.day.departments || []);
+        $('tSub').textContent = MASTER.label + '  ·  ' + dmy(boot.today);
+        renderToday();
+      } else {
+        refreshDay();
+      }
+    } else if (USER.tabs.indexOf('paneEntry') !== -1) {
+      pickList();
+    }
+  }
+  go(HOME);
+}
+
+function applyMaster() {
+  $('tSrnBar').classList.toggle('hide', !MASTER.srn);
+  if (MASTER.srn) {
+    var h = '<option value="">Select SRN</option>';
+    var o = MASTER.orders || [];
+    for (var i = 0; i < o.length; i++) {
+      h += '<option value="' + esc(o[i].srn) + '">' + esc(o[i].srn) +
+        (o[i].style ? ' — ' + esc(o[i].style) : '') + '</option>';
+    }
+    $('tSrn').innerHTML = h;
+  }
+}
+
+function greet() {
+  var h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function shortName(n) {
+  var s = String(n || '').replace(/^[A-Za-z]{2}\d+-/, '').trim();
+  return s.split(/\s+/)[0] || s;
+}
+
+function delta(a, b) {
+  if (!isFinite(a) || !isFinite(b) || a === '' || b === '') return '';
+  var d = Math.round((a - b) * 100) / 100;
+  if (!d) return 'same as last month';
+  return (d > 0 ? '\u25b2 ' : '\u25bc ') + Math.abs(d).toFixed(2) + ' vs last month';
+}
+
+function loadHome() {
+  $('hoBody').innerHTML = skel(5);
+  api('home', {}).then(function (d) {
+    HOMEDATA = d;
+    renderHome(d);
+  }).catch(function (e) {
+    $('hoBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  });
+}
+
+function renderHome(d) {
+  var t = d.totals;
+  $('hoSub').textContent = d.range.label + '  ·  ' + (USER.designation || USER.email);
+  var h = '<div class="hero">' + ring(t.officer) +
+    '<div style="flex:1;min-width:0"><div class="k">Officer score</div>' +
+    '<div class="v">' + fmt(t.officer) + '%</div>' +
+    '<div class="m">' + esc(delta(t.officer, t.prevOfficer) || (t.yes + ' yes of ' + t.planned + ' work')) +
+    '</div></div></div>';
+  h += '<div class="kpi">' +
+    '<div class="b"><div class="k">Total work</div><div class="v">' + t.planned + '</div></div>' +
+    '<div class="b"><div class="k">Yes</div><div class="v g">' + t.yes + '</div></div>' +
+    '<div class="b"><div class="k">No</div><div class="v b">' + t.no + '</div></div>' +
+    '<div class="b"><div class="k">Not checked</div><div class="v a">' + t.wnd + '</div></div></div>';
+
+  var canEnter = USER.tabs.indexOf('paneEntry') !== -1;
+  h += '<div class="sec">Today  ·  ' + esc(dmy(d.today.date)) + '</div><div class="list">';
+  h += '<div class="it"><span class="dot ' +
+    (d.today.done >= d.today.total ? 'ok' : (d.today.done ? 'half' : '')) + '">' +
+    (d.today.done >= d.today.total ? '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>' : '') +
+    '</span><div style="flex:1;min-width:0"><div class="n">All checklists</div>' +
+    '<div class="m">' + d.today.done + ' of ' + d.today.total + ' department visits done</div>' +
+    '<div class="sp"><i class="y" style="width:' +
+    (d.today.total ? Math.min(100, d.today.done * 100 / d.today.total) : 0) + '%"></i></div></div></div>';
+  for (var i = 0; i < d.checklists.length; i++) {
+    var c = d.checklists[i];
+    var full = c.todayDone >= c.todayTotal && c.todayTotal;
+    h += '<div class="it"' + (canEnter ? ' onclick="jumpEntry(\'' + q(c.key) + '\')"' : '') + '>' +
+      '<span class="dot ' + (full ? 'ok' : (c.todayDone ? 'half' : '')) + '">' +
+      (full ? '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>' : '') + '</span>' +
+      '<div style="flex:1;min-width:0"><div class="n">' + esc(c.label) + '</div>' +
+      '<div class="m">' + (c.todayDone ? c.todayDone + ' of ' + c.todayTotal + ' done today' : 'Not started today') +
+      '  ·  month ' + fmt(c.officer) + '%</div></div>' +
+      (canEnter ? cv() : '') + '</div>';
+  }
+  h += '</div>';
+
+  h += '<div id="hoFocus"></div>';
+
+  if (d.weak.length) {
+    h += '<div class="sec">Needs attention this month</div><div class="list">';
+    for (var w = 0; w < d.weak.length; w++) {
+      var x = d.weak[w];
+      h += '<div class="it"><div style="flex:1;min-width:0">' +
+        '<div class="n">' + esc(x.department) + '</div>' +
+        '<div class="m">' + esc(x.checklist) + '  ·  ' + x.no + ' no of ' + x.planned + ' work</div></div>' +
+        '<div class="r"><div class="num ' + cl(x.score) + '">' + fmt(x.score) + '</div></div></div>';
+    }
+    h += '</div>';
+  }
+
+  if (d.recent.length) {
+    h += '<div class="sec">Recently saved</div><div class="list">';
+    for (var r = 0; r < d.recent.length; r++) {
+      var e = d.recent[r];
+      h += '<div class="it"><div style="flex:1;min-width:0">' +
+        '<div class="n">' + esc(e.department) + '</div>' +
+        '<div class="m">' + esc(dmy(e.date)) + '  ·  ' + esc(e.checklist) +
+        (e.srn ? '  ·  ' + esc(e.srn) : '') + '  ·  ' + e.planned + ' work</div>' +
+        sp(e.yes, e.no, e.wnd) + '</div>' +
+        '<div class="r"><div class="num ' + cl(e.score) + '">' + fmt(e.score) + '</div></div></div>';
+    }
+    h += '</div>';
+  }
+  $('hoBody').innerHTML = h;
+  loadFocus();
+}
+
+function loadFocus() {
+  if (!myReports().length) return;
+  var box = $('hoFocus');
+  if (!box) return;
+  box.innerHTML = '<div class="sec">Focus works</div>' + skel(2);
+  api('focus', {}).then(function (d) {
+    var h = '';
+    for (var g = 0; g < d.groups.length; g++) {
+      var grp = d.groups[g];
+      h += '<div class="sec">Top 5 in ' + esc(grp.label) + '</div><div class="list">';
+      if (!grp.works.length) {
+        h += '<div class="it"><div class="m" style="margin:0">' +
+          'Nothing failed in ' + esc(d.month) + '.</div></div>';
+      }
+      for (var i = 0; i < grp.works.length; i++) {
+        var w = grp.works[i];
+        h += '<div class="it"><span class="ic" style="background:var(--bad-soft);color:var(--bad);' +
+          'font-weight:700;font-size:15px">' + w.no + '</span>' +
+          '<div style="flex:1;min-width:0">' +
+          '<div class="n" style="font-weight:400;font-size:13.5px">' + esc(splitWork(w.work).en) + '</div>' +
+          '<div class="m">' + esc(w.departments.slice(0, 3).join(', ')) +
+          (w.departments.length > 3 ? ' +' + (w.departments.length - 3) : '') +
+          (w.doer ? '  ·  ' + esc(w.doer) : '') + '</div></div>' +
+          '<div class="r"><div class="m" style="margin:0">of ' + w.checked + '</div></div></div>';
+      }
+      h += '</div>';
+    }
+    box.innerHTML = h;
+  }).catch(function () {
+    box.innerHTML = '';
+  });
+}
+
+function jumpEntry(key) {
+  $('tList').value = key;
+  go('today');
+  pickList();
+}
+
+function renderMe() {
+  var reps = myReports();
+  var h = '<div class="hero"><span class="av" style="width:56px;height:56px;font-size:19px">' +
+    esc(ini(USER.name)) + '</span><div style="flex:1;min-width:0">' +
+    '<div class="v" style="font-size:20px">' + esc(USER.name) + '</div>' +
+    '<div class="m">' + esc(USER.designation || '') +
+    (USER.department ? '  ·  ' + esc(USER.department) : '') + '</div>' +
+    '<div class="m">' + esc(USER.email) + '</div></div></div>';
+  if (USER.tabs.indexOf('paneEntry') !== -1) {
+    h += '<div class="sec">Checklist</div><div class="list">' +
+      '<div class="it" onclick="openEdit()">' +
+      '<span class="ic"><svg viewBox="0 0 24 24">' + ICO.edit + '</svg></span>' +
+      '<div style="flex:1;min-width:0"><div class="n">Edit checklist</div>' +
+      '<div class="m">Add, change or remove work items</div></div>' + cv() + '</div></div>';
+  }
+  h += '<div class="sec">What you can open</div><div class="list">';
+  if (USER.tabs.indexOf('paneEntry') !== -1) h += '<div class="it"><div class="n">Data entry</div></div>';
+  if (USER.tabs.indexOf('paneList') !== -1) h += '<div class="it"><div class="n">Saved entries</div></div>';
+  for (var i = 0; i < reps.length; i++) {
+    h += '<div class="it"><div class="n">' + esc(reps[i].name) + '</div></div>';
+  }
+  if (USER.isAdmin) {
+    h += '<div class="sec">Admin</div><div class="list">' +
+      '<div class="it" onclick="go(\'admin\')">' +
+      '<span class="ic"><svg viewBox="0 0 24 24">' +
+      '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9"/>' +
+      '</svg></span><div style="flex:1;min-width:0"><div class="n">Manage users</div>' +
+      '<div class="m">Change password, switch account on or off</div></div>' + cv() + '</div></div>';
+  }
+  h += '<div class="sec">App</div><div class="list">' +
+    '<div class="it"><div style="flex:1;min-width:0"><div class="n">Version</div>' +
+    '<div class="m">App ' + esc(APPVER) + '  ·  Server ' + esc(SRVVER || 'unknown') + '</div></div>' +
+    (SRVVER && SRVVER !== APPVER
+      ? '<div class="r"><span class="pill a">Redeploy</span></div>'
+      : '<div class="r"><span class="pill">OK</span></div>') + '</div></div>' +
+    '<div style="padding:4px 14px 20px">' +
+    '<button class="btn w o" onclick="signOut()">Sign out</button></div>';
+  $('meBody').innerHTML = h;
+}
+
+function loadAdmin() {
+  $('adBody').innerHTML = skel(4);
+  api('adminUsers', {}).then(function (d) {
+    ADMINS = d.users;
+    var h = '<div class="sec">' + d.users.length + ' user(s)</div><div class="list">';
+    for (var i = 0; i < d.users.length; i++) {
+      var u = d.users[i];
+      h += '<div class="it" onclick="openUser(' + i + ')">' +
+        '<span class="av" style="background:' + (u.active ? 'var(--blue)' : '#9aa8b6') + '">' +
+        esc(ini(u.name)) + '</span>' +
+        '<div style="flex:1;min-width:0"><div class="n">' + esc(u.name) +
+        (u.active ? '' : ' <span class="pill a">Off</span>') + '</div>' +
+        '<div class="m">' + esc(u.email) + '</div>' +
+        '<div class="m">' + esc(u.department || '') + '  ·  ' + u.tabs + ' tab(s)  ·  ' +
+        (u.hasPassword ? 'password set' : 'no password') + '</div></div>' + cv() + '</div>';
+    }
+    $('adBody').innerHTML = h + '</div>';
+  }).catch(function (e) {
+    $('adBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  });
+}
+
+function openUser(i) {
+  var u = ADMINS[i];
+  var h = '<div class="mask" onclick="if(event.target===this)closeSheet()"><div class="sheet">' +
+    '<div class="sh"><h3>' + esc(u.name) + '</h3>' +
+    '<button class="ib" style="background:var(--soft)" onclick="closeSheet()" aria-label="Close">' +
+    '<svg viewBox="0 0 24 24" style="stroke:var(--ink2)"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+    '<div class="sb">' +
+    '<div class="m" style="color:var(--ink3);margin-bottom:16px">' + esc(u.email) + '</div>' +
+    '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">New password</label>' +
+    '<input class="ctl" id="npIn" type="text" placeholder="At least 4 characters">' +
+    '<div class="m" style="color:var(--ink3);margin-top:10px">' +
+    'Saving a new password signs this user out of every phone.</div>' +
+    '<button class="btn w" style="margin-top:14px" onclick="setUserPassword(\'' + q(u.email) + '\')">' +
+    'Save password</button>' +
+    '<div style="height:20px"></div>' +
+    '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">Account</label>' +
+    '<button class="btn w ' + (u.active ? 'd' : '') + '" onclick="setUserStatus(\'' + q(u.email) + '\',' +
+    (u.active ? 'false' : 'true') + ')">' +
+    (u.active ? 'Switch off this account' : 'Switch account back on') + '</button>' +
+    '<div class="m" style="color:var(--ink3);margin-top:10px">' +
+    (u.active
+      ? 'They will be signed out and cannot sign in again.'
+      : 'They will be able to sign in again.') + '</div>' +
+    '</div><div class="sf"><button class="btn o w" onclick="closeSheet()">Close</button></div>' +
+    '</div></div>';
+  $('sheet').innerHTML = h;
+}
+
+function setUserPassword(email) {
+  var pw = $('npIn').value.trim();
+  if (pw.length < 4) { toast('Password must be at least 4 characters.', true); return; }
+  busy(true, 'Saving password');
+  api('adminPassword', { email: email, password: pw }).then(function () {
+    busy(false);
+    closeSheet();
+    toast('Password changed. That user is now signed out everywhere.');
+    loadAdmin();
+  }).catch(function (e) { busy(false); toast(e.message, true); });
+}
+
+function setUserStatus(email, on) {
+  busy(true, on ? 'Switching on' : 'Switching off');
+  api('adminStatus', { email: email, active: on }).then(function () {
+    busy(false);
+    closeSheet();
+    toast(on ? 'Account switched on' : 'Account switched off and signed out');
+    loadAdmin();
+  }).catch(function (e) { busy(false); toast(e.message, true); });
+}
+
+function renderHub() {
+  var reps = myReports();
+  if (!reps.length) {
+    $('hBody').innerHTML = '<div class="empty">You do not have access to any report.</div>';
+    return;
+  }
+  var h = '<div class="sec">Choose a report</div><div class="list">';
+  for (var i = 0; i < reps.length; i++) {
+    h += '<div class="it" onclick="openReport(' + i + ')">' +
+      '<span class="ic"><svg viewBox="0 0 24 24">' + ICO[reps[i].ico] + '</svg></span>' +
+      '<div style="flex:1;min-width:0"><div class="n">' + esc(reps[i].name) + '</div>' +
+      '<div class="m">' + esc(reps[i].sub) + '</div></div>' + cv() + '</div>';
+  }
+  $('hBody').innerHTML = h + '</div>';
+}
+
+function openReport(i) {
+  REP = myReports()[i];
+  $('repName').textContent = REP.name;
+  $('repSub').textContent = REP.sub;
+  go('rep');
+  loadReport();
+}
+
+function stepMonth(n) {
+  RM += n;
+  if (RM > 12) { RM = 1; RY++; }
+  if (RM < 1) { RM = 12; RY--; }
+  loadReport();
+}
+
+function loadReport() {
+  $('repMon').textContent = MONTHS[RM - 1] + ' ' + RY;
+  $('repBody').innerHTML = skel(4);
+  api('report', { kind: REP.kind, year: RY, month: RM }).then(function (d) {
+    if (REP.kind === 'factory') repFactory(d.data);
+    else if (REP.kind === 'QMSS') repSrn(d.data);
+    else repChecklist(d.data);
+  }).catch(function (e) {
+    $('repBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  });
+}
+
+function repFactory(r) {
+  var t = r.totals;
+  var h = '<div class="hero">' + ring(t.deptScore) +
+    '<div style="flex:1;min-width:0"><div class="k">Dept score</div>' +
+    '<div class="v">' + fmt(t.deptScore) + '%</div>' +
+    '<div class="m">Officer score ' + fmt(t.score) + '%</div></div></div>';
+  h += '<div class="kpi">' +
+    '<div class="b"><div class="k">Work planned</div><div class="v">' + t.planned + '</div></div>' +
+    '<div class="b"><div class="k">Yes</div><div class="v g">' + t.yes + '</div></div>' +
+    '<div class="b"><div class="k">No</div><div class="v b">' + t.no + '</div></div>' +
+    '<div class="b"><div class="k">W.N.D</div><div class="v">' + t.wnd + '</div></div></div>';
+  h += '<div class="sec">Checklist score</div><div class="list">';
+  for (var i = 0; i < r.rows.length; i++) {
+    var x = r.rows[i];
+    h += '<div class="it"><div style="flex:1;min-width:0"><div class="n">' + esc(x.label) + '</div>' +
+      '<div class="m">' + x.reported + ' of ' + x.departments + ' dept  ·  ' + x.days +
+      ' days  ·  ' + x.planned + ' work</div>' + sp(x.yes, x.no, x.wnd) + '</div>' +
+      '<div class="r"><div class="num ' + cl(x.deptScore) + '">' + fmt(x.deptScore) + '</div>' +
+      '<div class="m">off ' + fmt(x.score) + '</div></div></div>';
+  }
+  h += '</div><div class="sec">Week wise</div><div class="list">';
+  for (var w = 0; w < r.weeks.length; w++) {
+    var k = r.weeks[w];
+    h += '<div class="it"><div style="flex:1;min-width:0"><div class="n">' + esc(k.label) + '</div>' +
+      '<div class="m">' + k.planned + ' work planned</div></div>' +
+      '<div class="r"><div class="num ' + cl(k.deptScore) + '">' + fmt(k.deptScore) + '</div></div></div>';
+  }
+  $('repBody').innerHTML = h + '</div>';
+}
+
+function repChecklist(r) {
+  var t = r.totals;
+  if (!t.planned) {
+    $('repBody').innerHTML = '<div class="empty">Nothing was saved in ' + esc(r.range.label) + '.</div>';
+    return;
+  }
+  var h = '<div class="hero">' + ring(t.score) +
+    '<div style="flex:1;min-width:0"><div class="k">Dept score</div>' +
+    '<div class="v">' + fmt(t.score) + '%</div>' +
+    '<div class="m">Officer score ' + fmt(t.officerScore) + '%</div></div></div>';
+  h += '<div class="kpi">' +
+    '<div class="b"><div class="k">Work planned</div><div class="v">' + t.planned + '</div></div>' +
+    '<div class="b"><div class="k">Yes</div><div class="v g">' + t.yes + '</div></div>' +
+    '<div class="b"><div class="k">No</div><div class="v b">' + t.no + '</div></div>' +
+    '<div class="b"><div class="k">W.N.D</div><div class="v">' + t.wnd + '</div></div></div>';
+  h += '<div class="sec">Week wise</div><div class="list">';
+  for (var w = 0; w < r.weeks.length; w++) {
+    var k = r.weeks[w];
+    h += '<div class="it"><div style="flex:1;min-width:0"><div class="n">' + esc(k.label) + '</div>' +
+      '<div class="m">' + k.planned + ' work  ·  ' + k.no + ' no  ·  ' + k.wnd + ' W.N.D</div>' +
+      sp(k.yes, k.no, k.wnd) + '</div>' +
+      '<div class="r"><div class="num ' + cl(k.score) + '">' + fmt(k.score) + '</div></div></div>';
+  }
+  h += '</div><div class="sec">Department wise  ·  tap for detail</div><div class="list">';
+  for (var d = 0; d < r.departments.length; d++) {
+    var x = r.departments[d];
+    h += '<div class="it" onclick="openDrill(\'' + q(x.department) + '\')">' +
+      '<div style="flex:1;min-width:0"><div class="n">' + esc(x.department) + '</div>' +
+      '<div class="m">' + x.days + ' days  ·  ' + x.planned + ' work  ·  ' + x.no + ' no</div>' +
+      sp(x.yes, x.no, x.wnd) + '</div>' +
+      '<div class="r"><div class="num ' + cl(x.score) + '">' + fmt(x.score) + '</div></div>' + cv() + '</div>';
+  }
+  $('repBody').innerHTML = h + '</div>';
+}
+
+function repSrn(r) {
+  var t = r.totals;
+  if (!r.rows.length) {
+    $('repBody').innerHTML = '<div class="empty">No SRN was checked in ' + esc(r.range.label) + '.</div>';
+    return;
+  }
+  var h = '<div class="hero">' + ring(t.score) +
+    '<div style="flex:1;min-width:0"><div class="k">Dept score</div>' +
+    '<div class="v">' + fmt(t.score) + '%</div>' +
+    '<div class="m">' + t.srns + ' SRN checked</div></div></div>';
+  h += '<div class="sec">SRN wise  ·  tap for every check</div><div class="list">';
+  for (var i = 0; i < r.rows.length; i++) {
+    var x = r.rows[i];
+    h += '<div class="it" onclick="openSrn(\'' + q(x.srn) + '\')">' +
+      '<div style="flex:1;min-width:0"><div class="n">' + esc(x.srn) +
+      (x.style ? '  ·  ' + esc(x.style) : '') + '</div>' +
+      '<div class="m">' + esc(dmy(x.lastDate)) + '  ·  ' + x.planned + ' work  ·  ' + x.no + ' no' +
+      (x.pastMonths ? '  ·  earlier ' + fmt(x.pastScore) : '') + '</div>' +
+      sp(x.yes, x.no, x.wnd) + '</div>' +
+      '<div class="r"><div class="num ' + cl(x.score) + '">' + fmt(x.score) + '</div></div>' + cv() + '</div>';
+  }
+  $('repBody').innerHTML = h + '</div>';
+}
+
+function openDrill(dept) {
+  $('drName').textContent = dept;
+  $('drSub').textContent = REP.name + '  ·  ' + MONTHS[RM - 1] + ' ' + RY;
+  $('drBody').innerHTML = skel(3);
+  go('drill');
+  api('reportDept', { kind: REP.kind, department: dept, year: RY, month: RM }).then(function (d) {
+    var r = d.data;
+    var t = r.totals;
+    var h = '<div class="hero">' + ring(t.score) +
+      '<div style="flex:1;min-width:0"><div class="k">Dept score</div>' +
+      '<div class="v">' + fmt(t.score) + '%</div>' +
+      '<div class="m">' + t.days + ' days  ·  ' + t.planned + ' work</div></div></div>';
+    if (r.works && r.works.length) {
+      h += '<div class="sec">Work list</div><div class="list">';
+      for (var w = 0; w < r.works.length; w++) {
+        var x = r.works[w];
+        h += '<div class="it"><div style="flex:1;min-width:0">' +
+          '<div class="n" style="font-weight:400;font-size:13.5px">' + esc(splitWork(x.work).en) + '</div>' +
+          '<div class="m">' + esc(x.doer) + '  ·  checked ' + x.checked +
+          (x.no ? '  ·  ' + x.no + ' no' : '') + '</div></div>' +
+          '<div class="r"><div class="num ' + cl(x.score) + '">' + fmt(x.score) + '</div></div></div>';
+      }
+      h += '</div>';
+    }
+    h += '<div class="sec">Date wise</div><div class="list">';
+    for (var i = 0; i < r.rows.length; i++) {
+      var v = r.rows[i];
+      h += '<div class="it"><div style="flex:1;min-width:0">' +
+        '<div class="n">' + esc(dmy(v.date)) + '  ·  ' + esc(v.day.substring(0, 3)) + '</div>' +
+        '<div class="m">' + v.planned + ' work  ·  ' + v.no + ' no  ·  ' + v.wnd + ' W.N.D</div>' +
+        (v.failed.length ? '<div class="m b">' + esc(v.failed.map(function (f) {
+          return splitWork(f).en;
+        }).join('  ·  ')) + '</div>' : '') + sp(v.yes, v.no, v.wnd) + '</div>' +
+        '<div class="r"><div class="num ' + cl(v.score) + '">' + fmt(v.score) + '</div></div></div>';
+    }
+    $('drBody').innerHTML = h + '</div>';
+  }).catch(function (e) {
+    $('drBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  });
+}
+
+function openSrn(srn) {
+  $('drName').textContent = srn;
+  $('drSub').textContent = 'Every check of this SRN';
+  $('drBody').innerHTML = skel(3);
+  go('drill');
+  api('reportSrn', { srn: srn }).then(function (d) {
+    var r = d.data;
+    var t = r.totals;
+    var h = '<div class="hero">' + ring(t.score) +
+      '<div style="flex:1;min-width:0"><div class="k">Dept score</div>' +
+      '<div class="v">' + fmt(t.score) + '%</div>' +
+      '<div class="m">' + esc(r.style || 'Style not found') + '</div></div></div>';
+    h += '<div class="sec">All checks</div><div class="list">';
+    for (var i = 0; i < r.rows.length; i++) {
+      var x = r.rows[i];
+      h += '<div class="it"><div style="flex:1;min-width:0">' +
+        '<div class="n">' + esc(x.department) + '</div>' +
+        '<div class="m">' + esc(dmy(x.date)) + '  ·  ' + x.planned + ' work  ·  ' + x.no + ' no</div>' +
+        (x.failed.length ? '<div class="m b">' + esc(x.failed.map(function (f) {
+          return splitWork(f).en;
+        }).join('  ·  ')) + '</div>' : '') + sp(x.yes, x.no, x.wnd) + '</div>' +
+        '<div class="r"><div class="num ' + cl(x.score) + '">' + fmt(x.score) + '</div></div></div>';
+    }
+    $('drBody').innerHTML = h + '</div>';
+  }).catch(function (e) {
+    $('drBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  });
+}
+
+function pickList() {
+  LIST = $('tList').value;
+  if (!LIST) return;
+  MASTER = null;
+  $('tBody').innerHTML = skel(5);
+  api('master', { checklist: LIST }).then(function (d) {
+    MASTER = d;
+    applyMaster();
+    refreshDay();
+  }).catch(fail);
+}
+
+function refreshDay() {
+  if (!MASTER) return;
+  var date = $('tDay').value;
+  var srn = MASTER.srn ? $('tSrn').value : '';
+  $('tSub').textContent = MASTER.label + '  ·  ' + dmy(date);
+  if (MASTER.srn && !srn) {
+    DEPS = [];
+    $('tBody').innerHTML = '<div class="empty">Select an SRN to open the checklist.</div>';
+    $('tInfo').textContent = '';
+    return;
+  }
+  $('tBody').innerHTML = skel(5);
+  api('day', { checklist: LIST, date: date, srn: srn }).then(function (d) {
+    buildDeps(d.departments || []);
+    renderToday();
+  }).catch(fail);
+}
+
+function buildDeps(saved) {
+  var map = {};
+  for (var i = 0; i < saved.length; i++) {
+    var rows = saved[i].rows || [];
+    map[saved[i].department] = {};
+    for (var j = 0; j < rows.length; j++) {
+      map[saved[i].department][String(rows[j].work).toLowerCase()] = rows[j];
+    }
+  }
+  DEPS = [];
+  var src = MASTER.departments || [];
+  for (var d = 0; d < src.length; d++) {
+    var dep = src[d];
+    var out = [];
+    var have = map[dep.department] || {};
+    for (var w = 0; w < dep.works.length; w++) {
+      var prev = have[dep.works[w].work.toLowerCase()] || {};
+      out.push({
+        work: dep.works[w].work,
+        row: dep.works[w].row || 0,
+        doer: prev.supervisor || dep.works[w].doer || '',
+        baseDoer: dep.works[w].doer || '',
+        status: prev.status || '',
+        photo: prev.photo || '',
+        note: prev.note || ''
+      });
+    }
+    DEPS.push({ department: dep.department, rows: out, saved: !!map[dep.department], dirty: false });
+  }
+}
+
+function stats(d) {
+  var y = 0, n = 0, w = 0, rows = DEPS[d].rows;
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].status === 'Yes') y++;
+    else if (rows[i].status === 'No') n++;
+    else if (rows[i].status === 'W.N.D') w++;
+  }
+  return {
+    yes: y, no: n, wnd: w, marked: y + n + w, all: rows.length,
+    score: (y + n) ? Math.round(y * 10000 / (y + n)) / 100 : ''
+  };
+}
+
+function totals() {
+  var t = { yes: 0, no: 0, wnd: 0, marked: 0, all: 0, ready: 0, pending: 0 };
+  for (var d = 0; d < DEPS.length; d++) {
+    var s = stats(d);
+    t.yes += s.yes; t.no += s.no; t.wnd += s.wnd;
+    t.marked += s.marked; t.all += s.all;
+    if (s.marked) t.ready++;
+    if (s.marked && (!DEPS[d].saved || DEPS[d].dirty)) t.pending++;
+  }
+  t.dept = (t.yes + t.no) ? Math.round(t.yes * 10000 / (t.yes + t.no)) / 100 : '';
+  t.off = t.marked ? Math.round(t.yes * 10000 / t.marked) / 100 : '';
+  return t;
+}
+
+function renderToday() {
+  var t = totals();
+  var h = '<div class="hero">' + ring(t.dept) +
+    '<div style="flex:1;min-width:0"><div class="k">Dept score</div>' +
+    '<div class="v">' + fmt(t.dept) + '%</div>' +
+    '<div class="m">' + t.ready + ' of ' + DEPS.length + ' departments started</div></div></div>';
+  h += '<div class="sec">Departments</div><div class="list">';
+  for (var d = 0; d < DEPS.length; d++) {
+    var s = stats(d);
+    var done = s.marked === s.all && s.all;
+    h += '<div class="it" onclick="openDept(' + d + ')">' +
+      '<span class="dot ' + (done ? 'ok' : (s.marked ? 'half' : '')) + '">' +
+      (done ? '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>' : '') + '</span>' +
+      '<div style="flex:1;min-width:0"><div class="n">' + esc(DEPS[d].department) +
+      (DEPS[d].dirty ? ' <span class="pill a">Not saved</span>'
+        : (DEPS[d].saved ? ' <span class="pill">Saved</span>' : '')) + '</div>' +
+      '<div class="m">' + (s.marked
+        ? s.marked + ' of ' + s.all + (s.no ? '  ·  ' + s.no + ' no' : '')
+        : 'Not started') + '</div></div>' +
+      '<div class="r">' + (s.marked ? '<div class="num ' + cl(s.score) + '">' + fmt(s.score) + '</div>' : '') + '</div>' +
+      cv() + '</div>';
+  }
+  $('tBody').innerHTML = h + '</div>';
+  $('tInfo').textContent = t.marked + ' of ' + t.all + ' marked' +
+    (t.pending ? '  ·  ' + t.pending + ' not saved' : '');
+}
+
+function openDept(d) {
+  CUR = d;
+  renderDept();
+  go('dept');
+}
+
+function renderDept() {
+  var dp = DEPS[CUR];
+  var s = stats(CUR);
+  $('dName').textContent = dp.department;
+  $('dSub').textContent = MASTER.label;
+  $('dScore').textContent = fmt(s.score) + '%';
+  $('dScore').className = 'num ' + cl(s.score);
+  $('dBar').style.width = (s.all ? s.marked * 100 / s.all : 0) + '%';
+  paintFoot(s);
+  var h = '';
+  for (var r = 0; r < dp.rows.length; r++) {
+    var w = dp.rows[r];
+    var p = splitWork(w.work);
+    h += '<div class="wk' + (w.status === 'No' ? ' no' : '') + '" id="wk' + r + '">' +
+      '<div class="hd"><span class="ix">' + (r + 1) + '</span><div style="flex:1;min-width:0">' +
+      '<div class="en">' + esc(p.en) + '</div>' +
+      (p.hi ? '<div class="hi">' + esc(p.hi) + '</div>' : '') +
+      '<button class="doer" onclick="openDoer(' + r + ')" id="dr' + r + '">' +
+      '<svg viewBox="0 0 24 24">' + ICO.edit + '</svg>' +
+      '<span id="drt' + r + '">' + esc(w.doer || 'Set person') + '</span></button>' +
+      '</div></div><div class="seg">' +
+      '<button id="b' + r + 'y" onclick="setSt(' + r + ',\'Yes\')">Yes</button>' +
+      '<button id="b' + r + 'n" onclick="setSt(' + r + ',\'No\')">No</button>' +
+      '<button id="b' + r + 'w" onclick="setSt(' + r + ',\'W.N.D\')">W.N.D</button></div>' +
+      '<div id="at' + r + '"></div></div>';
+  }
+  $('dWorks').innerHTML = h;
+  for (var i = 0; i < dp.rows.length; i++) paint(i);
+}
+
+function paint(r) {
+  var w = DEPS[CUR].rows[r];
+  $('b' + r + 'y').className = w.status === 'Yes' ? 'y' : '';
+  $('b' + r + 'n').className = w.status === 'No' ? 'n' : '';
+  $('b' + r + 'w').className = w.status === 'W.N.D' ? 'w' : '';
+  $('wk' + r).className = 'wk' + (w.status === 'No' ? ' no' : '');
+  $('drt' + r).textContent = w.doer || 'Set person';
+  var box = $('at' + r);
+  if (w.status !== 'No') { box.innerHTML = ''; return; }
+  var thumb = (w.photo && w.photo.indexOf('data:') === 0)
+    ? '<img src="' + w.photo + '" alt="">'
+    : '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+  box.innerHTML = '<label class="att">' + thumb +
+    '<b>' + (w.photo ? 'Photo attached' : 'Add photo') + '</b>' +
+    '<input type="file" accept="image/*" capture="environment" class="hide" onchange="pickPhoto(event,' + r + ')">' +
+    (w.photo ? '<span class="x" onclick="dropPhoto(event,' + r + ')">&times;</span>' : '') +
+    '</label><input class="nt" placeholder="Note (optional)" value="' + esc(w.note) +
+    '" oninput="setNote(' + r + ',this.value)">';
+}
+
+function openDoer(r) {
+  var w = DEPS[CUR].rows[r];
+  var pool = (MASTER.doers && MASTER.doers.length) ? MASTER.doers : [];
+  var h = '<div class="mask" onclick="if(event.target===this)closeSheet()"><div class="sheet">' +
+    '<div class="sh"><h3>Person for this work</h3>' +
+    '<button class="ib" style="background:var(--soft)" onclick="closeSheet()" aria-label="Close">' +
+    '<svg viewBox="0 0 24 24" style="stroke:var(--ink2)"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+    '<div class="sb"><input class="ctl" id="doerIn" placeholder="Type a name" value="' + esc(w.doer) + '">' +
+    '<div style="font-size:12px;color:var(--ink3);margin:14px 0 4px">Tap to pick</div>';
+  for (var i = 0; i < pool.length; i++) {
+    h += '<div class="opt" onclick="setDoerVal(\'' + q(pool[i]) + '\')">' + esc(pool[i]) + '</div>';
+  }
+  h += '</div><div class="sf"><button class="btn o" style="flex:1" onclick="closeSheet()">Cancel</button>' +
+    '<button class="btn" style="flex:1" onclick="saveDoer(' + r + ')">Save</button></div></div></div>';
+  $('sheet').innerHTML = h;
+}
+
+function setDoerVal(v) { $('doerIn').value = v; }
+
+function saveDoer(r) {
+  var v = $('doerIn').value.trim();
+  if (!v) { toast('Enter a name.', true); return; }
+  var w = DEPS[CUR].rows[r];
+  w.doer = v;
+  closeSheet();
+  paint(r);
+  if (!w.row) { toast('Saved for this entry only.'); return; }
+  api('setDoer', { checklist: LIST, row: w.row, doer: v }).then(function () {
+    w.baseDoer = v;
+    if (MASTER.doers && MASTER.doers.indexOf(v) === -1) MASTER.doers.push(v);
+    toast('Person updated in the checklist');
+  }).catch(function (e) { toast(e.message, true); });
+}
+
+function setSt(r, v) {
+  var w = DEPS[CUR].rows[r];
+  w.status = w.status === v ? '' : v;
+  if (w.status !== 'No') { w.photo = ''; w.note = ''; }
+  DEPS[CUR].dirty = true;
+  paint(r);
+  afterMark();
+}
+
+function markAll(v) {
+  var rows = DEPS[CUR].rows;
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].status = v;
+    if (v !== 'No') { rows[i].photo = ''; rows[i].note = ''; }
+  }
+  DEPS[CUR].dirty = true;
+  renderDept();
+}
+
+function afterMark() {
+  var s = stats(CUR);
+  $('dScore').textContent = fmt(s.score) + '%';
+  $('dBar').style.width = (s.all ? s.marked * 100 / s.all : 0) + '%';
+  paintFoot(s);
+}
+
+function paintFoot(s) {
+  var dp = DEPS[CUR];
+  $('dLeft').textContent = (dp.saved && !dp.dirty)
+    ? 'Saved  ·  ' + s.marked + ' of ' + s.all
+    : ((s.all - s.marked) + ' left');
+  $('dSave').textContent = dp.saved ? 'Update' : 'Save';
+  $('dSave').disabled = !s.marked || (dp.saved && !dp.dirty);
+}
+
+function setNote(r, v) {
+  DEPS[CUR].rows[r].note = v;
+  DEPS[CUR].dirty = true;
+}
+
+function dropPhoto(ev, r) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  DEPS[CUR].rows[r].photo = '';
+  DEPS[CUR].dirty = true;
+  paint(r);
+}
+
+function pickPhoto(ev, r) {
+  var f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  var img = new Image();
+  var rd = new FileReader();
+  rd.onload = function () {
+    img.onload = function () {
+      var max = 1024;
+      var w = img.width, h = img.height;
+      if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+      else if (h >= w && h > max) { w = Math.round(w * max / h); h = max; }
+      var cvs = document.createElement('canvas');
+      cvs.width = w;
+      cvs.height = h;
+      cvs.getContext('2d').drawImage(img, 0, 0, w, h);
+      DEPS[CUR].rows[r].photo = cvs.toDataURL('image/jpeg', 0.6);
+      DEPS[CUR].dirty = true;
+      paint(r);
+    };
+    img.src = rd.result;
+  };
+  rd.readAsDataURL(f);
+}
+
+function packDept(d) {
+  var rows = [];
+  for (var r = 0; r < DEPS[d].rows.length; r++) {
+    var w = DEPS[d].rows[r];
+    if (!w.status) continue;
+    var o = { work: w.work, doer: w.doer, status: w.status };
+    if (w.status === 'No') {
+      if (w.photo) o.photo = w.photo;
+      if (w.note) o.note = w.note;
+    }
+    rows.push(o);
+  }
+  return { department: DEPS[d].department, rows: rows };
+}
+
+function saveDept() {
+  var d = CUR;
+  var s = stats(d);
+  if (!s.marked) { toast('Mark at least one work first.', true); return; }
+  busy(true, 'Saving ' + DEPS[d].department);
+  api('save', {
+    checklist: LIST, date: $('tDay').value,
+    srn: MASTER.srn ? $('tSrn').value : '', departments: [packDept(d)]
+  }).then(function () {
+    busy(false);
+    DEPS[d].saved = true;
+    DEPS[d].dirty = false;
+    SAVED = null;
+    HOMEDATA = null;
+    toast(DEPS[d].department + ' saved');
+    paintFoot(stats(d));
+    nextUnsaved();
+  }).catch(function (e) { busy(false); fail(e); });
+}
+
+function nextUnsaved() {
+  for (var i = CUR + 1; i < DEPS.length; i++) {
+    if (!DEPS[i].saved) { CUR = i; renderDept(); window.scrollTo(0, 0); return; }
+  }
+  toToday();
+}
+
+function nextDept() {
+  if (CUR < DEPS.length - 1) {
+    CUR++;
+    renderDept();
+    window.scrollTo(0, 0);
+  } else { toToday(); }
+}
+
+function renderReview() {
+  var t = totals();
+  $('rSub').textContent = MASTER.label + '  ·  ' + dmy($('tDay').value);
+  var h = '<div class="kpi" style="margin-top:14px">' +
+    '<div class="b"><div class="k">Dept score</div><div class="v ' + cl(t.dept) + '">' + fmt(t.dept) + '%</div></div>' +
+    '<div class="b"><div class="k">Officer score</div><div class="v">' + fmt(t.off) + '%</div></div>' +
+    '<div class="b"><div class="k">Yes</div><div class="v g">' + t.yes + '</div></div>' +
+    '<div class="b"><div class="k">No  ·  W.N.D</div><div class="v"><span class="b">' +
+    t.no + '</span> · ' + t.wnd + '</div></div></div>';
+  var fails = [];
+  for (var d = 0; d < DEPS.length; d++) {
+    for (var r = 0; r < DEPS[d].rows.length; r++) {
+      if (DEPS[d].rows[r].status === 'No') {
+        fails.push({
+          dept: DEPS[d].department, work: splitWork(DEPS[d].rows[r].work).en,
+          photo: !!DEPS[d].rows[r].photo
+        });
+      }
+    }
+  }
+  if (fails.length) {
+    h += '<div class="sec">Work not done (' + fails.length + ')</div>';
+    for (var f = 0; f < fails.length; f++) {
+      h += '<div class="fail">' + esc(fails[f].work) + '<div class="m">' +
+        esc(fails[f].dept) + (fails[f].photo ? '  ·  photo added' : '') + '</div></div>';
+    }
+  }
+  var skip = DEPS.length - t.ready;
+  if (skip > 0) h += '<div class="note">' + skip + ' department(s) not checked at all.</div>';
+  h += '<div style="height:16px"></div>';
+  $('rBody').innerHTML = h;
+  $('rBtn').textContent = t.pending ? 'Submit ' + t.pending + ' department(s)' : 'Everything is saved';
+  $('rBtn').disabled = !t.pending;
+}
+
+function submitAll() {
+  var pack = [];
+  var idx = [];
+  for (var d = 0; d < DEPS.length; d++) {
+    var s = stats(d);
+    if (!s.marked) continue;
+    if (DEPS[d].saved && !DEPS[d].dirty) continue;
+    idx.push(d);
+    pack.push(packDept(d));
+  }
+  if (!pack.length) { toast('Nothing left to submit.', true); return; }
+  busy(true, 'Submitting ' + pack.length + ' department(s)');
+  api('save', {
+    checklist: LIST, date: $('tDay').value,
+    srn: MASTER.srn ? $('tSrn').value : '', departments: pack
+  }).then(function (r) {
+    busy(false);
+    for (var i = 0; i < idx.length; i++) {
+      DEPS[idx[i]].saved = true;
+      DEPS[idx[i]].dirty = false;
+    }
+    SAVED = null;
+    HOMEDATA = null;
+    toast(r.saved + ' department(s) saved');
+    toToday();
+  }).catch(function (e) { busy(false); fail(e); });
+}
+
+function loadSaved() {
+  var to = today();
+  var d = new Date();
+  d.setDate(d.getDate() - 30);
+  var from = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+  $('sBody').innerHTML = skel(4);
+  api('entries', { checklist: $('sList').value || LIST, from: from, to: to }).then(function (r) {
+    SAVED = r.entries || [];
+    renderSaved();
+  }).catch(function (e) {
+    $('sBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  });
+}
+
+function renderSaved() {
+  if (!SAVED || !SAVED.length) {
+    $('sBody').innerHTML = '<div class="empty">Nothing saved in the last 30 days for this checklist.</div>';
+    return;
+  }
+  var h = '<div class="list">';
+  for (var i = 0; i < SAVED.length; i++) {
+    var e = SAVED[i];
+    h += '<div class="it"><div style="flex:1;min-width:0">' +
+      '<div class="n">' + esc(e.department) + '</div>' +
+      '<div class="m">' + esc(dmy(e.date)) + '  ·  ' + esc(e.day.substring(0, 3)) +
+      (e.srn ? '  ·  ' + esc(e.srn) : '') + '  ·  ' + e.total + ' work' +
+      (e.no ? '  ·  ' + e.no + ' no' : '') + '</div>' + sp(e.yes, e.no, e.wnd) + '</div>' +
+      '<div class="r"><div class="num ' + cl(e.score) + '">' + fmt(e.score) + '</div></div></div>';
+  }
+  $('sBody').innerHTML = h + '</div>';
+}
+
+function openEdit() {
+  $('eList').value = LIST;
+  go('edit');
+  loadWorks();
+}
+
+function loadWorks() {
+  $('eBody').innerHTML = skel(4);
+  api('works', { checklist: $('eList').value }).then(function (d) {
+    WORKS = d;
+    $('eSub').textContent = d.label;
+    renderWorks();
+  }).catch(function (e) {
+    $('eBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  });
+}
+
+function renderWorks() {
+  var h = '';
+  var n = 0;
+  for (var i = 0; i < WORKS.departments.length; i++) {
+    var dep = WORKS.departments[i];
+    n += dep.works.length;
+    h += '<div class="sec">' + esc(dep.department) + '<button onclick="openWork(null,\'' +
+      q(dep.department) + '\')">Add</button></div><div class="list">';
+    for (var j = 0; j < dep.works.length; j++) {
+      var w = dep.works[j];
+      h += '<div class="it" onclick="openWork(' + w.row + ',\'' + q(dep.department) + '\')">' +
+        '<div style="flex:1;min-width:0">' +
+        '<div class="n" style="font-weight:400;font-size:13.5px">' + esc(splitWork(w.work).en) + '</div>' +
+        '<div class="m">' + esc(w.doer || 'No person set') + '</div></div>' + cv() + '</div>';
+    }
+    h += '</div>';
+  }
+  $('eBody').innerHTML = h || '<div class="empty">No work in this checklist yet. Tap + to add one.</div>';
+}
+
+function findWork(row) {
+  for (var i = 0; i < WORKS.departments.length; i++) {
+    for (var j = 0; j < WORKS.departments[i].works.length; j++) {
+      if (WORKS.departments[i].works[j].row === row) {
+        return { dep: WORKS.departments[i].department, w: WORKS.departments[i].works[j] };
+      }
+    }
+  }
+  return null;
+}
+
+function openWork(row, dept) {
+  var found = row ? findWork(row) : null;
+  var w = found ? found.w : { work: '', doer: '' };
+  var dep = found ? found.dep : (dept || (WORKS.departments[0] ? WORKS.departments[0].department : ''));
+  var depSel = '';
+  if (!WORKS.fixedDept) {
+    depSel = '<label style="font-size:12px;color:var(--ink3);display:block;margin:14px 0 6px">Department</label>' +
+      '<select class="ctl" id="wDep">';
+    var seen = false;
+    for (var i = 0; i < WORKS.departments.length; i++) {
+      var d = WORKS.departments[i].department;
+      if (d === dep) seen = true;
+      depSel += '<option value="' + esc(d) + '"' + (d === dep ? ' selected' : '') + '>' + esc(d) + '</option>';
+    }
+    if (!seen && dep) depSel += '<option value="' + esc(dep) + '" selected>' + esc(dep) + '</option>';
+    depSel += '</select>';
+  }
+  var doerOpts = '';
+  var pool = WORKS.doers || [];
+  for (var k = 0; k < pool.length; k++) {
+    doerOpts += '<div class="opt" onclick="document.getElementById(\'wDoer\').value=\'' +
+      q(pool[k]) + '\'">' + esc(pool[k]) + '</div>';
+  }
+  var h = '<div class="mask" onclick="if(event.target===this)closeSheet()"><div class="sheet">' +
+    '<div class="sh"><h3>' + (row ? 'Edit work' : 'Add work') + '</h3>' +
+    '<button class="ib" style="background:var(--soft)" onclick="closeSheet()" aria-label="Close">' +
+    '<svg viewBox="0 0 24 24" style="stroke:var(--ink2)"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+    '<div class="sb">' +
+    '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">Work</label>' +
+    '<textarea class="ctl" id="wTxt" rows="3" placeholder="English text / हिंदी text">' + esc(w.work) + '</textarea>' +
+    depSel +
+    '<label style="font-size:12px;color:var(--ink3);display:block;margin:14px 0 6px">Person</label>' +
+    '<input class="ctl" id="wDoer" placeholder="Who will do this" value="' + esc(w.doer) + '">' +
+    (pool.length ? '<div style="font-size:12px;color:var(--ink3);margin:14px 0 4px">Tap to pick</div>' + doerOpts : '') +
+    '</div><div class="sf">' +
+    (row ? '<button class="btn d" style="flex:1" onclick="removeWork(' + row + ')">Remove</button>' : '') +
+    '<button class="btn" style="flex:2" onclick="saveWork(' + (row || 0) + ')">Save</button>' +
+    '</div></div></div>';
+  $('sheet').innerHTML = h;
+}
+
+function saveWork(row) {
+  var txt = $('wTxt').value.trim();
+  if (!txt) { toast('Enter the work text.', true); return; }
+  var dep = WORKS.fixedDept || ($('wDep') ? $('wDep').value : '');
+  busy(true, 'Saving');
+  api('workSave', {
+    checklist: WORKS.checklist, row: row,
+    work: txt, department: dep, doer: $('wDoer').value.trim()
+  }).then(function () {
+    busy(false);
+    closeSheet();
+    toast(row ? 'Work updated' : 'Work added');
+    MASTER = null;
+    loadWorks();
+  }).catch(function (e) { busy(false); toast(e.message, true); });
+}
+
+function removeWork(row) {
+  busy(true, 'Removing');
+  api('workDelete', { checklist: WORKS.checklist, row: row }).then(function () {
+    busy(false);
+    closeSheet();
+    toast('Work removed from this checklist');
+    MASTER = null;
+    loadWorks();
+  }).catch(function (e) { busy(false); toast(e.message, true); });
+}
+
+function boot() {
+  $('tDay').value = today();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () { });
+  if (!TOKEN) { showLogin(''); return; }
+  busy(true, 'Opening');
+  api('boot', {}).then(function (d) {
+    busy(false);
+    USER = d.user;
+    start(d);
+  }).catch(function (e) {
+    busy(false);
+    localStorage.removeItem('cc_token');
+    showLogin(/sign in|password|switched off/i.test(e.message) ? e.message : '');
+  });
+}
+boot();
+</script>
+</body>
+</html>
