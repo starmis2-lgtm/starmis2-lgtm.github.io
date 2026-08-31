@@ -661,7 +661,7 @@ var DB = null;
 var FLUSHING = false;
 var LASTMS = null;
 var SRVVER = '';
-var APPVER = '2026-08-31-b';
+var APPVER = '2026-08-31-c';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1259,7 +1259,11 @@ function renderMe() {
     '<div class="m">App ' + esc(APPVER) + '  ·  Server ' + esc(SRVVER || 'unknown') + '</div></div>' +
     (SRVVER && SRVVER !== APPVER
       ? '<div class="r"><span class="pill a">Redeploy</span></div>'
-      : '<div class="r"><span class="pill">OK</span></div>') + '</div></div>' +
+      : '<div class="r"><span class="pill">OK</span></div>') + '</div>' +
+    '<div class="it"><div style="flex:1;min-width:0"><div class="n">Connection speed</div>' +
+    '<div class="m" id="connOut">Tap Test to check the server</div></div>' +
+    '<div class="r"><button class="btn o" style="padding:9px 16px;font-size:13px" ' +
+    'onclick="testLink(event)">Test</button></div></div></div>' +
     '<div style="padding:4px 14px 20px">' +
     '<button class="btn w o" onclick="signOut()">Sign out</button></div>';
   $('meBody').innerHTML = h;
