@@ -696,6 +696,7 @@ var NOTESHOWN = false;
 var VIEWBY = '';
 var FRESH = {};
 var DRAFTED = {};
+var DAYSEQ = 0;
 var DTIMER = null;
 var JUMPED = false;
 var APPVER = '2026-08-31-m';
@@ -947,7 +948,7 @@ function savePos(dept) {
 }
 
 function jumpBack() {
-  if (JUMPED) return;
+  if (JUMPED || !MASTER) return;
   JUMPED = true;
   var p = cacheGet('cc_pos');
   if (!p || p.day !== today() || !p.dept) return;
@@ -957,8 +958,9 @@ function jumpBack() {
   }
 }
 
-function restoreLocal() {
+function restoreLocal(seq) {
   return applyQueued().then(applyDrafts).then(function () {
+    if (seq !== DAYSEQ) return;
     renderToday();
     jumpBack();
   });
@@ -1221,7 +1223,7 @@ function start(boot) {
       if (boot.day && !MASTER.srn && $('tDay').value === boot.today) {
         buildDeps(boot.day.departments || []);
         $('tSub').textContent = MASTER.label + '  ·  ' + dmy(boot.today);
-        restoreLocal();
+        restoreLocal(++DAYSEQ);
       } else {
         refreshDay();
       }
@@ -1983,18 +1985,45 @@ function openSrn(srn) {
   });
 }
 
+function listLabel(key) {
+  for (var i = 0; i < LISTS.length; i++) {
+    if (LISTS[i].key === key) return LISTS[i].label;
+  }
+  return '';
+}
+
 function pickList() {
   LIST = $('tList').value;
   if (!LIST) return;
   var m = cacheGet('cc_master_' + LIST);
-  MASTER = m || null;
-  if (m) applyMaster();
-  refreshDay(!m);
+  if (m) {
+    MASTER = m;
+    applyMaster();
+    refreshDay(false);
+    return;
+  }
+  MASTER = null;
+  DEPS = [];
+  var seq = ++DAYSEQ;
+  $('tSub').textContent = listLabel(LIST) + '  ·  ' + dmy($('tDay').value);
+  $('tBody').innerHTML = skel(5);
+  $('tInfo').textContent = '';
+  api('master', { checklist: LIST }).then(function (d) {
+    if (seq !== DAYSEQ) return;
+    MASTER = d;
+    cacheSet('cc_master_' + LIST, d);
+    applyMaster();
+    refreshDay(false);
+  }).catch(function (e) {
+    if (seq !== DAYSEQ) return;
+    fail(e);
+  });
 }
 
 function refreshDay(needMaster) {
   var date = $('tDay').value;
   var srn = (MASTER && MASTER.srn) ? $('tSrn').value : '';
+  var seq = ++DAYSEQ;
   if (MASTER) {
     $('tSub').textContent = MASTER.label + '  ·  ' + dmy(date);
     if (MASTER.srn && !srn) {
@@ -2006,7 +2035,7 @@ function refreshDay(needMaster) {
     var old = cacheGet(dayKey());
     if (old) {
       buildDeps(old);
-      restoreLocal();
+      restoreLocal(seq);
     } else {
       $('tBody').innerHTML = skel(5);
     }
@@ -2017,6 +2046,7 @@ function refreshDay(needMaster) {
     checklist: LIST, date: date, srn: srn,
     withMaster: needMaster === true || !MASTER
   }).then(function (d) {
+    if (seq !== DAYSEQ) return;
     if (d.master) {
       MASTER = d.master;
       cacheSet('cc_master_' + LIST, d.master);
@@ -2033,12 +2063,13 @@ function refreshDay(needMaster) {
     buildDeps(d.departments || []);
     var was = cacheGet('cc_pos');
     savePos(was && was.day === today() ? was.dept : '');
-    restoreLocal();
+    restoreLocal(seq);
   }).catch(function (e) {
+    if (seq !== DAYSEQ) return;
     if (e.offline || e.unreachable) {
       if (!DEPS.length) {
         buildDeps(cacheGet(dayKey()) || []);
-        restoreLocal();
+        restoreLocal(seq);
       }
       return;
     }
@@ -2047,6 +2078,8 @@ function refreshDay(needMaster) {
 }
 
 function buildDeps(saved) {
+  DEPS = [];
+  if (!MASTER) return;
   var map = {};
   for (var i = 0; i < saved.length; i++) {
     var rows = saved[i].rows || [];
@@ -2055,7 +2088,6 @@ function buildDeps(saved) {
       map[saved[i].department][String(rows[j].work).toLowerCase()] = rows[j];
     }
   }
-  DEPS = [];
   var src = MASTER.departments || [];
   for (var d = 0; d < src.length; d++) {
     var dep = src[d];
