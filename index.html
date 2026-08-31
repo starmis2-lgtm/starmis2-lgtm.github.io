@@ -697,7 +697,7 @@ var LIVEVER = '';
 var NOTES = [];
 var NOTESHOWN = false;
 var VIEWBY = '';
-var APPVER = '2026-08-31-g';
+var APPVER = '2026-08-31-h';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1340,6 +1340,9 @@ function loadAdmin() {
         '<div class="m">' + esc(u.email) + '</div>' +
         '<div class="m">' + esc(u.department || '') + '  ·  ' + u.tabs + ' tab(s)  ·  ' +
         (u.hasPassword ? 'password set' : 'no password') + '</div></div>' +
+        (u.locked || u.email === USER.email ? ''
+          : '<button class="btn o" style="padding:8px 13px;font-size:12.5px;flex:none" ' +
+            'onclick="viewAs(event,\'' + q(u.email) + '\')">Switch</button>') +
         (u.locked ? '' : cv()) + '</div>';
     }
     $('adBody').innerHTML = h + '</div>';
@@ -1368,14 +1371,6 @@ function openUser(i) {
         '<button class="btn w" style="margin-top:14px" onclick="setUserPassword(\'' + q(u.email) + '\')">' +
         'Save password</button><div style="height:20px"></div>'
       : '') +
-    (USER.canPassword
-      ? '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">' +
-        'See the app as this user</label>' +
-        '<button class="btn w o" onclick="viewAs(\'' + q(u.email) + '\')">Open their view</button>' +
-        '<div class="m" style="color:var(--ink3);margin-top:10px">' +
-        'Aap unki screen dekh paoge. Account tab se wapas aa sakte ho.</div>' +
-        '<div style="height:20px"></div>'
-      : '') +
     '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">Account</label>' +
     '<button class="btn w ' + (u.active ? 'd' : '') + '" onclick="setUserStatus(\'' + q(u.email) + '\',' +
     (u.active ? 'false' : 'true') + ')">' +
@@ -1389,7 +1384,8 @@ function openUser(i) {
   $('sheet').innerHTML = h;
 }
 
-function viewAs(email) {
+function viewAs(ev, email) {
+  if (ev) ev.stopPropagation();
   busy(true, 'Opening their view');
   api('viewAs', { email: email }).then(function (d) {
     var mine = localStorage.getItem('cc_admin_token') || TOKEN;
