@@ -702,7 +702,7 @@ var JUMPED = false;
 var PANE = '';
 var NAVON = false;
 var SHEETX = null;
-var APPVER = '2026-08-31-p';
+var APPVER = '2026-08-31-q';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1105,7 +1105,7 @@ function startBeat() {
         showLogin(e.message);
       }
     });
-  }, 60000);
+  }, 120000);
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && TOKEN) {
       flushQueue(false);
