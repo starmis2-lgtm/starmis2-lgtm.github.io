@@ -247,12 +247,6 @@
   .gate p { color: #8ea2b6; font-size: 13px; margin: 3px 0 0; }
   .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
   .brand .mk { margin-bottom: 0; width: 52px; height: 52px; font-size: 18px; border-radius: 14px; }
-  .ulist { max-height: 46vh; overflow-y: auto; margin-top: 14px;
-    -webkit-overflow-scrolling: touch; }
-  .backx { color: #8ea2b6; font-size: 13px; display: flex; align-items: center; gap: 7px;
-    margin-bottom: 20px; }
-  .backx svg { width: 16px; height: 16px; fill: none; stroke: currentColor;
-    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .hint { color: #6f8296 !important; font-size: 12px !important; margin-top: 14px !important;
     text-align: center; }
   .gate .err { color: #ff9c8f; font-size: 13px; margin-bottom: 15px; }
@@ -400,7 +394,7 @@
 </head>
 <body>
 
-<section id="pUser" class="gate">
+<section id="pLogin" class="gate">
   <div class="brand">
     <div class="mk">SG</div>
     <div>
@@ -408,24 +402,10 @@
       <p>Star Global</p>
     </div>
   </div>
-  <div id="uErr" class="err hide"></div>
-  <label>Who is using this phone?</label>
-  <input type="text" id="uFind" class="ctl" placeholder="Type to find your name"
-    autocapitalize="none" spellcheck="false" oninput="filterNames()">
-  <div id="uList" class="ulist"></div>
-</section>
-
-<section id="pPass" class="gate hide">
-  <button class="backx" onclick="showUsers()">
-    <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Change name</button>
-  <div class="brand">
-    <div class="mk" id="pAv"></div>
-    <div>
-      <h2 id="pName"></h2>
-      <p id="pDes"></p>
-    </div>
-  </div>
   <div id="pErr" class="err hide"></div>
+  <label>Username</label>
+  <input type="text" id="uIn" class="ctl" autocomplete="username" autocapitalize="none"
+    spellcheck="false" placeholder="Aapka naam, jaise SG00779-Anuj">
   <label>Password</label>
   <div class="pwrap">
     <input type="password" id="pIn" class="ctl" autocomplete="current-password" placeholder="Password">
@@ -661,7 +641,6 @@ var REPORTS = [
 
 var TOKEN = localStorage.getItem('cc_token') || '';
 var USER = null;
-var PICK = null;
 var LISTS = [];
 var LIST = '';
 var MASTER = null;
@@ -676,14 +655,12 @@ var WORKS = null;
 var HOMEDATA = null;
 var ADMINS = [];
 var BEAT = null;
-var USERS = [];
-var PICK = null;
 var REPCACHE = {};
 var QN = 0;
 var DB = null;
 var FLUSHING = false;
 var SRVVER = '';
-var APPVER = '2026-08-29-m';
+var APPVER = '2026-08-29-n';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -870,66 +847,29 @@ function fail(e) {
 }
 
 function only(id) {
-  var all = ['pUser', 'pPass', 'pHome', 'pToday', 'pDept', 'pReview', 'pHub', 'pRep',
+  var all = ['pLogin', 'pHome', 'pToday', 'pDept', 'pReview', 'pHub', 'pRep',
     'pDrill', 'pSaved', 'pMe', 'pEdit', 'pAdmin'];
   for (var i = 0; i < all.length; i++) $(all[i]).classList.toggle('hide', all[i] !== id);
   window.scrollTo(0, 0);
 }
 
 function showLogin(msg) {
-  showUsers(msg);
-}
-
-function showUsers(msg) {
   stopBeat();
-  only('pUser');
+  only('pLogin');
   closeSheet();
   TOKEN = '';
-  if (msg) {
-    $('uErr').textContent = msg;
-    $('uErr').classList.remove('hide');
-  } else {
-    $('uErr').classList.add('hide');
-  }
-  $('uList').innerHTML = '<div style="color:#8ea2b6;font-size:13px">Loading names…</div>';
-  api('users', {}).then(function (d) {
-    USERS = d.users || [];
-    var h = '';
-    for (var i = 0; i < USERS.length; i++) {
-      h += '<button class="ub" onclick="choose(' + i + ')">' +
-        '<span class="av">' + esc(ini(USERS[i].name)) + '</span>' +
-        '<span style="flex:1;min-width:0"><b>' + esc(USERS[i].name) + '</b>' +
-        '<span class="d">' + esc(USERS[i].designation || USERS[i].email) + '</span></span></button>';
-    }
-    $('uList').innerHTML = h || '<div style="color:#8ea2b6;font-size:13px">' +
-      'No one in the ACCESS sheet has app access yet.</div>';
-    $('uFind').value = '';
-  }).catch(function (e) {
-    $('uList').innerHTML = '';
-    $('uErr').textContent = e.message;
-    $('uErr').classList.remove('hide');
-  });
-}
-
-function filterNames() {
-  var q = $('uFind').value.trim().toLowerCase();
-  var btns = $('uList').querySelectorAll('.ub');
-  for (var i = 0; i < btns.length; i++) {
-    var name = (USERS[i] ? USERS[i].name + ' ' + (USERS[i].designation || '') : '').toLowerCase();
-    btns[i].classList.toggle('hide', q && name.indexOf(q) === -1);
-  }
-}
-
-function choose(i) {
-  PICK = USERS[i];
-  $('pAv').textContent = ini(PICK.name);
-  $('pName').textContent = PICK.name;
-  $('pDes').textContent = PICK.designation || PICK.email;
   $('pIn').value = '';
   setPwVisible(false);
-  $('pErr').classList.add('hide');
-  only('pPass');
-  setTimeout(function () { $('pIn').focus(); }, 250);
+  $('uIn').value = localStorage.getItem('cc_user') || '';
+  if (msg) {
+    $('pErr').textContent = msg;
+    $('pErr').classList.remove('hide');
+  } else {
+    $('pErr').classList.add('hide');
+  }
+  setTimeout(function () {
+    $($('uIn').value ? 'pIn' : 'uIn').focus();
+  }, 250);
 }
 
 function setPwVisible(on) {
@@ -942,21 +882,29 @@ function togglePw() {
   setPwVisible($('pIn').type === 'password');
 }
 
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter') return;
+  if ($('pLogin').classList.contains('hide')) return;
+  doLogin();
+});
+
 function doLogin() {
+  var u = $('uIn').value.trim();
   var pw = $('pIn').value;
-  if (!PICK) { showUsers(''); return; }
-  if (!pw) { pErr('Enter your password.'); return; }
+  if (!u) { pErr('Apna username likho.'); return; }
+  if (!pw) { pErr('Password likho.'); return; }
   busy(true, 'Signing in');
   TOKEN = '';
-  api('login', { email: PICK.email, password: pw }).then(function (d) {
+  api('login', { email: u, password: pw }).then(function (d) {
     TOKEN = d.token;
     USER = d.user;
     localStorage.setItem('cc_token', TOKEN);
-    localStorage.setItem('cc_user', PICK.email);
+    localStorage.setItem('cc_user', u);
     $('pIn').value = '';
     return api('boot', {});
   }).then(function (b) {
     busy(false);
+    cacheSet('cc_boot', b);
     start(b);
   }).catch(function (e) {
     busy(false);
