@@ -660,8 +660,18 @@ var QN = 0;
 var DB = null;
 var FLUSHING = false;
 var LASTMS = null;
+var VAPID = 'BGAcFxGw4DMbbhcukxdgWzQyIk2k488S1Qv0wxaX1d1EzEt4Rl5ezEia7nxg9X3_n8hQkGHY6cAG7pSQ9rx-hxI';
+var FBCFG = {
+  apiKey: 'AIzaSyBU-9r2Yr9lVyjKlHQ_iP_m89g3Me07zcY',
+  authDomain: 'sg-compliance-256ad.firebaseapp.com',
+  projectId: 'sg-compliance-256ad',
+  storageBucket: 'sg-compliance-256ad.firebasestorage.app',
+  messagingSenderId: '705866355489',
+  appId: '1:705866355489:web:dfd48cb6ff18d603632460'
+};
+var FBREADY = false;
 var SRVVER = '';
-var APPVER = '2026-08-31-c';
+var APPVER = '2026-08-31-d';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1260,6 +1270,10 @@ function renderMe() {
     (SRVVER && SRVVER !== APPVER
       ? '<div class="r"><span class="pill a">Redeploy</span></div>'
       : '<div class="r"><span class="pill">OK</span></div>') + '</div>' +
+    '<div class="it"><div style="flex:1;min-width:0"><div class="n">Notifications</div>' +
+    '<div class="m" id="pushOut">Checking…</div></div>' +
+    '<div class="r"><button class="btn o" id="pushBtn" style="padding:9px 16px;font-size:13px" ' +
+    'onclick="togglePush(event)">Turn on</button></div></div>' +
     '<div class="it"><div style="flex:1;min-width:0"><div class="n">Connection speed</div>' +
     '<div class="m" id="connOut">Tap Test to check the server</div></div>' +
     '<div class="r"><button class="btn o" style="padding:9px 16px;font-size:13px" ' +
@@ -1267,6 +1281,7 @@ function renderMe() {
     '<div style="padding:4px 14px 20px">' +
     '<button class="btn w o" onclick="signOut()">Sign out</button></div>';
   $('meBody').innerHTML = h;
+  paintPush();
 }
 
 function loadAdmin() {
@@ -1347,6 +1362,98 @@ function setUserStatus(email, on) {
     toast(on ? 'Account switched on' : 'Account switched off and signed out');
     loadAdmin();
   }).catch(function (e) { busy(false); toast(e.message, true); });
+}
+
+function loadScript(src) {
+  return new Promise(function (res, rej) {
+    var el = document.createElement('script');
+    el.src = src;
+    el.onload = res;
+    el.onerror = function () { rej(new Error('Could not load ' + src)); };
+    document.head.appendChild(el);
+  });
+}
+
+function initFirebase() {
+  if (FBREADY) return Promise.resolve();
+  var base = 'https://www.gstatic.com/firebasejs/10.12.2/';
+  return loadScript(base + 'firebase-app-compat.js')
+    .then(function () { return loadScript(base + 'firebase-messaging-compat.js'); })
+    .then(function () {
+      firebase.initializeApp(FBCFG);
+      FBREADY = true;
+    });
+}
+
+function pushState() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) return 'unsupported';
+  if (Notification.permission === 'denied') return 'blocked';
+  if (Notification.permission === 'granted' && localStorage.getItem('cc_push')) return 'on';
+  return 'off';
+}
+
+function paintPush() {
+  var row = $('pushOut');
+  if (!row) return;
+  var st = pushState();
+  var txt = {
+    unsupported: 'This phone or browser cannot show notifications',
+    blocked: 'Blocked. Phone settings mein is app ke liye notification on karo',
+    on: 'On for this device',
+    off: 'Off. Tap Turn on to get reminders'
+  }[st];
+  row.textContent = txt;
+  var btn = $('pushBtn');
+  if (!btn) return;
+  btn.textContent = st === 'on' ? 'Turn off' : 'Turn on';
+  btn.disabled = (st === 'unsupported' || st === 'blocked');
+}
+
+function turnPushOn() {
+  busy(true, 'Turning on notifications');
+  initFirebase().then(function () {
+    return Notification.requestPermission();
+  }).then(function (perm) {
+    if (perm !== 'granted') throw new Error('Permission not given.');
+    return navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: './fcm/' });
+  }).then(function (reg) {
+    return firebase.messaging().getToken({
+      vapidKey: VAPID, serviceWorkerRegistration: reg
+    });
+  }).then(function (tk) {
+    if (!tk) throw new Error('Could not get a device token.');
+    localStorage.setItem('cc_push', tk);
+    return api('pushToken', { push: tk, device: navigator.userAgent.substring(0, 90) });
+  }).then(function () {
+    busy(false);
+    toast('Notifications on for this device');
+    paintPush();
+  }).catch(function (e) {
+    busy(false);
+    toast(e.message, true);
+    paintPush();
+  });
+}
+
+function turnPushOff() {
+  var tk = localStorage.getItem('cc_push');
+  localStorage.removeItem('cc_push');
+  paintPush();
+  if (!tk) return;
+  busy(true, 'Turning off');
+  api('pushToken', { push: tk, off: true }).then(function () {
+    busy(false);
+    toast('Notifications off for this device');
+  }).catch(function (e) {
+    busy(false);
+    toast(e.message, true);
+  });
+}
+
+function togglePush(ev) {
+  if (ev) ev.stopPropagation();
+  if (pushState() === 'on') turnPushOff();
+  else turnPushOn();
 }
 
 function testLink(ev) {
