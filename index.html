@@ -697,7 +697,8 @@ var LIVEVER = '';
 var NOTES = [];
 var NOTESHOWN = false;
 var VIEWBY = '';
-var APPVER = '2026-08-31-j';
+var FRESH = {};
+var APPVER = '2026-08-31-k';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1055,14 +1056,14 @@ function toToday() { renderToday(); go('today'); }
 
 function go(p) {
   closeSheet();
-  if (p === 'home') { only('pHome'); mark('home'); if (!HOMEDATA) loadHome(); }
+  if (p === 'home') { only('pHome'); mark('home'); loadHome(); }
   else if (p === 'today') { only('pToday'); mark('today'); }
   else if (p === 'dept') { only('pDept'); mark('today'); }
   else if (p === 'review') { only('pReview'); mark('today'); renderReview(); }
   else if (p === 'hub') { only('pHub'); mark('hub'); renderHub(); }
   else if (p === 'rep') { only('pRep'); mark('hub'); }
   else if (p === 'drill') { only('pDrill'); mark('hub'); }
-  else if (p === 'saved') { only('pSaved'); mark('saved'); if (!SAVED) loadSaved(); }
+  else if (p === 'saved') { only('pSaved'); mark('saved'); loadSaved(); }
   else if (p === 'me') { only('pMe'); mark('me'); renderMe(); }
   else if (p === 'edit') { only('pEdit'); mark('me'); }
   else if (p === 'admin') { only('pAdmin'); mark('me'); loadAdmin(); }
@@ -1111,6 +1112,11 @@ function start(boot) {
       pickList();
     }
   }
+  if (boot.home && boot.home.totals) {
+    HOMEDATA = boot.home;
+    FRESH.home = Date.now();
+    cacheSet(ck('home'), boot.home);
+  }
   go(HOME);
   loadNotes(true);
 }
@@ -1148,12 +1154,21 @@ function delta(a, b) {
 }
 
 function loadHome() {
-  $('hoBody').innerHTML = skel(5);
+  var have = HOMEDATA || cacheGet(ck('home'));
+  if (have && have.totals) {
+    HOMEDATA = have;
+    renderHome(have);
+    if (fresh('home', 60)) return;
+  } else {
+    $('hoBody').innerHTML = skel(5);
+  }
   api('home', {}).then(function (d) {
     HOMEDATA = d;
+    FRESH.home = Date.now();
+    cacheSet(ck('home'), d);
     renderHome(d);
   }).catch(function (e) {
-    $('hoBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+    if (!have) $('hoBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
   });
 }
 
@@ -1676,13 +1691,21 @@ function drawReport(d) {
 function loadReport() {
   $('repMon').textContent = MONTHS[RM - 1] + ' ' + RY;
   var key = REP.kind + '_' + RY + '_' + RM;
-  if (REPCACHE[key]) { drawReport(REPCACHE[key]); return; }
-  $('repBody').innerHTML = skel(4);
+  var have = REPCACHE[key] || cacheGet(ck('rep_' + key));
+  if (have && have.data) {
+    REPCACHE[key] = have;
+    drawReport(have);
+    if (fresh('rep_' + key, 300)) return;
+  } else {
+    $('repBody').innerHTML = skel(4);
+  }
   api('report', { kind: REP.kind, year: RY, month: RM }).then(function (d) {
     REPCACHE[key] = d;
-    drawReport(d);
+    FRESH['rep_' + key] = Date.now();
+    cacheSet(ck('rep_' + key), d);
+    if (REP && (REP.kind + '_' + RY + '_' + RM) === key) drawReport(d);
   }).catch(function (e) {
-    $('repBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+    if (!have) $('repBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
   });
 }
 
@@ -1848,47 +1871,61 @@ function openSrn(srn) {
 function pickList() {
   LIST = $('tList').value;
   if (!LIST) return;
-  MASTER = null;
-  $('tBody').innerHTML = skel(5);
-  api('master', { checklist: LIST }).then(function (d) {
-    MASTER = d;
-    cacheSet('cc_master_' + LIST, d);
-    applyMaster();
-    refreshDay();
-  }).catch(function (e) {
-    var m = cacheGet('cc_master_' + LIST);
-    if ((e.offline || e.unreachable) && m) {
-      MASTER = m;
-      applyMaster();
-      refreshDay();
-      return;
-    }
-    fail(e);
-  });
+  var m = cacheGet('cc_master_' + LIST);
+  MASTER = m || null;
+  if (m) applyMaster();
+  refreshDay(!m);
 }
 
-function refreshDay() {
-  if (!MASTER) return;
+function refreshDay(needMaster) {
   var date = $('tDay').value;
-  var srn = MASTER.srn ? $('tSrn').value : '';
-  $('tSub').textContent = MASTER.label + '  ·  ' + dmy(date);
-  if (MASTER.srn && !srn) {
-    DEPS = [];
-    $('tBody').innerHTML = '<div class="empty">Select an SRN to open the checklist.</div>';
-    $('tInfo').textContent = '';
-    return;
+  var srn = (MASTER && MASTER.srn) ? $('tSrn').value : '';
+  if (MASTER) {
+    $('tSub').textContent = MASTER.label + '  ·  ' + dmy(date);
+    if (MASTER.srn && !srn) {
+      DEPS = [];
+      $('tBody').innerHTML = '<div class="empty">Select an SRN to open the checklist.</div>';
+      $('tInfo').textContent = '';
+      return;
+    }
+    var old = cacheGet(dayKey());
+    if (old) {
+      buildDeps(old);
+      applyQueued();
+      renderToday();
+    } else {
+      $('tBody').innerHTML = skel(5);
+    }
+  } else {
+    $('tBody').innerHTML = skel(5);
   }
-  $('tBody').innerHTML = skel(5);
-  api('day', { checklist: LIST, date: date, srn: srn }).then(function (d) {
+  api('day', {
+    checklist: LIST, date: date, srn: srn,
+    withMaster: needMaster === true || !MASTER
+  }).then(function (d) {
+    if (d.master) {
+      MASTER = d.master;
+      cacheSet('cc_master_' + LIST, d.master);
+      applyMaster();
+      $('tSub').textContent = MASTER.label + '  ·  ' + dmy(date);
+      if (MASTER.srn && !$('tSrn').value) {
+        DEPS = [];
+        $('tBody').innerHTML = '<div class="empty">Select an SRN to open the checklist.</div>';
+        $('tInfo').textContent = '';
+        return;
+      }
+    }
     cacheSet(dayKey(), d.departments || []);
     buildDeps(d.departments || []);
     applyQueued();
     renderToday();
   }).catch(function (e) {
     if (e.offline || e.unreachable) {
-      buildDeps(cacheGet(dayKey()) || []);
-      applyQueued();
-      renderToday();
+      if (!DEPS.length) {
+        buildDeps(cacheGet(dayKey()) || []);
+        applyQueued();
+        renderToday();
+      }
       return;
     }
     fail(e);
@@ -2253,6 +2290,7 @@ function flushQueue(loud) {
         SAVED = null;
         HOMEDATA = null;
         REPCACHE = {};
+        FRESH = {};
         if (!$('pToday').classList.contains('hide')) renderToday();
       } else if (loud) {
         toast('Could not send right now. Will try again.', true);
@@ -2285,6 +2323,7 @@ function sendSave(items, idx, label) {
     SAVED = null;
     HOMEDATA = null;
     REPCACHE = {};
+    FRESH = {};
     refreshOpenScreens();
   }).catch(function (e) {
     if (e.offline || e.unreachable) {
@@ -2424,12 +2463,22 @@ function loadSaved() {
   var d = new Date();
   d.setDate(d.getDate() - 30);
   var from = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
-  $('sBody').innerHTML = skel(4);
-  api('entries', { checklist: $('sList').value || LIST, from: from, to: to }).then(function (r) {
+  var list = $('sList').value || LIST;
+  var have = cacheGet(ck('sv_' + list));
+  if (have) {
+    SAVED = have;
+    renderSaved();
+    if (fresh('sv_' + list, 120)) return;
+  } else {
+    $('sBody').innerHTML = skel(4);
+  }
+  api('entries', { checklist: list, from: from, to: to }).then(function (r) {
     SAVED = r.entries || [];
+    FRESH['sv_' + list] = Date.now();
+    cacheSet(ck('sv_' + list), SAVED);
     renderSaved();
   }).catch(function (e) {
-    $('sBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+    if (!have) $('sBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
   });
 }
 
@@ -2579,6 +2628,15 @@ function cacheGet(k) {
   } catch (e) {
     return null;
   }
+}
+
+function ck(name) {
+  return 'cc_c_' + (USER && USER.email ? USER.email : 'x') + '_' + name;
+}
+
+function fresh(key, secs) {
+  var t = FRESH[key] || 0;
+  return (Date.now() - t) < (secs || 60) * 1000;
 }
 
 function dayKey() {
