@@ -699,7 +699,10 @@ var DRAFTED = {};
 var DAYSEQ = 0;
 var DTIMER = null;
 var JUMPED = false;
-var APPVER = '2026-08-31-m';
+var PANE = '';
+var NAVON = false;
+var SHEETX = null;
+var APPVER = '2026-08-31-n';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -788,7 +791,15 @@ function splitWork(t) {
   }
   return { en: s, hi: '' };
 }
-function closeSheet() { $('sheet').innerHTML = ''; }
+function closeSheet() {
+  $('sheet').innerHTML = '';
+  SHEETX = null;
+}
+
+function openSheet(html, onBack) {
+  $('sheet').innerHTML = html;
+  SHEETX = onBack || closeSheet;
+}
 
 function api(action, body) {
   var p = body || {};
@@ -1081,9 +1092,9 @@ function startBeat() {
   BEAT = setInterval(function () {
     if (!TOKEN || document.hidden) return;
     flushQueue(false);
-    loadNotes(false);
     api('me', {}).then(function (d) {
       USER = d.user;
+      if (d.notes) setNotes(d.notes, false);
     }).catch(function (e) {
       if (/sign in|switched off|password was changed/i.test(e.message)) {
         stopBeat();
@@ -1100,6 +1111,7 @@ function startBeat() {
       flushQueue(false);
       api('me', {}).then(function (d) {
         USER = d.user;
+        if (d.notes) setNotes(d.notes, false);
       }).catch(function (e) {
         if (/sign in|switched off|password was changed/i.test(e.message)) {
           stopBeat();
@@ -1163,8 +1175,13 @@ function mark(id) {
 function goHome() { go(HOME); }
 function toToday() { renderToday(); go('today'); }
 
-function go(p) {
+function go(p, pop) {
   closeSheet();
+  PANE = p;
+  if (!pop) {
+    if (NAVON) history.pushState({ p: p }, '');
+    else { history.replaceState({ p: p }, ''); NAVON = true; }
+  }
   if (p === 'home') { only('pHome'); mark('home'); loadHome(); }
   else if (p === 'today') { only('pToday'); mark('today'); }
   else if (p === 'dept') { only('pDept'); mark('today'); }
@@ -1236,9 +1253,51 @@ function start(boot) {
     FRESH.home = Date.now();
     cacheSet(ck('home'), boot.home);
   }
+  if (boot.focus && boot.focus.groups) {
+    FRESH.focus = Date.now();
+    cacheSet(ck('focus'), boot.focus);
+  }
   go(pos && pos.dept && DRAFTED[LIST + '|' + $('tDay').value + '|' +
     (pos.srn || '') + '|' + pos.dept] ? 'today' : HOME);
-  loadNotes(true);
+  if (boot.notes) setNotes(boot.notes, true);
+  else loadNotes(true);
+  setTimeout(warm, 4000);
+}
+
+function savedFrom() {
+  var d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+}
+
+function warm() {
+  if (!TOKEN || !USER || !navigator.onLine || QN) return;
+  var chain = Promise.resolve();
+  if (USER.tabs.indexOf('paneList') !== -1 && LIST && !cacheGet(ck('sv_' + LIST))) {
+    chain = chain.then(function () {
+      var key = LIST;
+      return api('entries', { checklist: key, from: savedFrom(), to: today() })
+        .then(function (r) {
+          FRESH['sv_' + key] = Date.now();
+          cacheSet(ck('sv_' + key), r.entries || []);
+        }).catch(function () { });
+    });
+  }
+  var reps = myReports();
+  if (reps.length) {
+    var kind = reps[0].kind;
+    var rk = kind + '_' + RY + '_' + RM;
+    if (!cacheGet(ck('rep_' + rk))) {
+      chain = chain.then(function () {
+        return api('report', { kind: kind, year: RY, month: RM }).then(function (d) {
+          REPCACHE[rk] = d;
+          FRESH['rep_' + rk] = Date.now();
+          cacheSet(ck('rep_' + rk), d);
+        }).catch(function () { });
+      });
+    }
+  }
+  return chain;
 }
 
 function applyMaster() {
@@ -1362,33 +1421,47 @@ function loadFocus() {
   if (!myReports().length) return;
   var box = $('hoFocus');
   if (!box) return;
-  box.innerHTML = '<div class="sec">Focus works</div>' + skel(2);
+  var have = cacheGet(ck('focus'));
+  if (have && have.groups) {
+    drawFocus(have);
+    if (fresh('focus', 300)) return;
+  } else {
+    box.innerHTML = '<div class="sec">Focus works</div>' + skel(2);
+  }
   api('focus', {}).then(function (d) {
-    var h = '';
-    for (var g = 0; g < d.groups.length; g++) {
-      var grp = d.groups[g];
-      h += '<div class="sec">Top 5 in ' + esc(grp.label) + '</div><div class="list">';
-      if (!grp.works.length) {
-        h += '<div class="it"><div class="m" style="margin:0">' +
-          'Nothing failed in ' + esc(d.month) + '.</div></div>';
-      }
-      for (var i = 0; i < grp.works.length; i++) {
-        var w = grp.works[i];
-        h += '<div class="it"><span class="ic" style="background:var(--bad-soft);color:var(--bad);' +
-          'font-weight:700;font-size:15px">' + w.no + '</span>' +
-          '<div style="flex:1;min-width:0">' +
-          '<div class="n" style="font-weight:400;font-size:13.5px">' + esc(splitWork(w.work).en) + '</div>' +
-          '<div class="m">' + esc(w.departments.slice(0, 3).join(', ')) +
-          (w.departments.length > 3 ? ' +' + (w.departments.length - 3) : '') +
-          (w.doer ? '  ·  ' + esc(w.doer) : '') + '</div></div>' +
-          '<div class="r"><div class="m" style="margin:0">of ' + w.checked + '</div></div></div>';
-      }
-      h += '</div>';
-    }
-    box.innerHTML = h;
+    FRESH.focus = Date.now();
+    cacheSet(ck('focus'), d);
+    drawFocus(d);
   }).catch(function () {
-    box.innerHTML = '';
+    if (!have) box.innerHTML = '';
   });
+}
+
+function drawFocus(d) {
+  var box = $('hoFocus');
+  if (!box) return;
+  var h = '';
+  for (var g = 0; g < d.groups.length; g++) {
+    var grp = d.groups[g];
+    h += '<div class="sec">Top 5 in ' + esc(grp.label) + '</div><div class="list">';
+    if (!grp.works.length) {
+      h += '<div class="it"><div class="m" style="margin:0">' +
+        'Nothing failed in ' + esc(d.month) + '.</div></div>';
+    }
+    for (var i = 0; i < grp.works.length; i++) {
+      var w = grp.works[i];
+      h += '<div class="it"><span class="ic" style="background:var(--bad-soft);color:var(--bad);' +
+        'font-weight:700;font-size:15px">' + w.no + '</span>' +
+        '<div style="flex:1;min-width:0">' +
+        '<div class="n" style="font-weight:400;font-size:13.5px">' + esc(splitWork(w.work).en) + '</div>' +
+        '<div class="m">' + esc(w.departments.slice(0, 3).join(', ')) +
+        (w.departments.length > 3 ? ' +' + (w.departments.length - 3) : '') +
+        (w.doer ? '  ·  ' + esc(w.doer) : '') + '</div></div>' +
+        '<div class="r"><div class="m" style="margin:0">of ' + w.checked + '</div></div></div>';
+    }
+    h += '</div>';
+  }
+  box.innerHTML = h;
 }
 
 function jumpEntry(key) {
@@ -1515,7 +1588,7 @@ function openUser(i) {
       : 'They will be able to sign in again.') + '</div>' +
     '</div><div class="sf"><button class="btn o w" onclick="closeSheet()">Close</button></div>' +
     '</div></div>';
-  $('sheet').innerHTML = h;
+  openSheet(h);
 }
 
 function viewAs(ev, email) {
@@ -1699,14 +1772,18 @@ function paintBell() {
   for (var i = 0; i < dots.length; i++) dots[i].classList.toggle('hide', !n);
 }
 
+function setNotes(list, popup) {
+  NOTES = list || [];
+  paintBell();
+  if (popup && unreadNotes() && !NOTESHOWN) {
+    NOTESHOWN = true;
+    openNotes();
+  }
+}
+
 function loadNotes(popup) {
   api('notes', {}).then(function (d) {
-    NOTES = d.notes || [];
-    paintBell();
-    if (popup && unreadNotes() && !NOTESHOWN) {
-      NOTESHOWN = true;
-      openNotes();
-    }
+    setNotes(d.notes, popup);
   }).catch(function () { });
 }
 
@@ -1732,7 +1809,7 @@ function openNotes() {
   }
   h += '</div><div class="sf"><button class="btn o w" onclick="closeNotes()">Close</button>' +
     '</div></div></div>';
-  $('sheet').innerHTML = h;
+  openSheet(h, closeNotes);
 }
 
 function closeNotes() {
@@ -2267,7 +2344,7 @@ function openDoer(r) {
   }
   h += '</div><div class="sf"><button class="btn o" style="flex:1" onclick="closeSheet()">Cancel</button>' +
     '<button class="btn" style="flex:1" onclick="saveDoer(' + r + ')">Save</button></div></div></div>';
-  $('sheet').innerHTML = h;
+  openSheet(h);
 }
 
 function setDoerVal(v) { $('doerIn').value = v; }
@@ -2734,7 +2811,7 @@ function openWork(row, dept) {
     (row ? '<button class="btn d" style="flex:1" onclick="removeWork(' + row + ')">Remove</button>' : '') +
     '<button class="btn" style="flex:2" onclick="saveWork(' + (row || 0) + ')">Save</button>' +
     '</div></div></div>';
-  $('sheet').innerHTML = h;
+  openSheet(h);
 }
 
 function saveWork(row) {
@@ -2799,6 +2876,17 @@ function boot() {
     flushQueue(false);
   });
   window.addEventListener('offline', paintNet);
+  window.addEventListener('popstate', function (e) {
+    if ($('sheet').innerHTML) {
+      var f = SHEETX;
+      SHEETX = null;
+      $('sheet').innerHTML = '';
+      if (f && f !== closeSheet) f();
+      history.pushState({ p: PANE }, '');
+      return;
+    }
+    go((e.state && e.state.p) || HOME, true);
+  });
   qCount();
   if (!TOKEN) { showLogin(''); return; }
   var saved = cacheGet('cc_boot');
