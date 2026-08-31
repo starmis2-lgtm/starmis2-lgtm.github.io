@@ -659,8 +659,9 @@ var REPCACHE = {};
 var QN = 0;
 var DB = null;
 var FLUSHING = false;
+var LASTMS = null;
 var SRVVER = '';
-var APPVER = '2026-08-31-a';
+var APPVER = '2026-08-31-b';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -755,11 +756,15 @@ function api(action, body) {
   var p = body || {};
   p.action = action;
   if (TOKEN) p.token = TOKEN;
+  var t0 = Date.now();
   return fetch(API, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(p)
-  }).then(function (r) { return r.json(); }, function () {
+  }).then(function (r) {
+    LASTMS = { total: Date.now() - t0, action: action };
+    return r.json();
+  }, function () {
     var err;
     if (!navigator.onLine) {
       err = new Error('No internet right now.');
@@ -771,6 +776,7 @@ function api(action, body) {
     }
     throw err;
   }).then(function (d) {
+    if (LASTMS && d.ms !== undefined) LASTMS.server = d.ms;
     if (!d.ok) throw new Error(d.error || 'Something went wrong.');
     return d;
   });
@@ -1343,7 +1349,13 @@ function testLink(ev) {
   if (ev) ev.stopPropagation();
   $('connOut').textContent = 'Checking…';
   api('me', {}).then(function (d) {
-    $('connOut').textContent = 'Server OK  ·  signed in as ' + d.user.name;
+    var m = LASTMS || {};
+    var net = (m.total !== undefined && m.server !== undefined)
+      ? (m.total - m.server) : null;
+    $('connOut').textContent = 'OK as ' + d.user.name +
+      (m.total !== undefined ? '  ·  total ' + m.total + ' ms' : '') +
+      (m.server !== undefined ? '  ·  server ' + m.server + ' ms' : '') +
+      (net !== null ? '  ·  network+startup ' + net + ' ms' : '');
   }).catch(function (e) {
     $('connOut').textContent = e.message;
   });
