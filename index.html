@@ -696,7 +696,8 @@ var SRVVER = '';
 var LIVEVER = '';
 var NOTES = [];
 var NOTESHOWN = false;
-var APPVER = '2026-08-31-f';
+var VIEWBY = '';
+var APPVER = '2026-08-31-g';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1005,6 +1006,7 @@ function startBeat() {
 
 function signOut() {
   stopBeat();
+  localStorage.removeItem('cc_admin_token');
   api('logout', {}).catch(function () { });
   TOKEN = '';
   USER = null;
@@ -1075,6 +1077,7 @@ function start(boot) {
   $('hSub').textContent = USER.name;
   $('hoHi').textContent = greet() + ', ' + shortName(USER.name);
   SRVVER = boot.version || '';
+  VIEWBY = boot.viewingBy || '';
   LISTS = boot.checklists || [];
   var h = '';
   for (var i = 0; i < LISTS.length; i++) {
@@ -1275,13 +1278,19 @@ function renderMe() {
       '<div style="flex:1;min-width:0"><div class="n">Edit checklist</div>' +
       '<div class="m">Add, change or remove work items</div></div>' + cv() + '</div></div>';
   }
+  if (VIEWBY) {
+    h += '<div class="note" style="background:var(--amber-soft);color:var(--amber)">' +
+      'Aap <b>' + esc(USER.name) + '</b> ki screen dekh rahe ho.</div>' +
+      '<div style="padding:0 14px 14px">' +
+      '<button class="btn w" onclick="backToMe()">Back to my account</button></div>';
+  }
   h += '<div class="sec">What you can open</div><div class="list">';
   if (USER.tabs.indexOf('paneEntry') !== -1) h += '<div class="it"><div class="n">Data entry</div></div>';
   if (USER.tabs.indexOf('paneList') !== -1) h += '<div class="it"><div class="n">Saved entries</div></div>';
   for (var i = 0; i < reps.length; i++) {
     h += '<div class="it"><div class="n">' + esc(reps[i].name) + '</div></div>';
   }
-  if (USER.isAdmin) {
+  if (USER.isAdmin && !VIEWBY) {
     h += '<div class="sec">Admin</div><div class="list">' +
       '<div class="it" onclick="go(\'admin\')">' +
       '<span class="ic"><svg viewBox="0 0 24 24">' +
@@ -1307,7 +1316,9 @@ function renderMe() {
     '<div class="r"><button class="btn o" style="padding:9px 16px;font-size:13px" ' +
     'onclick="testLink(event)">Test</button></div></div></div>' +
     '<div style="padding:4px 14px 20px">' +
-    '<button class="btn w o" onclick="signOut()">Sign out</button></div>';
+    (VIEWBY
+      ? '<button class="btn w" onclick="backToMe()">Back to my account</button>'
+      : '<button class="btn w o" onclick="signOut()">Sign out</button>') + '</div>';
   $('meBody').innerHTML = h;
   paintPush();
 }
@@ -1357,6 +1368,14 @@ function openUser(i) {
         '<button class="btn w" style="margin-top:14px" onclick="setUserPassword(\'' + q(u.email) + '\')">' +
         'Save password</button><div style="height:20px"></div>'
       : '') +
+    (USER.canPassword
+      ? '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">' +
+        'See the app as this user</label>' +
+        '<button class="btn w o" onclick="viewAs(\'' + q(u.email) + '\')">Open their view</button>' +
+        '<div class="m" style="color:var(--ink3);margin-top:10px">' +
+        'Aap unki screen dekh paoge. Account tab se wapas aa sakte ho.</div>' +
+        '<div style="height:20px"></div>'
+      : '') +
     '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">Account</label>' +
     '<button class="btn w ' + (u.active ? 'd' : '') + '" onclick="setUserStatus(\'' + q(u.email) + '\',' +
     (u.active ? 'false' : 'true') + ')">' +
@@ -1368,6 +1387,59 @@ function openUser(i) {
     '</div><div class="sf"><button class="btn o w" onclick="closeSheet()">Close</button></div>' +
     '</div></div>';
   $('sheet').innerHTML = h;
+}
+
+function viewAs(email) {
+  busy(true, 'Opening their view');
+  api('viewAs', { email: email }).then(function (d) {
+    var mine = localStorage.getItem('cc_admin_token') || TOKEN;
+    localStorage.setItem('cc_admin_token', mine);
+    TOKEN = d.token;
+    localStorage.setItem('cc_token', TOKEN);
+    USER = d.user;
+    NOTES = [];
+    NOTESHOWN = true;
+    SAVED = null;
+    HOMEDATA = null;
+    REPCACHE = {};
+    MASTER = null;
+    DEPS = [];
+    closeSheet();
+    return api('boot', {});
+  }).then(function (b) {
+    busy(false);
+    start(b);
+  }).catch(function (e) {
+    busy(false);
+    toast(e.message, true);
+  });
+}
+
+function backToMe() {
+  var mine = localStorage.getItem('cc_admin_token');
+  if (!mine) { signOut(); return; }
+  busy(true, 'Going back');
+  api('logout', {}).catch(function () { });
+  TOKEN = mine;
+  localStorage.setItem('cc_token', TOKEN);
+  localStorage.removeItem('cc_admin_token');
+  NOTES = [];
+  NOTESHOWN = false;
+  SAVED = null;
+  HOMEDATA = null;
+  REPCACHE = {};
+  MASTER = null;
+  DEPS = [];
+  api('boot', {}).then(function (b) {
+    busy(false);
+    cacheSet('cc_boot', b);
+    USER = b.user;
+    start(b);
+  }).catch(function (e) {
+    busy(false);
+    toast(e.message, true);
+    showLogin('');
+  });
 }
 
 function setUserPassword(email) {
