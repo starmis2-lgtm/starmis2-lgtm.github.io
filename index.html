@@ -123,6 +123,7 @@
   .hero .m { font-size: 12.5px; color: rgba(255,255,255,.82); margin-top: 4px; position: relative; }
 
   .kpi { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 14px 16px; }
+  .kpi.k3 { grid-template-columns: repeat(3, 1fr); }
   .kpi .b { background: var(--card); border-radius: var(--r); padding: 14px;
     box-shadow: var(--shadow); }
   .kpi .k { font-size: 11.5px; color: var(--ink2); }
@@ -184,7 +185,6 @@
     font-weight: 600; text-align: center; }
   .chips .y { background: var(--good-soft); color: var(--good); }
   .chips .n { background: var(--bad-soft); color: var(--bad); }
-  .chips .w { background: var(--amber-soft); color: var(--amber); }
 
   .wk { background: var(--card); border-bottom: 1px solid var(--line); padding: 16px; }
   .wk.no { background: var(--bad-soft); }
@@ -205,8 +205,6 @@
     box-shadow: 0 4px 12px rgba(5, 150, 105, .3); }
   .seg button.n { background: var(--bad); border-color: var(--bad); color: #fff;
     box-shadow: 0 4px 12px rgba(220, 38, 38, .3); }
-  .seg button.w { background: #b45309; border-color: #b45309; color: #fff;
-    box-shadow: 0 4px 12px rgba(180, 83, 9, .3); }
   .att { margin-top: 12px; background: #fff; border: 1px solid var(--line);
     border-radius: 11px; padding: 12px; display: flex; align-items: center;
     gap: 11px; font-size: 13px; color: var(--ink2); }
@@ -498,7 +496,6 @@
   <div class="chips">
     <button class="y" onclick="markAll('Yes')">All yes</button>
     <button class="n" onclick="markAll('No')">All no</button>
-    <button class="w" onclick="markAll('W.N.D')">All W.N.D</button>
   </div>
   <div id="dWorks"></div>
   <div class="ft">
@@ -698,6 +695,9 @@ var NOTES = [];
 var NOTESHOWN = false;
 var VIEWBY = '';
 var FRESH = {};
+var DRAFTED = {};
+var DTIMER = null;
+var JUMPED = false;
 var APPVER = '2026-08-31-l';
 
 function $(id) { return document.getElementById(id); }
@@ -823,31 +823,37 @@ function idb() {
   return new Promise(function (res, rej) {
     if (DB) { res(DB); return; }
     if (!window.indexedDB) { rej(new Error('no idb')); return; }
-    var r = indexedDB.open('cc_queue', 1);
+    var r = indexedDB.open('cc_queue', 2);
     r.onupgradeneeded = function () {
-      if (!r.result.objectStoreNames.contains('q')) {
-        r.result.createObjectStore('q', { keyPath: 'id' });
-      }
+      var db = r.result;
+      if (!db.objectStoreNames.contains('q')) db.createObjectStore('q', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('d')) db.createObjectStore('d', { keyPath: 'id' });
     };
     r.onsuccess = function () { DB = r.result; res(DB); };
     r.onerror = function () { rej(r.error); };
   });
 }
 
-function qRun(mode, fn) {
+function stRun(name, mode, fn) {
   return idb().then(function (db) {
     return new Promise(function (res, rej) {
-      var t = db.transaction('q', mode);
-      var out = fn(t.objectStore('q'));
+      var t = db.transaction(name, mode);
+      var out = fn(t.objectStore(name));
       t.oncomplete = function () { res(out && out.result !== undefined ? out.result : out); };
       t.onerror = function () { rej(t.error); };
     });
   });
 }
 
+function qRun(mode, fn) { return stRun('q', mode, fn); }
 function qPut(item) { return qRun('readwrite', function (st) { return st.put(item); }); }
 function qDel(id) { return qRun('readwrite', function (st) { return st.delete(id); }); }
 function qAll() { return qRun('readonly', function (st) { return st.getAll(); }); }
+
+function dRun(mode, fn) { return stRun('d', mode, fn); }
+function dPut(item) { return dRun('readwrite', function (st) { return st.put(item); }); }
+function dDel(id) { return dRun('readwrite', function (st) { return st.delete(id); }); }
+function dAll() { return dRun('readonly', function (st) { return st.getAll(); }); }
 
 function qCount() {
   return qAll().then(function (items) {
@@ -855,6 +861,107 @@ function qCount() {
     paintNet();
     return QN;
   }).catch(function () { return 0; });
+}
+
+function draftRows(d) {
+  var out = [];
+  for (var r = 0; r < DEPS[d].rows.length; r++) {
+    var w = DEPS[d].rows[r];
+    if (!w.status && !w.note && !w.photo) continue;
+    out.push({ work: w.work, doer: w.doer, status: w.status, note: w.note, photo: w.photo });
+  }
+  return out;
+}
+
+function saveDraft(d) {
+  if (!MASTER || !DEPS[d]) return Promise.resolve();
+  var id = qId(DEPS[d].department);
+  var rows = draftRows(d);
+  if (!rows.length) return dropDraft(DEPS[d].department);
+  DRAFTED[id] = true;
+  return dPut({
+    id: id, day: today(), at: Date.now(),
+    checklist: LIST, date: $('tDay').value,
+    srn: MASTER.srn ? $('tSrn').value : '',
+    department: DEPS[d].department, rows: rows
+  }).catch(function () { });
+}
+
+function touchDraft() {
+  var d = CUR;
+  if (DTIMER) clearTimeout(DTIMER);
+  DTIMER = setTimeout(function () { DTIMER = null; saveDraft(d); }, 400);
+}
+
+function dropDraft(dept) {
+  if (!MASTER) return Promise.resolve();
+  var id = qId(dept);
+  delete DRAFTED[id];
+  return dDel(id).catch(function () { });
+}
+
+function purgeDrafts() {
+  var day = today();
+  return dAll().then(function (items) {
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].day === day) DRAFTED[items[i].id] = true;
+      else dDel(items[i].id).catch(function () { });
+    }
+  }).catch(function () { });
+}
+
+function applyDrafts() {
+  return dAll().then(function (items) {
+    var day = today();
+    var srn = MASTER && MASTER.srn ? $('tSrn').value : '';
+    var date = $('tDay').value;
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (it.day !== day) continue;
+      DRAFTED[it.id] = true;
+      if (it.checklist !== LIST || it.date !== date || it.srn !== srn) continue;
+      for (var d = 0; d < DEPS.length; d++) {
+        if (DEPS[d].department !== it.department) continue;
+        if (DEPS[d].queued || DEPS[d].sending) continue;
+        for (var r = 0; r < it.rows.length; r++) {
+          for (var w = 0; w < DEPS[d].rows.length; w++) {
+            if (DEPS[d].rows[w].work !== it.rows[r].work) continue;
+            DEPS[d].rows[w].status = it.rows[r].status || '';
+            DEPS[d].rows[w].note = it.rows[r].note || '';
+            DEPS[d].rows[w].photo = it.rows[r].photo || '';
+            if (it.rows[r].doer) DEPS[d].rows[w].doer = it.rows[r].doer;
+          }
+        }
+        DEPS[d].dirty = true;
+      }
+    }
+  }).catch(function () { });
+}
+
+function savePos(dept) {
+  cacheSet('cc_pos', {
+    day: today(), list: LIST, date: $('tDay').value,
+    srn: MASTER && MASTER.srn ? $('tSrn').value : '',
+    dept: dept || ''
+  });
+}
+
+function jumpBack() {
+  if (JUMPED) return;
+  JUMPED = true;
+  var p = cacheGet('cc_pos');
+  if (!p || p.day !== today() || !p.dept) return;
+  if (!DRAFTED[qId(p.dept)]) return;
+  for (var i = 0; i < DEPS.length; i++) {
+    if (DEPS[i].department === p.dept) { openDept(i); return; }
+  }
+}
+
+function restoreLocal() {
+  return applyQueued().then(applyDrafts).then(function () {
+    renderToday();
+    jumpBack();
+  });
 }
 
 function paintNet() {
@@ -1087,7 +1194,9 @@ function start(boot) {
   $('tList').innerHTML = h;
   $('sList').innerHTML = h;
   $('eList').innerHTML = h;
-  $('tDay').value = boot.today;
+  var pos = cacheGet('cc_pos');
+  if (!pos || pos.day !== today()) pos = null;
+  $('tDay').value = pos && pos.date ? pos.date : today();
   var n = new Date();
   RY = n.getFullYear();
   RM = n.getMonth() + 1;
@@ -1098,13 +1207,21 @@ function start(boot) {
     $('tInfo').textContent = '';
   } else {
     LIST = LISTS[0].key;
-    if (boot.master) {
+    if (pos && pos.list) {
+      for (var k = 0; k < LISTS.length; k++) {
+        if (LISTS[k].key === pos.list) LIST = pos.list;
+      }
+    }
+    $('tList').value = LIST;
+    if (boot.master && boot.master.checklist === LIST) {
       MASTER = boot.master;
+      cacheSet('cc_master_' + LIST, MASTER);
       applyMaster();
-      if (boot.day) {
+      if (MASTER.srn && pos && pos.srn) $('tSrn').value = pos.srn;
+      if (boot.day && !MASTER.srn && $('tDay').value === boot.today) {
         buildDeps(boot.day.departments || []);
         $('tSub').textContent = MASTER.label + '  ·  ' + dmy(boot.today);
-        renderToday();
+        restoreLocal();
       } else {
         refreshDay();
       }
@@ -1117,7 +1234,8 @@ function start(boot) {
     FRESH.home = Date.now();
     cacheSet(ck('home'), boot.home);
   }
-  go(HOME);
+  go(pos && pos.dept && DRAFTED[LIST + '|' + $('tDay').value + '|' +
+    (pos.srn || '') + '|' + pos.dept] ? 'today' : HOME);
   loadNotes(true);
 }
 
@@ -1180,11 +1298,10 @@ function renderHome(d) {
     '<div class="v">' + fmt(t.officer) + '%</div>' +
     '<div class="m">' + esc(delta(t.officer, t.prevOfficer) || (t.yes + ' yes of ' + t.planned + ' work')) +
     '</div></div></div>';
-  h += '<div class="kpi">' +
+  h += '<div class="kpi k3">' +
     '<div class="b"><div class="k">Total work</div><div class="v">' + t.planned + '</div></div>' +
     '<div class="b"><div class="k">Yes</div><div class="v g">' + t.yes + '</div></div>' +
-    '<div class="b"><div class="k">No</div><div class="v b">' + t.no + '</div></div>' +
-    '<div class="b"><div class="k">Not checked</div><div class="v a">' + t.wnd + '</div></div></div>';
+    '<div class="b"><div class="k">No</div><div class="v b">' + t.no + '</div></div></div>';
 
   var canEnter = USER.tabs.indexOf('paneEntry') !== -1;
   h += '<div class="sec">Today  ·  ' + esc(dmy(d.today.date)) + '</div><div class="list">';
@@ -1715,11 +1832,10 @@ function repFactory(r) {
     '<div style="flex:1;min-width:0"><div class="k">Dept score</div>' +
     '<div class="v">' + fmt(t.deptScore) + '%</div>' +
     '<div class="m">Officer score ' + fmt(t.score) + '%</div></div></div>';
-  h += '<div class="kpi">' +
+  h += '<div class="kpi k3">' +
     '<div class="b"><div class="k">Work planned</div><div class="v">' + t.planned + '</div></div>' +
     '<div class="b"><div class="k">Yes</div><div class="v g">' + t.yes + '</div></div>' +
-    '<div class="b"><div class="k">No</div><div class="v b">' + t.no + '</div></div>' +
-    '<div class="b"><div class="k">W.N.D</div><div class="v">' + t.wnd + '</div></div></div>';
+    '<div class="b"><div class="k">No</div><div class="v b">' + t.no + '</div></div></div>';
   h += '<div class="sec">Checklist score</div><div class="list">';
   for (var i = 0; i < r.rows.length; i++) {
     var x = r.rows[i];
@@ -1749,16 +1865,15 @@ function repChecklist(r) {
     '<div style="flex:1;min-width:0"><div class="k">Dept score</div>' +
     '<div class="v">' + fmt(t.score) + '%</div>' +
     '<div class="m">Officer score ' + fmt(t.officerScore) + '%</div></div></div>';
-  h += '<div class="kpi">' +
+  h += '<div class="kpi k3">' +
     '<div class="b"><div class="k">Work planned</div><div class="v">' + t.planned + '</div></div>' +
     '<div class="b"><div class="k">Yes</div><div class="v g">' + t.yes + '</div></div>' +
-    '<div class="b"><div class="k">No</div><div class="v b">' + t.no + '</div></div>' +
-    '<div class="b"><div class="k">W.N.D</div><div class="v">' + t.wnd + '</div></div></div>';
+    '<div class="b"><div class="k">No</div><div class="v b">' + t.no + '</div></div></div>';
   h += '<div class="sec">Week wise</div><div class="list">';
   for (var w = 0; w < r.weeks.length; w++) {
     var k = r.weeks[w];
     h += '<div class="it"><div style="flex:1;min-width:0"><div class="n">' + esc(k.label) + '</div>' +
-      '<div class="m">' + k.planned + ' work  ·  ' + k.no + ' no  ·  ' + k.wnd + ' W.N.D</div>' +
+      '<div class="m">' + k.planned + ' work  ·  ' + k.no + ' no</div>' +
       sp(k.yes, k.no, k.wnd) + '</div>' +
       '<div class="r"><div class="num ' + cl(k.score) + '">' + fmt(k.score) + '</div></div></div>';
   }
@@ -1827,7 +1942,7 @@ function openDrill(dept) {
       var v = r.rows[i];
       h += '<div class="it"><div style="flex:1;min-width:0">' +
         '<div class="n">' + esc(dmy(v.date)) + '  ·  ' + esc(v.day.substring(0, 3)) + '</div>' +
-        '<div class="m">' + v.planned + ' work  ·  ' + v.no + ' no  ·  ' + v.wnd + ' W.N.D</div>' +
+        '<div class="m">' + v.planned + ' work  ·  ' + v.no + ' no</div>' +
         (v.failed.length ? '<div class="m b">' + esc(v.failed.map(function (f) {
           return splitWork(f).en;
         }).join('  ·  ')) + '</div>' : '') + sp(v.yes, v.no, v.wnd) + '</div>' +
@@ -1891,8 +2006,7 @@ function refreshDay(needMaster) {
     var old = cacheGet(dayKey());
     if (old) {
       buildDeps(old);
-      applyQueued();
-      renderToday();
+      restoreLocal();
     } else {
       $('tBody').innerHTML = skel(5);
     }
@@ -1917,14 +2031,14 @@ function refreshDay(needMaster) {
     }
     cacheSet(dayKey(), d.departments || []);
     buildDeps(d.departments || []);
-    applyQueued();
-    renderToday();
+    var was = cacheGet('cc_pos');
+    savePos(was && was.day === today() ? was.dept : '');
+    restoreLocal();
   }).catch(function (e) {
     if (e.offline || e.unreachable) {
       if (!DEPS.length) {
         buildDeps(cacheGet(dayKey()) || []);
-        applyQueued();
-        renderToday();
+        restoreLocal();
       }
       return;
     }
@@ -1967,10 +2081,9 @@ function buildDeps(saved) {
 }
 
 function applyQueued() {
-  qAll().then(function (items) {
+  return qAll().then(function (items) {
     var srn = MASTER && MASTER.srn ? $('tSrn').value : '';
     var date = $('tDay').value;
-    var hit = false;
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
       if (it.checklist !== LIST || it.date !== date || it.srn !== srn) continue;
@@ -1987,38 +2100,34 @@ function applyQueued() {
             }
           }
         }
-        hit = true;
       }
     }
-    if (hit) renderToday();
   }).catch(function () { });
 }
 
 function stats(d) {
-  var y = 0, n = 0, w = 0, rows = DEPS[d].rows;
+  var y = 0, n = 0, rows = DEPS[d].rows;
   for (var i = 0; i < rows.length; i++) {
     if (rows[i].status === 'Yes') y++;
     else if (rows[i].status === 'No') n++;
-    else if (rows[i].status === 'W.N.D') w++;
   }
   return {
-    yes: y, no: n, wnd: w, marked: y + n + w, all: rows.length,
+    yes: y, no: n, marked: y + n, all: rows.length,
     score: (y + n) ? Math.round(y * 10000 / (y + n)) / 100 : ''
   };
 }
 
 function totals() {
-  var t = { yes: 0, no: 0, wnd: 0, marked: 0, all: 0, ready: 0, pending: 0 };
+  var t = { yes: 0, no: 0, marked: 0, all: 0, ready: 0, pending: 0 };
   for (var d = 0; d < DEPS.length; d++) {
     var s = stats(d);
-    t.yes += s.yes; t.no += s.no; t.wnd += s.wnd;
+    t.yes += s.yes; t.no += s.no;
     t.marked += s.marked; t.all += s.all;
     if (s.marked) t.ready++;
     if (s.marked && !DEPS[d].queued && !DEPS[d].sending &&
       (!DEPS[d].saved || DEPS[d].dirty)) t.pending++;
   }
   t.dept = (t.yes + t.no) ? Math.round(t.yes * 10000 / (t.yes + t.no)) / 100 : '';
-  t.off = t.marked ? Math.round(t.yes * 10000 / t.marked) / 100 : '';
   return t;
 }
 
@@ -2054,6 +2163,7 @@ function renderToday() {
 
 function openDept(d) {
   CUR = d;
+  savePos(DEPS[d].department);
   renderDept();
   go('dept');
 }
@@ -2080,8 +2190,7 @@ function renderDept() {
       '<span id="drt' + r + '">' + esc(w.doer || 'Set person') + '</span></button>' +
       '</div></div><div class="seg">' +
       '<button id="b' + r + 'y" onclick="setSt(' + r + ',\'Yes\')">Yes</button>' +
-      '<button id="b' + r + 'n" onclick="setSt(' + r + ',\'No\')">No</button>' +
-      '<button id="b' + r + 'w" onclick="setSt(' + r + ',\'W.N.D\')">W.N.D</button></div>' +
+      '<button id="b' + r + 'n" onclick="setSt(' + r + ',\'No\')">No</button></div>' +
       '<div id="at' + r + '"></div></div>';
   }
   $('dWorks').innerHTML = h;
@@ -2092,7 +2201,6 @@ function paint(r) {
   var w = DEPS[CUR].rows[r];
   $('b' + r + 'y').className = w.status === 'Yes' ? 'y' : '';
   $('b' + r + 'n').className = w.status === 'No' ? 'n' : '';
-  $('b' + r + 'w').className = w.status === 'W.N.D' ? 'w' : '';
   $('wk' + r).className = 'wk' + (w.status === 'No' ? ' no' : '');
   $('drt' + r).textContent = w.doer || 'Set person';
   var box = $('at' + r);
@@ -2139,6 +2247,7 @@ function saveDoer(r) {
   w.doer = v;
   closeSheet();
   paint(r);
+  touchDraft();
   if (!w.row) return;
   api('setDoer', { checklist: LIST, row: w.row, doer: v }).then(function () {
     w.baseDoer = v;
@@ -2153,6 +2262,7 @@ function setSt(r, v) {
   DEPS[CUR].dirty = true;
   paint(r);
   afterMark();
+  touchDraft();
 }
 
 function markAll(v) {
@@ -2163,6 +2273,7 @@ function markAll(v) {
   }
   DEPS[CUR].dirty = true;
   renderDept();
+  touchDraft();
 }
 
 function afterMark() {
@@ -2189,6 +2300,7 @@ function paintFoot(s) {
 function setNote(r, v) {
   DEPS[CUR].rows[r].note = v;
   DEPS[CUR].dirty = true;
+  touchDraft();
 }
 
 function dropPhoto(ev, r) {
@@ -2197,6 +2309,7 @@ function dropPhoto(ev, r) {
   DEPS[CUR].rows[r].photo = '';
   DEPS[CUR].dirty = true;
   paint(r);
+  touchDraft();
 }
 
 function pickPhoto(ev, r) {
@@ -2217,6 +2330,7 @@ function pickPhoto(ev, r) {
       DEPS[CUR].rows[r].photo = cvs.toDataURL('image/jpeg', 0.6);
       DEPS[CUR].dirty = true;
       paint(r);
+      touchDraft();
     };
     img.src = rd.result;
   };
@@ -2249,6 +2363,7 @@ function queueSave(items, depts) {
     for (var j = 0; j < depts.length; j++) {
       DEPS[depts[j]].queued = true;
       DEPS[depts[j]].dirty = false;
+      dropDraft(DEPS[depts[j]].department);
     }
     return qCount();
   });
@@ -2319,6 +2434,7 @@ function sendSave(items, idx, label) {
       DEPS[idx[i]].sending = false;
       DEPS[idx[i]].saved = true;
       DEPS[idx[i]].queued = false;
+      dropDraft(DEPS[idx[i]].department);
     }
     SAVED = null;
     HOMEDATA = null;
@@ -2336,6 +2452,7 @@ function sendSave(items, idx, label) {
     for (var i = 0; i < idx.length; i++) {
       DEPS[idx[i]].sending = false;
       DEPS[idx[i]].dirty = true;
+      saveDraft(idx[i]);
     }
     toast(label + ' save nahi hua: ' + e.message, true);
     refreshOpenScreens();
@@ -2408,10 +2525,9 @@ function renderReview() {
   $('rSub').textContent = MASTER.label + '  ·  ' + dmy($('tDay').value);
   var h = '<div class="kpi" style="margin-top:14px">' +
     '<div class="b"><div class="k">Dept score</div><div class="v ' + cl(t.dept) + '">' + fmt(t.dept) + '%</div></div>' +
-    '<div class="b"><div class="k">Officer score</div><div class="v">' + fmt(t.off) + '%</div></div>' +
+    '<div class="b"><div class="k">Marked</div><div class="v">' + t.marked + ' / ' + t.all + '</div></div>' +
     '<div class="b"><div class="k">Yes</div><div class="v g">' + t.yes + '</div></div>' +
-    '<div class="b"><div class="k">No  ·  W.N.D</div><div class="v"><span class="b">' +
-    t.no + '</span> · ' + t.wnd + '</div></div></div>';
+    '<div class="b"><div class="k">No</div><div class="v b">' + t.no + '</div></div></div>';
   var fails = [];
   for (var d = 0; d < DEPS.length; d++) {
     for (var r = 0; r < DEPS[d].rows.length; r++) {
@@ -2653,24 +2769,62 @@ function boot() {
   window.addEventListener('offline', paintNet);
   qCount();
   if (!TOKEN) { showLogin(''); return; }
+  var saved = cacheGet('cc_boot');
   only('pSplash');
-  api('boot', {}).then(function (d) {
+  purgeDrafts().then(function () {
+    if (saved && saved.user) {
+      USER = saved.user;
+      start(saved);
+      catchUp(saved);
+      return;
+    }
+    return firstBoot();
+  });
+}
+
+function firstBoot() {
+  return api('boot', {}).then(function (d) {
     cacheSet('cc_boot', d);
     USER = d.user;
     start(d);
   }).catch(function (e) {
-    var saved = cacheGet('cc_boot');
-    if ((e.offline || e.unreachable) && saved && saved.user) {
-      USER = saved.user;
-      start(saved);
-      return;
-    }
     if (e.offline || e.unreachable) {
       showLogin(e.message);
       return;
     }
     localStorage.removeItem('cc_token');
     showLogin(/sign in|password|switched off/i.test(e.message) ? e.message : '');
+  });
+}
+
+function sameAccess(a, b) {
+  return JSON.stringify(a.checklists || []) === JSON.stringify(b.checklists || []) &&
+    (a.user.tabs || []).join() === (b.user.tabs || []).join();
+}
+
+function catchUp(saved) {
+  api('boot', {}).then(function (d) {
+    cacheSet('cc_boot', d);
+    USER = d.user;
+    SRVVER = d.version || '';
+    VIEWBY = d.viewingBy || '';
+    if (!sameAccess(saved, d)) { JUMPED = false; start(d); return; }
+    if (d.home && d.home.totals) {
+      HOMEDATA = d.home;
+      FRESH.home = Date.now();
+      cacheSet(ck('home'), d.home);
+      if (!$('pHome').classList.contains('hide')) renderHome(d.home);
+    }
+  }).catch(function (e) {
+    if (e.offline || e.unreachable) return;
+    if (/sign in|switched off|password was changed/i.test(e.message)) {
+      stopBeat();
+      localStorage.removeItem('cc_token');
+      TOKEN = '';
+      USER = null;
+      $('tabs').classList.add('hide');
+      showLogin(e.message);
+    }
   });
 }
 boot();
