@@ -660,7 +660,7 @@ var QN = 0;
 var DB = null;
 var FLUSHING = false;
 var SRVVER = '';
-var APPVER = '2026-08-29-o';
+var APPVER = '2026-08-31-a';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1266,14 +1266,17 @@ function loadAdmin() {
     var h = '<div class="sec">' + d.users.length + ' user(s)</div><div class="list">';
     for (var i = 0; i < d.users.length; i++) {
       var u = d.users[i];
-      h += '<div class="it" onclick="openUser(' + i + ')">' +
-        '<span class="av" style="background:' + (u.active ? 'var(--blue)' : '#9aa8b6') + '">' +
+      h += '<div class="it"' + (u.locked ? ' style="opacity:.55"' : ' onclick="openUser(' + i + ')"') + '>' +
+        '<span class="av" style="background:' +
+        (u.locked ? '#9aa8b6' : (u.active ? 'var(--grad)' : '#9aa8b6')) + '">' +
         esc(ini(u.name)) + '</span>' +
         '<div style="flex:1;min-width:0"><div class="n">' + esc(u.name) +
-        (u.active ? '' : ' <span class="pill a">Off</span>') + '</div>' +
+        (u.active ? '' : ' <span class="pill a">Off</span>') +
+        (u.locked ? ' <span class="pill a">Locked</span>' : '') + '</div>' +
         '<div class="m">' + esc(u.email) + '</div>' +
         '<div class="m">' + esc(u.department || '') + '  ·  ' + u.tabs + ' tab(s)  ·  ' +
-        (u.hasPassword ? 'password set' : 'no password') + '</div></div>' + cv() + '</div>';
+        (u.hasPassword ? 'password set' : 'no password') + '</div></div>' +
+        (u.locked ? '' : cv()) + '</div>';
     }
     $('adBody').innerHTML = h + '</div>';
   }).catch(function (e) {
@@ -1283,6 +1286,10 @@ function loadAdmin() {
 
 function openUser(i) {
   var u = ADMINS[i];
+  if (u.locked) {
+    toast('IT/MIS aur Management ke account aap nahi badal sakte.', true);
+    return;
+  }
   var h = '<div class="mask" onclick="if(event.target===this)closeSheet()"><div class="sheet">' +
     '<div class="sh"><h3>' + esc(u.name) + '</h3>' +
     '<button class="ib" style="background:var(--soft)" onclick="closeSheet()" aria-label="Close">' +
