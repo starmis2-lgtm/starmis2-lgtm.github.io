@@ -12,23 +12,26 @@
 <title>Compliance Checklist</title>
 <style>
   :root {
-    --nav: #101c2b;
-    --bg: #f5f7fa;
+    --nav: #0b1220;
+    --bg: #f4f6fb;
     --card: #ffffff;
-    --line: #e6eaf0;
-    --soft: #f1f4f8;
-    --ink: #111d2b;
-    --ink2: #5b6b7d;
-    --ink3: #92a0b0;
-    --blue: #2563a8;
-    --blue-soft: #e9f0f8;
-    --good: #0d7a58;
-    --good-soft: #e6f4ee;
-    --bad: #c2362a;
-    --bad-soft: #fdeceb;
-    --amber: #a1740d;
-    --amber-soft: #fdf3e0;
-    --r: 14px;
+    --line: #e7eaf2;
+    --soft: #f1f4f9;
+    --ink: #0f172a;
+    --ink2: #55637a;
+    --ink3: #94a3b8;
+    --blue: #2563eb;
+    --blue-deep: #1d4ed8;
+    --blue-soft: #e8effd;
+    --grad: linear-gradient(135deg, #1e3a8a 0%, #2563eb 62%, #3b82f6 100%);
+    --good: #059669;
+    --good-soft: #e5f6f0;
+    --bad: #dc2626;
+    --bad-soft: #fdecec;
+    --amber: #b45309;
+    --amber-soft: #fdf2e2;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 4px 14px rgba(15, 23, 42, .05);
+    --r: 16px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; padding: 0; }
@@ -38,12 +41,21 @@
     -webkit-font-smoothing: antialiased; overscroll-behavior-y: contain;
   }
   .hide { display: none !important; }
+  section.pane, section.gate { animation: pagein .22s ease; }
+  @keyframes pagein {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  .btn, .seg button, .it, .ub, .chips button, .tabs button { transition: transform .08s ease, background .15s ease; }
+  .btn:active, .seg button:active, .chips button:active { transform: scale(.97); }
+  .it:active, .ub:active { transform: scale(.99); }
   button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
   button { cursor: pointer; border: 0; background: none; padding: 0; }
   input, select, textarea { -webkit-appearance: none; appearance: none; }
 
   .hdr { position: sticky; top: 0; z-index: 40; background: var(--nav); color: #fff;
-    padding: calc(12px + env(safe-area-inset-top)) 16px 15px; }
+    padding: calc(12px + env(safe-area-inset-top)) 16px 15px;
+    border-bottom: 1px solid rgba(255,255,255,.06); }
   .hrow { display: flex; align-items: center; gap: 12px; }
   .hdr h1 { font-size: 18px; margin: 0; font-weight: 600; letter-spacing: -.3px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -54,7 +66,7 @@
   .ib:active { background: rgba(255,255,255,.22); }
   .ib svg { width: 19px; height: 19px; fill: none; stroke: #fff; stroke-width: 2;
     stroke-linecap: round; stroke-linejoin: round; }
-  .av { width: 38px; height: 38px; border-radius: 50%; background: var(--blue); color: #fff;
+  .av { width: 38px; height: 38px; border-radius: 50%; background: var(--grad); color: #fff;
     font-size: 13.5px; font-weight: 600; display: flex; align-items: center;
     justify-content: center; flex: none; letter-spacing: .3px; }
   .track { height: 5px; border-radius: 3px; background: rgba(255,255,255,.15);
@@ -84,18 +96,24 @@
     stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .mon .lb { flex: 1; text-align: center; font-size: 15.5px; font-weight: 600; }
 
-  .hero { margin: 14px; background: var(--nav); color: #fff; border-radius: 18px;
-    padding: 18px; display: flex; align-items: center; gap: 17px; }
+  .hero { margin: 14px; background: var(--grad); color: #fff; border-radius: 20px;
+    padding: 19px 18px; display: flex; align-items: center; gap: 17px;
+    box-shadow: 0 10px 26px rgba(37, 99, 235, .28); position: relative; overflow: hidden; }
+  .hero::after { content: ''; position: absolute; right: -46px; top: -46px; width: 150px;
+    height: 150px; border-radius: 50%; background: rgba(255,255,255,.09); }
+  .hero::before { content: ''; position: absolute; right: 22px; bottom: -60px; width: 110px;
+    height: 110px; border-radius: 50%; background: rgba(255,255,255,.07); }
   .ring { width: 68px; height: 68px; flex: none; transform: rotate(-90deg); }
   .ring circle { fill: none; stroke-width: 7; stroke-linecap: round; }
-  .ring .bg { stroke: rgba(255,255,255,.13); }
-  .hero .k { font-size: 10.5px; font-weight: 600; letter-spacing: .8px;
-    text-transform: uppercase; color: #8ea2b6; }
+  .ring .bg { stroke: rgba(255,255,255,.22); }
+  .hero .k { font-size: 10.5px; font-weight: 700; letter-spacing: .9px;
+    text-transform: uppercase; color: rgba(255,255,255,.75); }
   .hero .v { font-size: 31px; font-weight: 700; line-height: 1.08; letter-spacing: -.8px; }
-  .hero .m { font-size: 12.5px; color: #92a6ba; margin-top: 4px; }
+  .hero .m { font-size: 12.5px; color: rgba(255,255,255,.82); margin-top: 4px; position: relative; }
 
   .kpi { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 14px 16px; }
-  .kpi .b { background: var(--card); border-radius: var(--r); padding: 14px; }
+  .kpi .b { background: var(--card); border-radius: var(--r); padding: 14px;
+    box-shadow: var(--shadow); }
   .kpi .k { font-size: 11.5px; color: var(--ink2); }
   .kpi .v { font-size: 23px; font-weight: 700; margin-top: 3px; letter-spacing: -.5px; }
 
@@ -106,6 +124,10 @@
     color: var(--blue); text-transform: none; letter-spacing: 0; }
   .list { background: var(--card); border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  @media (max-width: 899px) {
+    .list { margin-left: 14px; margin-right: 14px; border: 1px solid var(--line);
+      border-radius: var(--r); overflow: hidden; box-shadow: var(--shadow); }
+  }
   .it { display: flex; align-items: center; gap: 13px; padding: 15px 16px;
     border-bottom: 1px solid var(--soft); }
   .it:last-child { border-bottom: 0; }
@@ -122,8 +144,8 @@
   .dot.ok svg { width: 12px; height: 12px; stroke: #fff; stroke-width: 3;
     fill: none; stroke-linecap: round; stroke-linejoin: round; }
   .dot.half { border-color: var(--blue); border-style: dashed; }
-  .ic { width: 38px; height: 38px; border-radius: 11px; background: var(--blue-soft);
-    color: var(--blue); display: flex; align-items: center; justify-content: center; flex: none; }
+  .ic { width: 40px; height: 40px; border-radius: 12px; background: var(--blue-soft);
+    color: var(--blue-deep); display: flex; align-items: center; justify-content: center; flex: none; }
   .ic svg { width: 19px; height: 19px; fill: none; stroke: currentColor;
     stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -166,11 +188,14 @@
   .doer svg { width: 13px; height: 13px; fill: none; stroke: var(--blue);
     stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .seg { display: flex; gap: 8px; margin-top: 13px; }
-  .seg button { flex: 1; padding: 14px 0; border-radius: 11px; font-size: 14px;
-    font-weight: 600; border: 1px solid var(--line); background: #fff; color: var(--ink2); }
-  .seg button.y { background: var(--good); border-color: var(--good); color: #fff; }
-  .seg button.n { background: var(--bad); border-color: var(--bad); color: #fff; }
-  .seg button.w { background: #a8790c; border-color: #a8790c; color: #fff; }
+  .seg button { flex: 1; padding: 14px 0; border-radius: 13px; font-size: 14.5px;
+    font-weight: 700; border: 1.5px solid var(--line); background: #fff; color: var(--ink2); }
+  .seg button.y { background: var(--good); border-color: var(--good); color: #fff;
+    box-shadow: 0 4px 12px rgba(5, 150, 105, .3); }
+  .seg button.n { background: var(--bad); border-color: var(--bad); color: #fff;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, .3); }
+  .seg button.w { background: #b45309; border-color: #b45309; color: #fff;
+    box-shadow: 0 4px 12px rgba(180, 83, 9, .3); }
   .att { margin-top: 12px; background: #fff; border: 1px solid var(--line);
     border-radius: 11px; padding: 12px; display: flex; align-items: center;
     gap: 11px; font-size: 13px; color: var(--ink2); }
@@ -192,26 +217,30 @@
     background: var(--card); border-top: 1px solid var(--line);
     padding: 12px 14px; display: flex; gap: 10px; align-items: center; z-index: 35; }
   .ft span { font-size: 13px; color: var(--ink2); flex: 1; font-weight: 500; }
-  .btn { background: var(--blue); color: #fff; font-size: 15px; font-weight: 600;
-    padding: 14px 22px; border-radius: 12px; }
+  .btn { background: var(--grad); color: #fff; font-size: 15px; font-weight: 700;
+    padding: 14px 22px; border-radius: 13px; box-shadow: 0 4px 14px rgba(37, 99, 235, .3); }
   .btn:active { opacity: .84; }
   .btn.w { width: 100%; text-align: center; }
-  .btn.o { background: #fff; color: var(--blue); border: 1px solid var(--line); }
-  .btn.d { background: var(--bad); }
+  .btn.o { background: #fff; color: var(--blue-deep); border: 1px solid var(--line); box-shadow: none; }
+  .btn.d { background: var(--bad); box-shadow: 0 4px 14px rgba(220, 38, 38, .3); }
   .btn[disabled] { background: #b8c6d5; }
   .btn.o[disabled] { background: #fff; color: var(--ink3); }
 
-  .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: var(--card);
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: rgba(255,255,255,.96);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     border-top: 1px solid var(--line); display: flex; padding-bottom: env(safe-area-inset-bottom); }
   .tabs button { flex: 1; padding: 10px 0 11px; display: flex; flex-direction: column;
-    align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--ink3); }
-  .tabs button.on { color: var(--blue); }
+    align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--ink3);
+    position: relative; }
+  .tabs button.on { color: var(--blue-deep); }
+  .tabs button.on::before { content: ''; position: absolute; top: 0; width: 30px; height: 3px;
+    border-radius: 0 0 3px 3px; background: var(--grad); }
   .tabs svg { width: 22px; height: 22px; fill: none; stroke: currentColor;
     stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 
   .gate { padding: 0 24px; min-height: 100vh; display: flex; flex-direction: column;
     justify-content: center; background: var(--nav); }
-  .gate .mk { width: 60px; height: 60px; border-radius: 17px; background: var(--blue);
+  .gate .mk { width: 60px; height: 60px; border-radius: 17px; background: var(--grad);
     color: #fff; font-weight: 700; font-size: 21px; display: flex; align-items: center;
     justify-content: center; margin-bottom: 24px; }
   .gate h2 { color: #fff; font-size: 21px; margin: 0; font-weight: 600; letter-spacing: -.4px; }
@@ -278,8 +307,9 @@
     animation: p 1.2s ease-in-out infinite; }
   @keyframes p { 0%, 100% { opacity: 1 } 50% { opacity: .5 } }
   .toast { position: fixed; left: 14px; right: 14px; bottom: calc(154px + env(safe-area-inset-bottom));
-    background: var(--ink); color: #fff; padding: 15px 17px; border-radius: 13px;
-    font-size: 13.5px; z-index: 90; text-align: center; line-height: 1.45; }
+    background: var(--ink); color: #fff; padding: 15px 17px; border-radius: 14px;
+    font-size: 13.5px; z-index: 90; text-align: center; line-height: 1.45;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .35); animation: pagein .18s ease; }
   .toast.e { background: var(--bad); }
   .busy { position: fixed; inset: 0; background: rgba(16,28,43,.4); z-index: 95;
     display: flex; align-items: center; justify-content: center; }
@@ -653,7 +683,7 @@ var QN = 0;
 var DB = null;
 var FLUSHING = false;
 var SRVVER = '';
-var APPVER = '2026-08-29-j';
+var APPVER = '2026-08-29-l';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -747,8 +777,15 @@ function api(action, body) {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(p)
   }).then(function (r) { return r.json(); }, function () {
-    var err = new Error('No internet right now.');
-    err.offline = true;
+    var err;
+    if (!navigator.onLine) {
+      err = new Error('No internet right now.');
+      err.offline = true;
+    } else {
+      err = new Error('Server se baat nahi ho payi. Apps Script deploy check karo ' +
+        '(Who has access = Anyone, aur New version deploy).');
+      err.unreachable = true;
+    }
     throw err;
   }).then(function (d) {
     if (!d.ok) throw new Error(d.error || 'Something went wrong.');
@@ -1338,6 +1375,16 @@ function setUserStatus(email, on) {
   }).catch(function (e) { busy(false); toast(e.message, true); });
 }
 
+function testLink(ev) {
+  if (ev) ev.stopPropagation();
+  $('connOut').textContent = 'Checking…';
+  api('me', {}).then(function (d) {
+    $('connOut').textContent = 'Server OK  ·  signed in as ' + d.user.name;
+  }).catch(function (e) {
+    $('connOut').textContent = e.message;
+  });
+}
+
 function renderHub() {
   var reps = myReports();
   if (!reps.length) {
@@ -1559,7 +1606,7 @@ function pickList() {
     refreshDay();
   }).catch(function (e) {
     var m = cacheGet('cc_master_' + LIST);
-    if (e.offline && m) {
+    if ((e.offline || e.unreachable) && m) {
       MASTER = m;
       applyMaster();
       refreshDay();
@@ -1587,7 +1634,7 @@ function refreshDay() {
     applyQueued();
     renderToday();
   }).catch(function (e) {
-    if (e.offline) {
+    if (e.offline || e.unreachable) {
       buildDeps(cacheGet(dayKey()) || []);
       applyQueued();
       renderToday();
@@ -1626,7 +1673,7 @@ function buildDeps(saved) {
     }
     DEPS.push({
       department: dep.department, rows: out,
-      saved: !!map[dep.department], dirty: false, queued: false
+      saved: !!map[dep.department], dirty: false, queued: false, sending: false
     });
   }
 }
@@ -1679,7 +1726,8 @@ function totals() {
     t.yes += s.yes; t.no += s.no; t.wnd += s.wnd;
     t.marked += s.marked; t.all += s.all;
     if (s.marked) t.ready++;
-    if (s.marked && !DEPS[d].queued && (!DEPS[d].saved || DEPS[d].dirty)) t.pending++;
+    if (s.marked && !DEPS[d].queued && !DEPS[d].sending &&
+      (!DEPS[d].saved || DEPS[d].dirty)) t.pending++;
   }
   t.dept = (t.yes + t.no) ? Math.round(t.yes * 10000 / (t.yes + t.no)) / 100 : '';
   t.off = t.marked ? Math.round(t.yes * 10000 / t.marked) / 100 : '';
@@ -1701,8 +1749,9 @@ function renderToday() {
       (done ? '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>' : '') + '</span>' +
       '<div style="flex:1;min-width:0"><div class="n">' + esc(DEPS[d].department) +
       (DEPS[d].queued ? ' <span class="pill q">Waiting</span>'
-        : (DEPS[d].dirty ? ' <span class="pill a">Not saved</span>'
-          : (DEPS[d].saved ? ' <span class="pill">Saved</span>' : ''))) + '</div>' +
+        : (DEPS[d].sending ? ' <span class="pill q">Saving\u2026</span>'
+          : (DEPS[d].dirty ? ' <span class="pill a">Not saved</span>'
+            : (DEPS[d].saved ? ' <span class="pill">Saved</span>' : '')))) + '</div>' +
       '<div class="m">' + (s.marked
         ? s.marked + ' of ' + s.all + (s.no ? '  ·  ' + s.no + ' no' : '')
         : 'Not started') + '</div></div>' +
@@ -1835,11 +1884,14 @@ function paintFoot(s) {
   var dp = DEPS[CUR];
   $('dLeft').textContent = dp.queued
     ? 'Waiting to send'
-    : ((dp.saved && !dp.dirty)
-      ? 'Saved  ·  ' + s.marked + ' of ' + s.all
-      : ((s.all - s.marked) + ' left'));
+    : (dp.sending
+      ? 'Saving\u2026'
+      : ((dp.saved && !dp.dirty)
+        ? 'Saved  ·  ' + s.marked + ' of ' + s.all
+        : ((s.all - s.marked) + ' left')));
   $('dSave').textContent = dp.saved ? 'Update' : 'Save';
-  $('dSave').disabled = !s.marked || (dp.saved && !dp.dirty) || (dp.queued && !dp.dirty);
+  $('dSave').disabled = !s.marked || (dp.saved && !dp.dirty) ||
+    ((dp.queued || dp.sending) && !dp.dirty);
 }
 
 function setNote(r, v) {
@@ -1927,7 +1979,7 @@ function flushQueue(loud) {
           markSent(it);
           return qDel(it.id);
         }).catch(function (e) {
-          if (e.offline) { stop = true; return null; }
+          if (e.offline || e.unreachable) { stop = true; return null; }
           if (/sign in|switched off|password was changed/i.test(e.message)) {
             stop = true;
             return null;
@@ -1957,6 +2009,43 @@ function flushQueue(loud) {
     FLUSHING = false;
     busy(false);
     return 0;
+  });
+}
+
+function refreshOpenScreens() {
+  if (!$('pToday').classList.contains('hide')) renderToday();
+  else if (!$('pDept').classList.contains('hide')) paintFoot(stats(CUR));
+}
+
+function sendSave(items, idx, label) {
+  var payload = {
+    checklist: LIST, date: $('tDay').value,
+    srn: MASTER.srn ? $('tSrn').value : '', departments: items
+  };
+  api('save', payload).then(function () {
+    for (var i = 0; i < idx.length; i++) {
+      DEPS[idx[i]].sending = false;
+      DEPS[idx[i]].saved = true;
+      DEPS[idx[i]].queued = false;
+    }
+    SAVED = null;
+    HOMEDATA = null;
+    REPCACHE = {};
+    refreshOpenScreens();
+  }).catch(function (e) {
+    if (e.offline || e.unreachable) {
+      queueSave(items, idx).then(function () {
+        for (var i = 0; i < idx.length; i++) DEPS[idx[i]].sending = false;
+        refreshOpenScreens();
+      });
+      return;
+    }
+    for (var i = 0; i < idx.length; i++) {
+      DEPS[idx[i]].sending = false;
+      DEPS[idx[i]].dirty = true;
+    }
+    toast(label + ' save nahi hua: ' + e.message, true);
+    refreshOpenScreens();
   });
 }
 
@@ -1992,26 +2081,23 @@ function saveDept() {
   var d = CUR;
   var s = stats(d);
   if (!s.marked) { toast('Mark at least one work first.', true); return; }
-  busy(true, 'Saving ' + DEPS[d].department);
-  api('save', {
-    checklist: LIST, date: $('tDay').value,
-    srn: MASTER.srn ? $('tSrn').value : '', departments: [packDept(d)]
-  }).then(function () {
-    busy(false);
-    DEPS[d].saved = true;
-    DEPS[d].dirty = false;
-    SAVED = null;
-    HOMEDATA = null;
-    REPCACHE = {};
-    toast(DEPS[d].department + ' saved');
-    paintFoot(stats(d));
-    nextUnsaved();
-  }).catch(function (e) { busy(false); fail(e); });
+  var item = packDept(d);
+  DEPS[d].sending = true;
+  DEPS[d].dirty = false;
+  toast(DEPS[d].department + ' saved');
+  paintFoot(stats(d));
+  nextUnsaved();
+  sendSave([item], [d], DEPS[d].department);
 }
 
 function nextUnsaved() {
   for (var i = CUR + 1; i < DEPS.length; i++) {
-    if (!DEPS[i].saved) { CUR = i; renderDept(); window.scrollTo(0, 0); return; }
+    if (!DEPS[i].saved && !DEPS[i].queued && !DEPS[i].sending) {
+      CUR = i;
+      renderDept();
+      window.scrollTo(0, 0);
+      return;
+    }
   }
   toToday();
 }
@@ -2065,28 +2151,19 @@ function submitAll() {
   for (var d = 0; d < DEPS.length; d++) {
     var s = stats(d);
     if (!s.marked) continue;
-    if (DEPS[d].queued && !DEPS[d].dirty) continue;
+    if ((DEPS[d].queued || DEPS[d].sending) && !DEPS[d].dirty) continue;
     if (DEPS[d].saved && !DEPS[d].dirty) continue;
     idx.push(d);
     pack.push(packDept(d));
   }
   if (!pack.length) { toast('Nothing left to submit.', true); return; }
-  busy(true, 'Submitting ' + pack.length + ' department(s)');
-  api('save', {
-    checklist: LIST, date: $('tDay').value,
-    srn: MASTER.srn ? $('tSrn').value : '', departments: pack
-  }).then(function (r) {
-    busy(false);
-    for (var i = 0; i < idx.length; i++) {
-      DEPS[idx[i]].saved = true;
-      DEPS[idx[i]].dirty = false;
-    }
-    SAVED = null;
-    HOMEDATA = null;
-    REPCACHE = {};
-    toast(r.saved + ' department(s) saved');
-    toToday();
-  }).catch(function (e) { busy(false); fail(e); });
+  for (var k = 0; k < idx.length; k++) {
+    DEPS[idx[k]].sending = true;
+    DEPS[idx[k]].dirty = false;
+  }
+  toast(pack.length + ' department(s) saved');
+  toToday();
+  sendSave(pack, idx, 'Submit');
 }
 
 function loadSaved() {
@@ -2276,10 +2353,14 @@ function boot() {
   }).catch(function (e) {
     busy(false);
     var saved = cacheGet('cc_boot');
-    if (e.offline && saved && saved.user) {
+    if ((e.offline || e.unreachable) && saved && saved.user) {
       USER = saved.user;
       start(saved);
       toast('No internet. Purana data dikha raha hoon.');
+      return;
+    }
+    if (e.offline || e.unreachable) {
+      showLogin(e.message);
       return;
     }
     localStorage.removeItem('cc_token');
