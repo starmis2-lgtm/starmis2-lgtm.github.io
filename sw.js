@@ -1,5 +1,5 @@
 // ===== GITHUB REPO  ·  file name: sw.js =====
-const CACHE = 'checklist-v23';
+const CACHE = 'checklist-v24';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
@@ -20,15 +20,37 @@ self.addEventListener('activate', function (e) {
   }));
 });
 
+function isShell(req) {
+  if (req.mode === 'navigate') return true;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return false;
+  return SHELL.some(function (path) {
+    return new URL(path, self.registration.scope).href === url.origin + url.pathname;
+  });
+}
+
+function fromNetwork(req) {
+  return fetch(req).then(function (res) {
+    const copy = res.clone();
+    caches.open(CACHE).then(function (c) { c.put(req, copy); });
+    return res;
+  });
+}
+
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
   if (e.request.url.indexOf('script.google.com') !== -1) return;
+  if (isShell(e.request)) {
+    e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(function (hit) {
+      const net = fromNetwork(e.request).catch(function () {
+        return hit || caches.match('./index.html');
+      });
+      return hit || net;
+    }));
+    return;
+  }
   e.respondWith(
-    fetch(e.request).then(function (res) {
-      const copy = res.clone();
-      caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
-      return res;
-    }).catch(function () {
+    fromNetwork(e.request).catch(function () {
       return caches.match(e.request).then(function (hit) {
         return hit || caches.match('./index.html');
       });
