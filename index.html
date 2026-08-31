@@ -683,7 +683,7 @@ var QN = 0;
 var DB = null;
 var FLUSHING = false;
 var SRVVER = '';
-var APPVER = '2026-08-29-l';
+var APPVER = '2026-08-29-m';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -755,6 +755,12 @@ function toast(msg, bad) {
   document.body.appendChild(t);
   setTimeout(function () { t.remove(); }, 3200);
 }
+var PHOTO_LISTS = ['COMP', 'HR'];
+
+function photoOk() {
+  return PHOTO_LISTS.indexOf(LIST) !== -1;
+}
+
 function splitWork(t) {
   var s = String(t || '');
   var m = s.match(/[\u0900-\u097F]/);
@@ -1809,15 +1815,20 @@ function paint(r) {
   $('drt' + r).textContent = w.doer || 'Set person';
   var box = $('at' + r);
   if (w.status !== 'No') { box.innerHTML = ''; return; }
-  var thumb = (w.photo && w.photo.indexOf('data:') === 0)
-    ? '<img src="' + w.photo + '" alt="">'
-    : '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
-  box.innerHTML = '<label class="att">' + thumb +
-    '<b>' + (w.photo ? 'Photo attached' : 'Add photo') + '</b>' +
-    '<input type="file" accept="image/*" capture="environment" class="hide" onchange="pickPhoto(event,' + r + ')">' +
-    (w.photo ? '<span class="x" onclick="dropPhoto(event,' + r + ')">&times;</span>' : '') +
-    '</label><input class="nt" placeholder="Note (optional)" value="' + esc(w.note) +
-    '" oninput="setNote(' + r + ',this.value)">';
+  var h = '';
+  if (photoOk()) {
+    var thumb = (w.photo && w.photo.indexOf('data:') === 0)
+      ? '<img src="' + w.photo + '" alt="">'
+      : '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+    h += '<label class="att">' + thumb +
+      '<b>' + (w.photo ? 'Photo attached' : 'Add photo') + '</b>' +
+      '<input type="file" accept="image/*" capture="environment" class="hide" onchange="pickPhoto(event,' + r + ')">' +
+      (w.photo ? '<span class="x" onclick="dropPhoto(event,' + r + ')">&times;</span>' : '') +
+      '</label>';
+  }
+  h += '<input class="nt" placeholder="Note (optional)" value="' + esc(w.note) +
+    '" oninput="setNote(' + r + ',this.value)"' + (photoOk() ? '' : ' style="margin-top:12px"') + '>';
+  box.innerHTML = h;
 }
 
 function openDoer(r) {
@@ -2069,7 +2080,7 @@ function packDept(d) {
     if (!w.status) continue;
     var o = { work: w.work, doer: w.doer, status: w.status };
     if (w.status === 'No') {
-      if (w.photo) o.photo = w.photo;
+      if (w.photo && photoOk()) o.photo = w.photo;
       if (w.note) o.note = w.note;
     }
     rows.push(o);
@@ -2125,7 +2136,7 @@ function renderReview() {
       if (DEPS[d].rows[r].status === 'No') {
         fails.push({
           dept: DEPS[d].department, work: splitWork(DEPS[d].rows[r].work).en,
-          photo: !!DEPS[d].rows[r].photo
+          photo: photoOk() && !!DEPS[d].rows[r].photo
         });
       }
     }
