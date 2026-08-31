@@ -702,7 +702,7 @@ var JUMPED = false;
 var PANE = '';
 var NAVON = false;
 var SHEETX = null;
-var APPVER = '2026-08-31-o';
+var APPVER = '2026-08-31-p';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1370,16 +1370,17 @@ function renderHome(d) {
     (d.today.done >= d.today.total ? 'ok' : (d.today.done ? 'half' : '')) + '">' +
     (d.today.done >= d.today.total ? '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>' : '') +
     '</span><div style="flex:1;min-width:0"><div class="n">All checklists</div>' +
-    '<div class="m">' + d.today.done + ' of ' + d.today.total + ' department visits done</div>' +
+    '<div class="m">' + d.today.done + ' of ' + d.today.total + ' checks done</div>' +
     '<div class="sp"><i class="y" style="width:' +
     (d.today.total ? Math.min(100, d.today.done * 100 / d.today.total) : 0) + '%"></i></div></div></div>';
   for (var i = 0; i < d.checklists.length; i++) {
     var c = d.checklists[i];
     var full = c.todayTotal && c.todayDone >= c.todayTotal;
+    var span = c.period === 'week' ? ' this week' : ' today';
     var when;
-    if (c.todayDone) when = c.todayDone + ' of ' + c.todayTotal + ' done today';
-    else if (c.due === false) when = 'Not due today';
-    else when = 'Not started today';
+    if (c.todayDone) when = c.todayDone + ' of ' + c.todayTotal + ' done' + span;
+    else if (c.period === 'none') when = 'Not due today';
+    else when = 'Not started' + span;
     h += '<div class="it"' + (canEnter ? ' onclick="jumpEntry(\'' + q(c.key) + '\')"' : '') + '>' +
       '<span class="dot ' + (full ? 'ok' : (c.todayDone ? 'half' : '')) + '">' +
       (full ? '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>' : '') + '</span>' +
