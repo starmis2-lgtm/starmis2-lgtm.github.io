@@ -660,7 +660,7 @@ var QN = 0;
 var DB = null;
 var FLUSHING = false;
 var SRVVER = '';
-var APPVER = '2026-08-29-n';
+var APPVER = '2026-08-29-o';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1244,7 +1244,9 @@ function renderMe() {
       '<span class="ic"><svg viewBox="0 0 24 24">' +
       '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9"/>' +
       '</svg></span><div style="flex:1;min-width:0"><div class="n">Manage users</div>' +
-      '<div class="m">Change password, switch account on or off</div></div>' + cv() + '</div></div>';
+      '<div class="m">' + (USER.canPassword
+        ? 'Change password, switch account on or off'
+        : 'Switch an account on or off') + '</div></div>' + cv() + '</div></div>';
   }
   h += '<div class="sec">App</div><div class="list">' +
     '<div class="it"><div style="flex:1;min-width:0"><div class="n">Version</div>' +
@@ -1287,13 +1289,14 @@ function openUser(i) {
     '<svg viewBox="0 0 24 24" style="stroke:var(--ink2)"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
     '<div class="sb">' +
     '<div class="m" style="color:var(--ink3);margin-bottom:16px">' + esc(u.email) + '</div>' +
-    '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">New password</label>' +
-    '<input class="ctl" id="npIn" type="text" placeholder="At least 4 characters">' +
-    '<div class="m" style="color:var(--ink3);margin-top:10px">' +
-    'Saving a new password signs this user out of every phone.</div>' +
-    '<button class="btn w" style="margin-top:14px" onclick="setUserPassword(\'' + q(u.email) + '\')">' +
-    'Save password</button>' +
-    '<div style="height:20px"></div>' +
+    (USER.canPassword
+      ? '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">New password</label>' +
+        '<input class="ctl" id="npIn" type="text" placeholder="At least 4 characters">' +
+        '<div class="m" style="color:var(--ink3);margin-top:10px">' +
+        'Saving a new password signs this user out of every phone.</div>' +
+        '<button class="btn w" style="margin-top:14px" onclick="setUserPassword(\'' + q(u.email) + '\')">' +
+        'Save password</button><div style="height:20px"></div>'
+      : '') +
     '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">Account</label>' +
     '<button class="btn w ' + (u.active ? 'd' : '') + '" onclick="setUserStatus(\'' + q(u.email) + '\',' +
     (u.active ? 'false' : 'true') + ')">' +
