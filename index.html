@@ -697,7 +697,7 @@ var LIVEVER = '';
 var NOTES = [];
 var NOTESHOWN = false;
 var VIEWBY = '';
-var APPVER = '2026-08-31-i';
+var APPVER = '2026-08-31-j';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1578,12 +1578,12 @@ function loadNotes(popup) {
 
 function openNotes() {
   var h = '<div class="mask" onclick="if(event.target===this)closeNotes()"><div class="sheet">' +
-    '<div class="sh"><h3>Notifications</h3>' +
+    '<div class="sh"><h3>Today\u2019s notifications</h3>' +
     '<button class="ib" style="background:var(--soft)" onclick="closeNotes()" aria-label="Close">' +
     '<svg viewBox="0 0 24 24" style="stroke:var(--ink2)"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
     '</button></div><div class="sb" style="padding:0">';
   if (!NOTES.length) {
-    h += '<div class="empty">Abhi koi notification nahi.</div>';
+    h += '<div class="empty">Aaj koi notification nahi aayi.</div>';
   } else {
     var seen = lastSeen();
     for (var i = 0; i < NOTES.length; i++) {
@@ -1591,7 +1591,8 @@ function openNotes() {
       h += '<div class="nrow' + (n.ts > seen ? ' new' : '') + '">' +
         '<div class="t">' + esc(n.title) + '</div>' +
         (n.body ? '<div class="b">' + esc(n.body) + '</div>' : '') +
-        '<div class="d">' + esc(dmy(n.date)) + '  ·  ' + esc(n.ts.substring(11, 16)) + '</div>' +
+        '<div class="d">' + esc(n.ts.substring(11, 16)) +
+        (n.ts > seen ? '  ·  new' : '') + '</div>' +
         '</div>';
     }
   }
