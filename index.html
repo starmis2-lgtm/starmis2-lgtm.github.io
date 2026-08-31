@@ -671,7 +671,8 @@ var FBCFG = {
 };
 var FBREADY = false;
 var SRVVER = '';
-var APPVER = '2026-08-31-d';
+var LIVEVER = '';
+var APPVER = '2026-08-31-e';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1266,10 +1267,11 @@ function renderMe() {
   }
   h += '<div class="sec">App</div><div class="list">' +
     '<div class="it"><div style="flex:1;min-width:0"><div class="n">Version</div>' +
-    '<div class="m">App ' + esc(APPVER) + '  ·  Server ' + esc(SRVVER || 'unknown') + '</div></div>' +
-    (SRVVER && SRVVER !== APPVER
-      ? '<div class="r"><span class="pill a">Redeploy</span></div>'
-      : '<div class="r"><span class="pill">OK</span></div>') + '</div>' +
+    '<div class="m" id="verOut">App ' + esc(APPVER) + '  ·  Server ' +
+    esc(SRVVER || 'unknown') + '</div></div>' +
+    '<div class="r"><span class="pill' + (SRVVER && SRVVER !== APPVER ? ' a' : '') +
+    '" id="verPill">' + (SRVVER && SRVVER !== APPVER ? 'Redeploy' : 'OK') +
+    '</span></div></div>' +
     '<div class="it"><div style="flex:1;min-width:0"><div class="n">Notifications</div>' +
     '<div class="m" id="pushOut">Checking…</div></div>' +
     '<div class="r"><button class="btn o" id="pushBtn" style="padding:9px 16px;font-size:13px" ' +
@@ -1463,10 +1465,23 @@ function testLink(ev) {
     var m = LASTMS || {};
     var net = (m.total !== undefined && m.server !== undefined)
       ? (m.total - m.server) : null;
-    $('connOut').textContent = 'OK as ' + d.user.name +
+    if (d.version) {
+      SRVVER = d.version;
+      LIVEVER = d.version;
+    }
+    $('connOut').textContent = 'Live server ' + esc(d.version || 'unknown') +
       (m.total !== undefined ? '  ·  total ' + m.total + ' ms' : '') +
       (m.server !== undefined ? '  ·  server ' + m.server + ' ms' : '') +
-      (net !== null ? '  ·  network+startup ' + net + ' ms' : '');
+      (net !== null ? '  ·  network ' + net + ' ms' : '');
+    var vr = $('verOut');
+    if (vr) {
+      vr.textContent = 'App ' + APPVER + '  ·  Server ' + SRVVER;
+    }
+    var vp = $('verPill');
+    if (vp) {
+      vp.className = 'pill' + (SRVVER === APPVER ? '' : ' a');
+      vp.textContent = SRVVER === APPVER ? 'OK' : 'Redeploy';
+    }
   }).catch(function (e) {
     $('connOut').textContent = e.message;
   });
@@ -2448,7 +2463,7 @@ function boot() {
     if ((e.offline || e.unreachable) && saved && saved.user) {
       USER = saved.user;
       start(saved);
-      toast('No internet. Purana data dikha raha hoon.');
+      toast('Server nahi mila. Phone ka purana data dikha raha hoon.', true);
       return;
     }
     if (e.offline || e.unreachable) {
