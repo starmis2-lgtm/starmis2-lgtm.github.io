@@ -205,6 +205,50 @@
     box-shadow: 0 4px 12px rgba(5, 150, 105, .3); }
   .seg button.n { background: var(--bad); border-color: var(--bad); color: #fff;
     box-shadow: 0 4px 12px rgba(220, 38, 38, .3); }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 14px 16px; }
+  .cards .c { background: var(--card); border-radius: var(--r); padding: 14px 14px 12px;
+    box-shadow: 0 1px 2px rgba(16,28,43,.05); position: relative; min-width: 0; }
+  .cards .c .t { font-size: 13px; font-weight: 600; letter-spacing: -.1px; line-height: 1.25;
+    overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 32px; }
+  .cards .c .v { font-size: 24px; font-weight: 700; letter-spacing: -.6px; margin-top: 8px; line-height: 1; }
+  .cards .c .m { font-size: 11.5px; color: var(--ink3); margin-top: 6px; }
+  .cards .c .sp { margin-top: 10px; }
+  .cards .c .cv { position: absolute; right: 10px; top: 12px; }
+  .cards .c.wide { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; }
+  .cards .c.wide .v { margin-top: 0; }
+  .cards .c.wide .ic { flex: none; }
+  .hero .side { display: flex; gap: 18px; margin-top: 12px; position: relative; }
+  .hero .side div { font-size: 11px; color: rgba(255,255,255,.72); }
+  .hero .side b { display: block; font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -.3px; margin-top: 1px; }
+  @media (min-width: 720px) { .cards { grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 0 32px 24px; } }
+  .lchips { display: flex; gap: 8px; padding: 12px 14px 4px; overflow-x: auto; scrollbar-width: none; }
+  .lchips::-webkit-scrollbar { display: none; }
+  .lchips button { flex: none; border: 1px solid var(--line); background: var(--card); color: var(--ink2);
+    border-radius: 999px; padding: 7px 13px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .lchips button.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .gw { overflow: auto; max-height: 62vh; border: 1px solid var(--line); border-radius: 12px; }
+  .gt { border-collapse: separate; border-spacing: 0; font-size: 11.5px; min-width: 100%; }
+  .gt th, .gt td { padding: 8px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; text-align: center; }
+  .gt th { background: var(--soft); color: var(--ink2); font-weight: 600; position: sticky; top: 0; z-index: 2; font-size: 11px; }
+  .gt th.w, .gt td.w { position: sticky; left: 0; background: var(--card); text-align: left; z-index: 1;
+    max-width: 150px; white-space: normal; font-weight: 500; line-height: 1.25; }
+  .gt th.w { z-index: 3; background: var(--soft); }
+  .gt th.dt { cursor: pointer; }
+  .gt th.dt small { display: block; font-weight: 400; color: var(--ink3); }
+  .gt td.y { color: var(--good); font-weight: 700; }
+  .gt td.n { color: var(--bad); font-weight: 700; }
+  .gt td.x { color: #b45309; font-weight: 600; }
+  .gt td.e { color: #c6cfda; }
+  .sheet.tall { max-height: 92vh; }
+  .shots { display: flex; gap: 8px; margin-top: 12px; align-items: stretch; }
+  .shots .att { margin-top: 0; flex: 1; min-width: 0; }
+  .shots .att b { font-size: 12px; }
+  .shots .see { flex: none; border: 1px solid var(--line); background: #fff; border-radius: 12px;
+    padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--blue); display: flex; align-items: center; gap: 6px; }
+  .shots .see svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+  .gal { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .gal img { width: 100%; border-radius: 12px; display: block; background: var(--soft); }
+  .gal .none { padding: 24px; text-align: center; color: var(--ink3); font-size: 13px; }
   .att { margin-top: 12px; background: #fff; border: 1px solid var(--line);
     border-radius: 11px; padding: 12px; display: flex; align-items: center;
     gap: 11px; font-size: 13px; color: var(--ink2); }
@@ -530,6 +574,13 @@
       <button class="ib bell" onclick="openNotes()" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><i class="dotn hide"></i></button><button class="av" onclick="go('me')" id="hAv"></button>
     </div>
   </div>
+  <div class="mon">
+    <button onclick="stepHub(-1)" aria-label="Previous month">
+      <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <span class="lb" id="hMon"></span>
+    <button onclick="stepHub(1)" aria-label="Next month">
+      <svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+  </div>
   <div id="hBody"></div>
 </section>
 
@@ -573,15 +624,13 @@
     <div class="hrow">
       <div style="flex:1;min-width:0">
         <h1>Saved entries</h1>
-        <div class="sub">Last 30 days</div>
+        <div class="sub">Last 5 days  ·  tap a department</div>
       </div>
       <button class="ib" onclick="loadSaved()" aria-label="Refresh">
         <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6"/></svg></button>
     </div>
   </div>
-  <div class="bar">
-    <div class="f"><label>Checklist</label><select id="sList" class="ctl" onchange="loadSaved()"></select></div>
-  </div>
+  <div class="lchips" id="sChips"></div>
   <div id="sBody"></div>
 </section>
 
@@ -702,7 +751,10 @@ var JUMPED = false;
 var PANE = '';
 var NAVON = false;
 var SHEETX = null;
-var APPVER = '2026-08-31-q';
+var SLIST = '';
+var STAMP = '';
+var JUMPDEPT = '';
+var APPVER = '2026-08-31-s';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -717,6 +769,11 @@ function today() {
   return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
 }
 function fmt(v) { return (v === '' || v === null || isNaN(v)) ? 'N/A' : Number(v).toFixed(2); }
+function dateOf(s) {
+  var m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date();
+}
+
 function dmy(v) {
   var s = String(v == null ? '' : v).trim();
   var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -778,6 +835,12 @@ var PHOTO_LISTS = ['COMP', 'HR'];
 
 function photoOk() {
   return PHOTO_LISTS.indexOf(LIST) !== -1;
+}
+
+function shotsOf(r) {
+  if (!r) return [];
+  if (r.photos && r.photos.length) return r.photos.slice(0, 2);
+  return r.photo ? [r.photo] : [];
 }
 
 function splitWork(t) {
@@ -879,8 +942,8 @@ function draftRows(d) {
   var out = [];
   for (var r = 0; r < DEPS[d].rows.length; r++) {
     var w = DEPS[d].rows[r];
-    if (!w.status && !w.note && !w.photo) continue;
-    out.push({ work: w.work, doer: w.doer, status: w.status, note: w.note, photo: w.photo });
+    if (!w.status && !w.note && !w.photos.length) continue;
+    out.push({ work: w.work, doer: w.doer, status: w.status, note: w.note, photos: w.photos });
   }
   return out;
 }
@@ -934,13 +997,13 @@ function applyDrafts() {
       if (it.checklist !== LIST || it.date !== date || it.srn !== srn) continue;
       for (var d = 0; d < DEPS.length; d++) {
         if (DEPS[d].department !== it.department) continue;
-        if (DEPS[d].queued || DEPS[d].sending) continue;
+        if (DEPS[d].queued) continue;
         for (var r = 0; r < it.rows.length; r++) {
           for (var w = 0; w < DEPS[d].rows.length; w++) {
             if (DEPS[d].rows[w].work !== it.rows[r].work) continue;
             DEPS[d].rows[w].status = it.rows[r].status || '';
             DEPS[d].rows[w].note = it.rows[r].note || '';
-            DEPS[d].rows[w].photo = it.rows[r].photo || '';
+            DEPS[d].rows[w].photos = shotsOf(it.rows[r]);
             if (it.rows[r].doer) DEPS[d].rows[w].doer = it.rows[r].doer;
           }
         }
@@ -973,6 +1036,13 @@ function restoreLocal(seq) {
   return applyQueued().then(applyDrafts).then(function () {
     if (seq !== DAYSEQ) return;
     renderToday();
+    if (JUMPDEPT) {
+      var want = JUMPDEPT;
+      JUMPDEPT = '';
+      for (var i = 0; i < DEPS.length; i++) {
+        if (DEPS[i].department === want) { openDept(i); return; }
+      }
+    }
     jumpBack();
   });
 }
@@ -1090,39 +1160,10 @@ function stopBeat() {
 function startBeat() {
   stopBeat();
   BEAT = setInterval(function () {
-    if (!TOKEN || document.hidden) return;
-    flushQueue(false);
-    api('me', {}).then(function (d) {
-      USER = d.user;
-      if (d.notes) setNotes(d.notes, false);
-    }).catch(function (e) {
-      if (/sign in|switched off|password was changed/i.test(e.message)) {
-        stopBeat();
-        localStorage.removeItem('cc_token');
-        TOKEN = '';
-        USER = null;
-        $('tabs').classList.add('hide');
-        showLogin(e.message);
-      }
-    });
-  }, 120000);
+    if (!document.hidden) beatTick();
+  }, 60000);
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden && TOKEN) {
-      flushQueue(false);
-      api('me', {}).then(function (d) {
-        USER = d.user;
-        if (d.notes) setNotes(d.notes, false);
-      }).catch(function (e) {
-        if (/sign in|switched off|password was changed/i.test(e.message)) {
-          stopBeat();
-          localStorage.removeItem('cc_token');
-          TOKEN = '';
-          USER = null;
-          $('tabs').classList.add('hide');
-          showLogin(e.message);
-        }
-      });
-    }
+    if (!document.hidden) beatTick();
   });
 }
 
@@ -1186,7 +1227,7 @@ function go(p, pop) {
   else if (p === 'today') { only('pToday'); mark('today'); }
   else if (p === 'dept') { only('pDept'); mark('today'); }
   else if (p === 'review') { only('pReview'); mark('today'); renderReview(); }
-  else if (p === 'hub') { only('pHub'); mark('hub'); renderHub(); }
+  else if (p === 'hub') { only('pHub'); mark('hub'); loadHub(); }
   else if (p === 'rep') { only('pRep'); mark('hub'); }
   else if (p === 'drill') { only('pDrill'); mark('hub'); }
   else if (p === 'saved') { only('pSaved'); mark('saved'); loadSaved(); }
@@ -1211,7 +1252,6 @@ function start(boot) {
     h += '<option value="' + LISTS[i].key + '">' + esc(LISTS[i].label) + '</option>';
   }
   $('tList').innerHTML = h;
-  $('sList').innerHTML = h;
   $('eList').innerHTML = h;
   var pos = cacheGet('cc_pos');
   if (!pos || pos.day !== today()) pos = null;
@@ -1257,6 +1297,7 @@ function start(boot) {
     FRESH.focus = Date.now();
     cacheSet(ck('focus'), boot.focus);
   }
+  stampIn(boot);
   go(pos && pos.dept && DRAFTED[LIST + '|' + $('tDay').value + '|' +
     (pos.srn || '') + '|' + pos.dept] ? 'today' : HOME);
   if (boot.notes) setNotes(boot.notes, true);
@@ -1264,24 +1305,37 @@ function start(boot) {
   setTimeout(warm, 4000);
 }
 
-function savedFrom() {
-  var d = new Date();
-  d.setDate(d.getDate() - 30);
-  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
-}
-
 function warm() {
   if (!TOKEN || !USER || !navigator.onLine || QN) return;
   var chain = Promise.resolve();
-  if (USER.tabs.indexOf('paneList') !== -1 && LIST && !cacheGet(ck('sv_' + LIST))) {
+  if (USER.tabs.indexOf('paneList') !== -1 && LIST && !cacheGet(ck('gr_' + LIST))) {
     chain = chain.then(function () {
       var key = LIST;
-      return api('entries', { checklist: key, from: savedFrom(), to: today() })
-        .then(function (r) {
-          FRESH['sv_' + key] = Date.now();
-          cacheSet(ck('sv_' + key), r.entries || []);
-        }).catch(function () { });
+      return api('grid', { checklist: key, days: 5 }).then(function (r) {
+        FRESH['gr_' + key] = Date.now();
+        cacheSet(ck('gr_' + key), r);
+      }).catch(function () { });
     });
+  }
+  for (var li = 0; li < LISTS.length; li++) {
+    (function (lk, srnList) {
+      if (lk === LIST || srnList) return;
+      var dk = 'cc_day_' + lk + '|' + today() + '|';
+      if (fresh('day_' + dk)) return;
+      chain = chain.then(function () {
+        return api('day', {
+          checklist: lk, date: today(), srn: '',
+          withMaster: !cacheGet('cc_master_' + lk),
+          mstamp: cacheGet('cc_mst_' + lk) || ''
+        }).then(function (d) {
+          cacheSet(dk, d.departments || []);
+          FRESH['day_' + dk] = Date.now();
+          stampIn(d);
+          if (d.mstamp) cacheSet('cc_mst_' + lk, d.mstamp);
+          if (d.master) cacheSet('cc_master_' + lk, d.master);
+        }).catch(function () { });
+      });
+    })(LISTS[li].key, LISTS[li].srn);
   }
   var reps = myReports();
   if (reps.length) {
@@ -1337,7 +1391,7 @@ function loadHome() {
   if (have && have.totals) {
     HOMEDATA = have;
     renderHome(have);
-    if (fresh('home', 60)) return;
+    if (fresh('home')) return;
   } else {
     $('hoBody').innerHTML = skel(5);
   }
@@ -1345,6 +1399,7 @@ function loadHome() {
     HOMEDATA = d;
     FRESH.home = Date.now();
     cacheSet(ck('home'), d);
+    stampIn(d);
     renderHome(d);
   }).catch(function (e) {
     if (!have) $('hoBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
@@ -1355,38 +1410,39 @@ function renderHome(d) {
   var t = d.totals;
   $('hoSub').textContent = d.range.label + '  ·  ' + (USER.designation || USER.email);
   var h = '<div class="hero">' + ring(t.officer) +
-    '<div style="flex:1;min-width:0"><div class="k">Officer score</div>' +
+    '<div style="flex:1;min-width:0"><div class="k">Officer score  ·  ' + esc(d.range.label) + '</div>' +
     '<div class="v">' + fmt(t.officer) + '%</div>' +
-    '<div class="m">' + esc(delta(t.officer, t.prevOfficer) || (t.yes + ' yes of ' + t.planned + ' work')) +
-    '</div></div></div>';
-  h += '<div class="kpi k3">' +
-    '<div class="b"><div class="k">Total work</div><div class="v">' + t.planned + '</div></div>' +
-    '<div class="b"><div class="k">Yes</div><div class="v g">' + t.yes + '</div></div>' +
-    '<div class="b"><div class="k">No</div><div class="v b">' + t.no + '</div></div></div>';
+    '<div class="m">' + esc(delta(t.officer, t.prevOfficer) || (t.yes + ' yes of ' + t.planned + ' work')) + '</div>' +
+    '<div class="side"><div>Dept score<b>' + fmt(t.dept) + '%</b></div>' +
+    '<div>Work<b>' + t.planned + '</b></div><div>Yes<b>' + t.yes + '</b></div><div>No<b>' + t.no + '</b></div></div>' +
+    '</div></div>';
 
   var canEnter = USER.tabs.indexOf('paneEntry') !== -1;
-  h += '<div class="sec">Today  ·  ' + esc(dmy(d.today.date)) + '</div><div class="list">';
-  h += '<div class="it"><span class="dot ' +
-    (d.today.done >= d.today.total ? 'ok' : (d.today.done ? 'half' : '')) + '">' +
-    (d.today.done >= d.today.total ? '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>' : '') +
-    '</span><div style="flex:1;min-width:0"><div class="n">All checklists</div>' +
-    '<div class="m">' + d.today.done + ' of ' + d.today.total + ' checks done</div>' +
-    '<div class="sp"><i class="y" style="width:' +
-    (d.today.total ? Math.min(100, d.today.done * 100 / d.today.total) : 0) + '%"></i></div></div></div>';
+  var allDone = d.today.total && d.today.done >= d.today.total;
+  h += '<div class="sec">Today  ·  ' + esc(dmy(d.today.date)) + '</div>' +
+    '<div class="cards"><div class="c wide"' + (canEnter ? ' onclick="go(\'today\')"' : '') + '>' +
+    '<span class="dot ' + (allDone ? 'ok' : (d.today.done ? 'half' : '')) + '" style="width:30px;height:30px">' +
+    (allDone ? '<svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M20 6L9 17l-5-5"/></svg>' : '') + '</span>' +
+    '<div style="flex:1;min-width:0"><div class="t" style="min-height:0">' +
+    (d.today.total ? (allDone ? 'Everything is done' : d.today.done + ' of ' + d.today.total + ' checks done') : 'Nothing due today') +
+    '</div><div class="sp" style="margin-top:8px"><i class="y" style="width:' +
+    (d.today.total ? Math.min(100, d.today.done * 100 / d.today.total) : 0) + '%"></i></div></div>' +
+    (canEnter ? cv() : '') + '</div>';
   for (var i = 0; i < d.checklists.length; i++) {
     var c = d.checklists[i];
     var full = c.todayTotal && c.todayDone >= c.todayTotal;
-    var span = c.period === 'week' ? ' this week' : ' today';
-    var when;
-    if (c.todayDone) when = c.todayDone + ' of ' + c.todayTotal + ' done' + span;
-    else if (c.period === 'none') when = 'Not due today';
-    else when = 'Not started' + span;
-    h += '<div class="it"' + (canEnter ? ' onclick="jumpEntry(\'' + q(c.key) + '\')"' : '') + '>' +
-      '<span class="dot ' + (full ? 'ok' : (c.todayDone ? 'half' : '')) + '">' +
-      (full ? '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>' : '') + '</span>' +
-      '<div style="flex:1;min-width:0"><div class="n">' + esc(c.label) + '</div>' +
-      '<div class="m">' + when +
-      '  ·  month ' + fmt(c.officer) + '%</div></div>' +
+    var span = c.period === 'week' ? 'this week' : 'today';
+    var when, col;
+    if (full) { when = 'Done ' + span; col = 'g'; }
+    else if (c.todayDone) { when = 'In progress ' + span; col = ''; }
+    else if (c.period === 'none') { when = 'Not due today'; col = ''; }
+    else { when = 'Not started ' + span; col = 'b'; }
+    h += '<div class="c"' + (canEnter ? ' onclick="jumpEntry(\'' + q(c.key) + '\')"' : '') + '>' +
+      '<div class="t">' + esc(c.label) + '</div>' +
+      '<div class="v ' + col + '">' + c.todayDone + '<span style="font-size:13px;color:var(--ink3)"> / ' + c.todayTotal + '</span></div>' +
+      '<div class="m">' + when + '  ·  month ' + fmt(c.officer) + '%</div>' +
+      '<div class="sp"><i class="y" style="width:' +
+      (c.todayTotal ? Math.min(100, c.todayDone * 100 / c.todayTotal) : 0) + '%"></i></div>' +
       (canEnter ? cv() : '') + '</div>';
   }
   h += '</div>';
@@ -1429,7 +1485,7 @@ function loadFocus() {
   var have = cacheGet(ck('focus'));
   if (have && have.groups) {
     drawFocus(have);
-    if (fresh('focus', 300)) return;
+    if (fresh('focus')) return;
   } else {
     box.innerHTML = '<div class="sec">Focus works</div>' + skel(2);
   }
@@ -1852,24 +1908,87 @@ function testLink(ev) {
   });
 }
 
-function renderHub() {
+function stepHub(n) {
+  RM += n;
+  if (RM > 12) { RM = 1; RY++; }
+  if (RM < 1) { RM = 12; RY--; }
+  loadHub();
+}
+
+function loadHub() {
   var reps = myReports();
+  $('hMon').textContent = MONTHS[RM - 1] + ' ' + RY;
+  $('hSub').textContent = USER.designation || USER.email;
   if (!reps.length) {
     $('hBody').innerHTML = '<div class="empty">You do not have access to any report.</div>';
     return;
   }
-  var h = '<div class="sec">Choose a report</div><div class="list">';
-  for (var i = 0; i < reps.length; i++) {
-    h += '<div class="it" onclick="openReport(' + i + ')">' +
-      '<span class="ic"><svg viewBox="0 0 24 24">' + ICO[reps[i].ico] + '</svg></span>' +
-      '<div style="flex:1;min-width:0"><div class="n">' + esc(reps[i].name) + '</div>' +
-      '<div class="m">' + esc(reps[i].sub) + '</div></div>' + cv() + '</div>';
+  var key = 'ov_' + RY + '_' + RM;
+  var have = cacheGet(ck(key));
+  if (have && have.totals) {
+    renderHub(have);
+    if (fresh(key)) return;
+  } else {
+    $('hBody').innerHTML = skel(4);
   }
-  $('hBody').innerHTML = h + '</div>';
+  var y = RY, m = RM;
+  api('home', { year: y, month: m }).then(function (d) {
+    FRESH[key] = Date.now();
+    cacheSet(ck(key), d);
+    if (RY === y && RM === m) renderHub(d);
+  }).catch(function (e) {
+    if (!have) $('hBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  });
 }
 
-function openReport(i) {
-  REP = myReports()[i];
+function scoreCards(lists, tap) {
+  var h = '<div class="cards">';
+  for (var i = 0; i < lists.length; i++) {
+    var c = lists[i];
+    h += '<div class="c"' + (tap ? ' onclick="openReport(\'' + q(c.key) + '\')"' : '') + '>' +
+      '<div class="t">' + esc(c.label) + '</div>' +
+      '<div class="v ' + cl(c.officer) + '">' + fmt(c.officer) + '<span style="font-size:13px">%</span></div>' +
+      '<div class="m">' + c.yes + ' yes  ·  ' + c.no + ' no  ·  ' + c.planned + ' work</div>' +
+      sp(c.yes, c.no, c.wnd) + (tap ? cv() : '') + '</div>';
+  }
+  return h + '</div>';
+}
+
+function renderHub(d) {
+  var t = d.totals;
+  var h = '<div class="hero">' + ring(t.officer) +
+    '<div style="flex:1;min-width:0"><div class="k">Your score  ·  all checklists</div>' +
+    '<div class="v">' + fmt(t.officer) + '%</div>' +
+    '<div class="m">' + esc(delta(t.officer, t.prevOfficer) || (t.yes + ' yes of ' + t.planned + ' work')) + '</div>' +
+    '<div class="side"><div>Dept score<b>' + fmt(t.dept) + '%</b></div>' +
+    '<div>Work<b>' + t.planned + '</b></div><div>Yes<b>' + t.yes + '</b></div><div>No<b>' + t.no + '</b></div></div>' +
+    '</div></div>';
+  h += '<div class="sec">Checklist wise  ·  tap for detail</div>' + scoreCards(d.checklists, true);
+  if (USER.tabs.indexOf('paneFac') !== -1) {
+    h += '<div class="cards"><div class="c wide" onclick="openReport(\'factory\')">' +
+      '<span class="ic"><svg viewBox="0 0 24 24">' + ICO.factory + '</svg></span>' +
+      '<div style="flex:1;min-width:0"><div class="t" style="min-height:0">Factory Compliance</div>' +
+      '<div class="m">Every checklist, week wise</div></div>' + cv() + '</div></div>';
+  }
+  if (d.weak.length) {
+    h += '<div class="sec">Needs attention</div><div class="list">';
+    for (var w = 0; w < d.weak.length; w++) {
+      var x = d.weak[w];
+      h += '<div class="it"><div style="flex:1;min-width:0">' +
+        '<div class="n">' + esc(x.department) + '</div>' +
+        '<div class="m">' + esc(x.checklist) + '  ·  ' + x.no + ' no of ' + x.planned + ' work</div></div>' +
+        '<div class="r"><div class="num ' + cl(x.score) + '">' + fmt(x.score) + '</div></div></div>';
+    }
+    h += '</div>';
+  }
+  $('hBody').innerHTML = h;
+}
+
+function openReport(kind) {
+  var reps = myReports();
+  REP = null;
+  for (var i = 0; i < reps.length; i++) if (reps[i].kind === kind) REP = reps[i];
+  if (!REP) return;
   $('repName').textContent = REP.name;
   $('repSub').textContent = REP.sub;
   go('rep');
@@ -1896,7 +2015,7 @@ function loadReport() {
   if (have && have.data) {
     REPCACHE[key] = have;
     drawReport(have);
-    if (fresh('rep_' + key, 300)) return;
+    if (fresh('rep_' + key)) return;
   } else {
     $('repBody').innerHTML = skel(4);
   }
@@ -2118,6 +2237,9 @@ function refreshDay(needMaster) {
     if (old) {
       buildDeps(old);
       restoreLocal(seq);
+      var was = cacheGet('cc_pos');
+      savePos(was && was.day === today() ? was.dept : '');
+      if (needMaster !== true && fresh('day_' + dayKey())) return;
     } else {
       $('tBody').innerHTML = skel(5);
     }
@@ -2126,9 +2248,12 @@ function refreshDay(needMaster) {
   }
   api('day', {
     checklist: LIST, date: date, srn: srn,
-    withMaster: needMaster === true || !MASTER
+    withMaster: needMaster === true || !MASTER,
+    mstamp: cacheGet('cc_mst_' + LIST) || ''
   }).then(function (d) {
     if (seq !== DAYSEQ) return;
+    stampIn(d);
+    if (d.mstamp) cacheSet('cc_mst_' + LIST, d.mstamp);
     if (d.master) {
       MASTER = d.master;
       cacheSet('cc_master_' + LIST, d.master);
@@ -2142,9 +2267,10 @@ function refreshDay(needMaster) {
       }
     }
     cacheSet(dayKey(), d.departments || []);
+    FRESH['day_' + dayKey()] = Date.now();
     buildDeps(d.departments || []);
-    var was = cacheGet('cc_pos');
-    savePos(was && was.day === today() ? was.dept : '');
+    var pos = cacheGet('cc_pos');
+    savePos(pos && pos.day === today() ? pos.dept : '');
     restoreLocal(seq);
   }).catch(function (e) {
     if (seq !== DAYSEQ) return;
@@ -2159,12 +2285,22 @@ function refreshDay(needMaster) {
   });
 }
 
+function savedLine(dp) {
+  if (!dp.saved || !dp.savedAt) return '';
+  var t = String(dp.savedAt).match(/(\d{2}):(\d{2})/);
+  var hh = t ? Number(t[1]) : -1;
+  var when = hh < 0 ? '' : ((hh % 12) || 12) + ':' + t[2] + (hh < 12 ? ' am' : ' pm');
+  return (when ? '  ·  ' + when : '') + (dp.savedBy ? '  ·  ' + esc(dp.savedBy) : '');
+}
+
 function buildDeps(saved) {
   DEPS = [];
   if (!MASTER) return;
   var map = {};
+  var meta = {};
   for (var i = 0; i < saved.length; i++) {
     var rows = saved[i].rows || [];
+    meta[saved[i].department] = { savedAt: saved[i].savedAt || '', savedBy: saved[i].savedBy || '' };
     map[saved[i].department] = {};
     for (var j = 0; j < rows.length; j++) {
       map[saved[i].department][String(rows[j].work).toLowerCase()] = rows[j];
@@ -2183,13 +2319,15 @@ function buildDeps(saved) {
         doer: prev.supervisor || dep.works[w].doer || '',
         baseDoer: dep.works[w].doer || '',
         status: prev.status || '',
-        photo: prev.photo || '',
+        photos: shotsOf(prev),
         note: prev.note || ''
       });
     }
     DEPS.push({
       department: dep.department, rows: out,
-      saved: !!map[dep.department], dirty: false, queued: false, sending: false
+      saved: !!map[dep.department], dirty: false, queued: false,
+      savedBy: meta[dep.department] ? meta[dep.department].savedBy : '',
+      savedAt: meta[dep.department] ? meta[dep.department].savedAt : ''
     });
   }
 }
@@ -2209,7 +2347,7 @@ function applyQueued() {
           for (var w = 0; w < DEPS[d].rows.length; w++) {
             if (DEPS[d].rows[w].work === rows[r].work) {
               DEPS[d].rows[w].status = rows[r].status;
-              if (rows[r].photo) DEPS[d].rows[w].photo = rows[r].photo;
+              if (shotsOf(rows[r]).length) DEPS[d].rows[w].photos = shotsOf(rows[r]);
               if (rows[r].note) DEPS[d].rows[w].note = rows[r].note;
             }
           }
@@ -2238,7 +2376,7 @@ function totals() {
     t.yes += s.yes; t.no += s.no;
     t.marked += s.marked; t.all += s.all;
     if (s.marked) t.ready++;
-    if (s.marked && !DEPS[d].queued && !DEPS[d].sending &&
+    if (s.marked && !DEPS[d].queued &&
       (!DEPS[d].saved || DEPS[d].dirty)) t.pending++;
   }
   t.dept = (t.yes + t.no) ? Math.round(t.yes * 10000 / (t.yes + t.no)) / 100 : '';
@@ -2259,13 +2397,12 @@ function renderToday() {
       '<span class="dot ' + (done ? 'ok' : (s.marked ? 'half' : '')) + '">' +
       (done ? '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>' : '') + '</span>' +
       '<div style="flex:1;min-width:0"><div class="n">' + esc(DEPS[d].department) +
-      (DEPS[d].queued ? ' <span class="pill q">Waiting</span>'
-        : (DEPS[d].sending ? ' <span class="pill q">Saving\u2026</span>'
-          : (DEPS[d].dirty ? ' <span class="pill a">Not saved</span>'
-            : (DEPS[d].saved ? ' <span class="pill">Saved</span>' : '')))) + '</div>' +
+      (DEPS[d].queued ? ' <span class="pill q">Saving\u2026</span>'
+        : (DEPS[d].dirty ? ' <span class="pill a">Not saved</span>'
+          : (DEPS[d].saved ? ' <span class="pill">Saved</span>' : ''))) + '</div>' +
       '<div class="m">' + (s.marked
         ? s.marked + ' of ' + s.all + (s.no ? '  ·  ' + s.no + ' no' : '')
-        : 'Not started') + '</div></div>' +
+        : 'Not started') + savedLine(DEPS[d]) + '</div></div>' +
       '<div class="r">' + (s.marked ? '<div class="num ' + cl(s.score) + '">' + fmt(s.score) + '</div>' : '') + '</div>' +
       cv() + '</div>';
   }
@@ -2321,14 +2458,25 @@ function paint(r) {
   if (w.status !== 'No') { box.innerHTML = ''; return; }
   var h = '';
   if (photoOk()) {
-    var thumb = (w.photo && w.photo.indexOf('data:') === 0)
-      ? '<img src="' + w.photo + '" alt="">'
-      : '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
-    h += '<label class="att">' + thumb +
-      '<b>' + (w.photo ? 'Photo attached' : 'Add photo') + '</b>' +
-      '<input type="file" accept="image/*" capture="environment" class="hide" onchange="pickPhoto(event,' + r + ')">' +
-      (w.photo ? '<span class="x" onclick="dropPhoto(event,' + r + ')">&times;</span>' : '') +
-      '</label>';
+    var cam = '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+    h += '<div class="shots">';
+    for (var i = 0; i < 2; i++) {
+      var ph = w.photos[i];
+      if (ph) {
+        h += '<label class="att">' +
+          (ph.indexOf('data:') === 0 ? '<img src="' + ph + '" alt="">' : cam) +
+          '<b>Photo ' + (i + 1) + '</b>' +
+          '<span class="x" onclick="dropPhoto(event,' + r + ',' + i + ')">&times;</span></label>';
+      } else if (i === w.photos.length) {
+        h += '<label class="att">' + cam + '<b>' + (i ? 'Add 2nd photo' : 'Add photo') + '</b>' +
+          '<input type="file" accept="image/*" capture="environment" class="hide" onchange="pickPhoto(event,' + r + ')"></label>';
+      }
+    }
+    if (w.photos.length) {
+      h += '<button class="see" onclick="openPhotos(' + r + ')">' +
+        '<svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>View</button>';
+    }
+    h += '</div>';
   }
   h += '<input class="nt" placeholder="Note (optional)" value="' + esc(w.note) +
     '" oninput="setNote(' + r + ',this.value)"' + (photoOk() ? '' : ' style="margin-top:12px"') + '>';
@@ -2372,7 +2520,7 @@ function saveDoer(r) {
 function setSt(r, v) {
   var w = DEPS[CUR].rows[r];
   w.status = w.status === v ? '' : v;
-  if (w.status !== 'No') { w.photo = ''; w.note = ''; }
+  if (w.status !== 'No') { w.photos = []; w.note = ''; }
   DEPS[CUR].dirty = true;
   paint(r);
   afterMark();
@@ -2383,7 +2531,7 @@ function markAll(v) {
   var rows = DEPS[CUR].rows;
   for (var i = 0; i < rows.length; i++) {
     rows[i].status = v;
-    if (v !== 'No') { rows[i].photo = ''; rows[i].note = ''; }
+    if (v !== 'No') { rows[i].photos = []; rows[i].note = ''; }
   }
   DEPS[CUR].dirty = true;
   renderDept();
@@ -2399,16 +2547,13 @@ function afterMark() {
 
 function paintFoot(s) {
   var dp = DEPS[CUR];
-  $('dLeft').textContent = dp.queued
-    ? 'Waiting to send'
-    : (dp.sending
-      ? 'Saving\u2026'
-      : ((dp.saved && !dp.dirty)
-        ? 'Saved  ·  ' + s.marked + ' of ' + s.all
-        : ((s.all - s.marked) + ' left')));
+  $('dLeft').textContent = dp.queued && !dp.dirty
+    ? 'Saving\u2026'
+    : ((dp.saved && !dp.dirty)
+      ? 'Saved  ·  ' + s.marked + ' of ' + s.all
+      : ((s.all - s.marked) + ' left'));
   $('dSave').textContent = dp.saved ? 'Update' : 'Save';
-  $('dSave').disabled = !s.marked || (dp.saved && !dp.dirty) ||
-    ((dp.queued || dp.sending) && !dp.dirty);
+  $('dSave').disabled = !s.marked || (dp.saved && !dp.dirty) || (dp.queued && !dp.dirty);
 }
 
 function setNote(r, v) {
@@ -2417,13 +2562,53 @@ function setNote(r, v) {
   touchDraft();
 }
 
-function dropPhoto(ev, r) {
+function dropPhoto(ev, r, i) {
   ev.preventDefault();
   ev.stopPropagation();
-  DEPS[CUR].rows[r].photo = '';
+  DEPS[CUR].rows[r].photos.splice(i, 1);
   DEPS[CUR].dirty = true;
   paint(r);
   touchDraft();
+}
+
+function openPhotos(r) {
+  var w = DEPS[CUR].rows[r];
+  var shots = w.photos.slice();
+  var h = '<div class="mask" onclick="if(event.target===this)closeSheet()"><div class="sheet">' +
+    '<div class="sh"><h3>' + esc(splitWork(w.work).en) + '</h3>' +
+    '<button class="ib" style="background:var(--soft)" onclick="closeSheet()" aria-label="Close">' +
+    '<svg viewBox="0 0 24 24" style="stroke:var(--ink2)"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+    '<div class="sb"><div class="gal" id="gal">' + skel(2) + '</div></div></div></div>';
+  openSheet(h);
+  showShots(shots);
+}
+
+function showShots(shots) {
+  var need = [];
+  for (var i = 0; i < shots.length; i++) if (shots[i].indexOf('data:') !== 0) need.push(shots[i]);
+  if (!need.length) { drawShots(shots); return; }
+  api('photos', { urls: need }).then(function (d) {
+    var got = d.photos || [];
+    var out = [];
+    var k = 0;
+    for (var i = 0; i < shots.length; i++) {
+      out.push(shots[i].indexOf('data:') === 0 ? shots[i] : (got[k++] || ''));
+    }
+    drawShots(out);
+  }).catch(function (e) {
+    var g = $('gal');
+    if (g) g.innerHTML = '<div class="none">' + esc(e.message) + '</div>';
+  });
+}
+
+function drawShots(list) {
+  var g = $('gal');
+  if (!g) return;
+  var h = '';
+  for (var i = 0; i < list.length; i++) {
+    h += list[i] ? '<img src="' + list[i] + '" alt="">' : '<div class="none">Photo could not be loaded.</div>';
+  }
+  g.innerHTML = h || '<div class="none">No photo.</div>';
 }
 
 function pickPhoto(ev, r) {
@@ -2441,7 +2626,9 @@ function pickPhoto(ev, r) {
       cvs.width = w;
       cvs.height = h;
       cvs.getContext('2d').drawImage(img, 0, 0, w, h);
-      DEPS[CUR].rows[r].photo = cvs.toDataURL('image/jpeg', 0.6);
+      if (DEPS[CUR].rows[r].photos.length < 2) {
+        DEPS[CUR].rows[r].photos.push(cvs.toDataURL('image/jpeg', 0.6));
+      }
       DEPS[CUR].dirty = true;
       paint(r);
       touchDraft();
@@ -2495,9 +2682,10 @@ function flushQueue(loud) {
     items.forEach(function (it) {
       chain = chain.then(function () {
         if (stop) return null;
-        return api('save', it.payload).then(function () {
+        return api('save', it.payload).then(function (r) {
           sent++;
           markSent(it);
+          stampIn(r);
           return qDel(it.id);
         }).catch(function (e) {
           if (e.offline || e.unreachable) { stop = true; return null; }
@@ -2505,8 +2693,9 @@ function flushQueue(loud) {
             stop = true;
             return null;
           }
-          if (loud) toast(it.department + ': ' + e.message, true);
-          return null;
+          markFailed(it);
+          toast(it.department + ': ' + e.message, true);
+          return qDel(it.id);
         });
       });
     });
@@ -2517,10 +2706,9 @@ function flushQueue(loud) {
     return qCount().then(function () {
       if (n) {
         SAVED = null;
-        HOMEDATA = null;
         REPCACHE = {};
         FRESH = {};
-        if (!$('pToday').classList.contains('hide')) renderToday();
+        refreshOpenScreens();
       } else if (loud) {
         toast('Could not send right now. Will try again.', true);
       }
@@ -2538,39 +2726,19 @@ function refreshOpenScreens() {
   else if (!$('pDept').classList.contains('hide')) paintFoot(stats(CUR));
 }
 
-function sendSave(items, idx, label) {
-  var payload = {
-    checklist: LIST, date: $('tDay').value,
-    srn: MASTER.srn ? $('tSrn').value : '', departments: items
-  };
-  api('save', payload).then(function () {
-    for (var i = 0; i < idx.length; i++) {
-      DEPS[idx[i]].sending = false;
-      DEPS[idx[i]].saved = true;
-      DEPS[idx[i]].queued = false;
-      dropDraft(DEPS[idx[i]].department);
+function markFailed(it) {
+  if (!MASTER || it.checklist !== LIST) return;
+  if (it.date !== $('tDay').value) return;
+  if ((MASTER.srn ? $('tSrn').value : '') !== it.srn) return;
+  for (var i = 0; i < DEPS.length; i++) {
+    if (DEPS[i].department === it.department) {
+      DEPS[i].queued = false;
+      DEPS[i].saved = false;
+      DEPS[i].dirty = true;
+      saveDraft(i);
     }
-    SAVED = null;
-    HOMEDATA = null;
-    REPCACHE = {};
-    FRESH = {};
-    refreshOpenScreens();
-  }).catch(function (e) {
-    if (e.offline || e.unreachable) {
-      queueSave(items, idx).then(function () {
-        for (var i = 0; i < idx.length; i++) DEPS[idx[i]].sending = false;
-        refreshOpenScreens();
-      });
-      return;
-    }
-    for (var i = 0; i < idx.length; i++) {
-      DEPS[idx[i]].sending = false;
-      DEPS[idx[i]].dirty = true;
-      saveDraft(idx[i]);
-    }
-    toast(label + ' save nahi hua: ' + e.message, true);
-    refreshOpenScreens();
-  });
+  }
+  refreshOpenScreens();
 }
 
 function markSent(it) {
@@ -2593,7 +2761,7 @@ function packDept(d) {
     if (!w.status) continue;
     var o = { work: w.work, doer: w.doer, status: w.status };
     if (w.status === 'No') {
-      if (w.photo && photoOk()) o.photo = w.photo;
+      if (w.photos.length && photoOk()) o.photos = w.photos;
       if (w.note) o.note = w.note;
     }
     rows.push(o);
@@ -2605,18 +2773,41 @@ function saveDept() {
   var d = CUR;
   var s = stats(d);
   if (!s.marked) { toast('Mark at least one work first.', true); return; }
-  var item = packDept(d);
-  DEPS[d].sending = true;
-  DEPS[d].dirty = false;
   toast(DEPS[d].department + ' saved');
-  paintFoot(stats(d));
-  nextUnsaved();
-  sendSave([item], [d], DEPS[d].department);
+  commit([d]).then(function () {
+    paintFoot(stats(d));
+    nextUnsaved();
+  });
+}
+
+function commit(idx) {
+  var items = [];
+  for (var i = 0; i < idx.length; i++) items.push(packDept(idx[i]));
+  return queueSave(items, idx).then(function () {
+    for (var j = 0; j < idx.length; j++) DEPS[idx[j]].saved = true;
+    patchHome();
+    flushQueue(false);
+  });
+}
+
+function patchHome() {
+  if (!HOMEDATA || !HOMEDATA.checklists || $('tDay').value !== today()) return;
+  var n = 0;
+  for (var d = 0; d < DEPS.length; d++) if (DEPS[d].saved || DEPS[d].queued) n++;
+  var was = 0;
+  for (var i = 0; i < HOMEDATA.checklists.length; i++) {
+    var c = HOMEDATA.checklists[i];
+    if (c.key !== LIST) continue;
+    was = c.todayDone;
+    c.todayDone = Math.max(c.todayDone, n);
+    if (c.period !== 'none') HOMEDATA.today.done += c.todayDone - was;
+  }
+  cacheSet(ck('home'), HOMEDATA);
 }
 
 function nextUnsaved() {
   for (var i = CUR + 1; i < DEPS.length; i++) {
-    if (!DEPS[i].saved && !DEPS[i].queued && !DEPS[i].sending) {
+    if (!DEPS[i].saved && !DEPS[i].queued) {
       CUR = i;
       renderDept();
       window.scrollTo(0, 0);
@@ -2648,7 +2839,7 @@ function renderReview() {
       if (DEPS[d].rows[r].status === 'No') {
         fails.push({
           dept: DEPS[d].department, work: splitWork(DEPS[d].rows[r].work).en,
-          photo: photoOk() && !!DEPS[d].rows[r].photo
+          photos: photoOk() ? DEPS[d].rows[r].photos.length : 0
         });
       }
     }
@@ -2657,7 +2848,7 @@ function renderReview() {
     h += '<div class="sec">Work not done (' + fails.length + ')</div>';
     for (var f = 0; f < fails.length; f++) {
       h += '<div class="fail">' + esc(fails[f].work) + '<div class="m">' +
-        esc(fails[f].dept) + (fails[f].photo ? '  ·  photo added' : '') + '</div></div>';
+        esc(fails[f].dept) + (fails[f].photos ? '  ·  ' + fails[f].photos + ' photo' : '') + '</div></div>';
     }
   }
   var skip = DEPS.length - t.ready;
@@ -2674,60 +2865,135 @@ function submitAll() {
   for (var d = 0; d < DEPS.length; d++) {
     var s = stats(d);
     if (!s.marked) continue;
-    if ((DEPS[d].queued || DEPS[d].sending) && !DEPS[d].dirty) continue;
+    if (DEPS[d].queued && !DEPS[d].dirty) continue;
     if (DEPS[d].saved && !DEPS[d].dirty) continue;
     idx.push(d);
     pack.push(packDept(d));
   }
   if (!pack.length) { toast('Nothing left to submit.', true); return; }
-  for (var k = 0; k < idx.length; k++) {
-    DEPS[idx[k]].sending = true;
-    DEPS[idx[k]].dirty = false;
+  toast(idx.length + ' department(s) saved');
+  commit(idx).then(function () { toToday(); });
+}
+
+function savedList() {
+  if (SLIST && listLabel(SLIST)) return SLIST;
+  SLIST = LISTS.length ? (LIST || LISTS[0].key) : '';
+  return SLIST;
+}
+
+function pickSaved(key) {
+  SLIST = key;
+  loadSaved();
+}
+
+function drawChips() {
+  var cur = savedList();
+  var h = '';
+  for (var i = 0; i < LISTS.length; i++) {
+    h += '<button class="' + (LISTS[i].key === cur ? 'on' : '') + '" onclick="pickSaved(\'' +
+      q(LISTS[i].key) + '\')">' + esc(LISTS[i].label) + '</button>';
   }
-  toToday();
-  sendSave(pack, idx, 'Submit');
+  $('sChips').innerHTML = h;
 }
 
 function loadSaved() {
-  var to = today();
-  var d = new Date();
-  d.setDate(d.getDate() - 30);
-  var from = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
-  var list = $('sList').value || LIST;
-  var have = cacheGet(ck('sv_' + list));
-  if (have) {
+  drawChips();
+  var list = savedList();
+  if (!list) {
+    $('sBody').innerHTML = '<div class="empty">No checklist is given to you yet.</div>';
+    return;
+  }
+  var have = cacheGet(ck('gr_' + list));
+  if (have && have.dates) {
     SAVED = have;
     renderSaved();
-    if (fresh('sv_' + list, 120)) return;
+    if (fresh('gr_' + list)) return;
   } else {
     $('sBody').innerHTML = skel(4);
   }
-  api('entries', { checklist: list, from: from, to: to }).then(function (r) {
-    SAVED = r.entries || [];
-    FRESH['sv_' + list] = Date.now();
-    cacheSet(ck('sv_' + list), SAVED);
-    renderSaved();
+  api('grid', { checklist: list, days: 5 }).then(function (r) {
+    FRESH['gr_' + list] = Date.now();
+    cacheSet(ck('gr_' + list), r);
+    stampIn(r);
+    if (savedList() === list) { SAVED = r; renderSaved(); }
   }).catch(function (e) {
     if (!have) $('sBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
   });
 }
 
+function dayHead(dt) {
+  var d = dateOf(dt);
+  return d.getDate() + ' ' + ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+}
+
 function renderSaved() {
-  if (!SAVED || !SAVED.length) {
-    $('sBody').innerHTML = '<div class="empty">Nothing saved in the last 30 days for this checklist.</div>';
+  var g = SAVED;
+  if (!g || !g.departments || !g.departments.length) {
+    $('sBody').innerHTML = '<div class="empty">No department in this checklist.</div>';
     return;
   }
-  var h = '<div class="list">';
-  for (var i = 0; i < SAVED.length; i++) {
-    var e = SAVED[i];
-    h += '<div class="it"><div style="flex:1;min-width:0">' +
-      '<div class="n">' + esc(e.department) + '</div>' +
-      '<div class="m">' + esc(dmy(e.date)) + '  ·  ' + esc(e.day.substring(0, 3)) +
-      (e.srn ? '  ·  ' + esc(e.srn) : '') + '  ·  ' + e.total + ' work' +
-      (e.no ? '  ·  ' + e.no + ' no' : '') + '</div>' + sp(e.yes, e.no, e.wnd) + '</div>' +
-      '<div class="r"><div class="num ' + cl(e.score) + '">' + fmt(e.score) + '</div></div></div>';
+  var h = '<div class="sec">' + esc(dayHead(g.dates[0])) + ' – ' + esc(dayHead(g.dates[g.dates.length - 1])) +
+    '</div><div class="list">';
+  for (var i = 0; i < g.departments.length; i++) {
+    var d = g.departments[i];
+    var n = 0;
+    for (var k = 0; k < d.days.length; k++) if (d.days[k]) n++;
+    var dots = '';
+    for (var j = 0; j < d.days.length; j++) {
+      dots += '<span class="dot ' + (d.days[j] ? 'ok' : '') + '" style="width:14px;height:14px;border-width:1.5px">' +
+        (d.days[j] ? '<svg viewBox="0 0 24 24" style="width:8px;height:8px"><path d="M20 6L9 17l-5-5"/></svg>' : '') + '</span>';
+    }
+    h += '<div class="it" onclick="openGrid(' + i + ')"><div style="flex:1;min-width:0">' +
+      '<div class="n">' + esc(d.department) + '</div>' +
+      '<div class="m">' + d.rows.length + ' work  ·  ' + n + ' of ' + d.days.length + ' days saved</div>' +
+      '<div style="display:flex;gap:5px;margin-top:7px">' + dots + '</div></div>' + cv() + '</div>';
   }
   $('sBody').innerHTML = h + '</div>';
+}
+
+function cellCls(v) {
+  if (v === 'Yes') return 'y';
+  if (v === 'No') return 'n';
+  if (v === 'W.N.D') return 'x';
+  return 'e';
+}
+
+function openGrid(i) {
+  var g = SAVED;
+  var d = g.departments[i];
+  var h = '<div class="mask" onclick="if(event.target===this)closeSheet()"><div class="sheet tall">' +
+    '<div class="sh"><div style="flex:1;min-width:0"><h3>' + esc(d.department) + '</h3>' +
+    '<div class="m" style="font-size:12px;color:var(--ink3)">' + esc(g.label) +
+    (g.srn ? '' : '  ·  tap a date to open it') + '</div></div>' +
+    '<button class="ib" style="background:var(--soft)" onclick="closeSheet()" aria-label="Close">' +
+    '<svg viewBox="0 0 24 24" style="stroke:var(--ink2)"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+    '<div class="sb" style="padding:12px 14px 18px"><div class="gw"><table class="gt"><thead><tr><th class="w">Work</th>';
+  for (var k = 0; k < g.dates.length; k++) {
+    var dd = dateOf(g.dates[k]);
+    h += '<th class="dt"' + (g.srn ? '' : ' onclick="jumpTo(\'' + q(g.checklist) + '\',\'' + q(g.dates[k]) +
+      '\',\'' + q(d.department) + '\')"') + '>' + dd.getDate() +
+      '<small>' + ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dd.getDay()] + '</small></th>';
+  }
+  h += '</tr></thead><tbody>';
+  for (var r = 0; r < d.rows.length; r++) {
+    h += '<tr><td class="w">' + esc(splitWork(d.rows[r].work).en) + '</td>';
+    for (var c = 0; c < d.rows[r].s.length; c++) {
+      var v = d.rows[r].s[c];
+      h += '<td class="' + cellCls(v) + '">' + (v || '–') + '</td>';
+    }
+    h += '</tr>';
+  }
+  h += '</tbody></table></div></div></div></div>';
+  openSheet(h);
+}
+
+function jumpTo(key, date, dept) {
+  closeSheet();
+  $('tList').value = key;
+  $('tDay').value = date;
+  JUMPDEPT = dept;
+  go('today');
+  pickList();
 }
 
 function openEdit() {
@@ -2864,9 +3130,45 @@ function ck(name) {
   return 'cc_c_' + (USER && USER.email ? USER.email : 'x') + '_' + name;
 }
 
-function fresh(key, secs) {
+function fresh(key) {
   var t = FRESH[key] || 0;
-  return (Date.now() - t) < (secs || 60) * 1000;
+  return (Date.now() - t) < 1800000;
+}
+
+function stampIn(d) {
+  if (d && d.stamp) STAMP = d.stamp;
+}
+
+function onStamp(d) {
+  if (!d.stamp || d.stamp === STAMP) return;
+  STAMP = d.stamp;
+  FRESH = {};
+  HOMEDATA = null;
+  REPCACHE = {};
+  if (PANE === 'home') loadHome();
+  else if (PANE === 'today') refreshDay(false);
+  else if (PANE === 'saved') loadSaved();
+  else if (PANE === 'hub') loadHub();
+  else if (PANE === 'rep' && REP) loadReport();
+}
+
+function beatTick() {
+  if (!TOKEN) return;
+  flushQueue(false);
+  api('me', {}).then(function (d) {
+    USER = d.user;
+    if (d.notes) setNotes(d.notes, false);
+    onStamp(d);
+  }).catch(function (e) {
+    if (/sign in|switched off|password was changed/i.test(e.message)) {
+      stopBeat();
+      localStorage.removeItem('cc_token');
+      TOKEN = '';
+      USER = null;
+      $('tabs').classList.add('hide');
+      showLogin(e.message);
+    }
+  });
 }
 
 function dayKey() {
@@ -2927,13 +3229,23 @@ function sameAccess(a, b) {
     (a.user.tabs || []).join() === (b.user.tabs || []).join();
 }
 
+function freshBuild() {
+  if (!SRVVER || SRVVER === APPVER) return;
+  if (localStorage.getItem('cc_reloadfor') === SRVVER) return;
+  if (QN || Object.keys(DRAFTED).length) return;
+  localStorage.setItem('cc_reloadfor', SRVVER);
+  setTimeout(function () { location.reload(); }, 1500);
+}
+
 function catchUp(saved) {
   api('boot', {}).then(function (d) {
     cacheSet('cc_boot', d);
     USER = d.user;
     SRVVER = d.version || '';
     VIEWBY = d.viewingBy || '';
+    freshBuild();
     if (!sameAccess(saved, d)) { JUMPED = false; start(d); return; }
+    onStamp(d);
     if (d.home && d.home.totals) {
       HOMEDATA = d.home;
       FRESH.home = Date.now();
