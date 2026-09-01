@@ -205,6 +205,21 @@
     box-shadow: 0 4px 12px rgba(5, 150, 105, .3); }
   .seg button.n { background: var(--bad); border-color: var(--bad); color: #fff;
     box-shadow: 0 4px 12px rgba(220, 38, 38, .3); }
+  .wrow { background: var(--card); border-radius: var(--r); padding: 12px 14px; margin: 0 14px 10px;
+    box-shadow: 0 1px 2px rgba(16,28,43,.05); }
+  .wrow.gone { opacity: .45; }
+  .wrow.gone textarea, .wrow.gone input { text-decoration: line-through; }
+  .wrow .top { display: flex; gap: 8px; align-items: flex-start; }
+  .wrow textarea { flex: 1; min-width: 0; resize: none; }
+  .wrow .x { flex: none; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line);
+    background: #fff; color: var(--bad); font-size: 20px; line-height: 1; }
+  .wrow .x.undo { color: var(--blue); font-size: 12px; font-weight: 600; width: auto; padding: 0 10px; }
+  .wrow input { margin-top: 8px; }
+  .wrow .new { font-size: 10.5px; color: var(--blue); font-weight: 600; margin-bottom: 6px; }
+  .allp { margin: 12px 14px 14px; background: var(--blue-soft); border-radius: var(--r); padding: 12px 14px; }
+  .allp label { font-size: 12px; color: var(--blue); font-weight: 600; display: block; margin-bottom: 6px; }
+  .addw { margin: 4px 14px 90px; width: calc(100% - 28px); border: 1.5px dashed var(--line); background: transparent;
+    color: var(--blue); border-radius: var(--r); padding: 13px; font-size: 13.5px; font-weight: 600; }
   .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 14px 16px; }
   .cards .c { background: var(--card); border-radius: var(--r); padding: 14px 14px 12px;
     box-shadow: 0 1px 2px rgba(16,28,43,.05); position: relative; min-width: 0; }
@@ -668,16 +683,30 @@
         <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
       <div style="flex:1;min-width:0">
         <h1>Edit checklist</h1>
-        <div class="sub" id="eSub"></div>
+        <div class="sub">Pick a department to edit its work</div>
       </div>
-      <button class="ib" onclick="openWork(null)" aria-label="Add work">
-        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     </div>
   </div>
-  <div class="bar">
-    <div class="f"><label>Checklist</label><select id="eList" class="ctl" onchange="loadWorks()"></select></div>
-  </div>
+  <div class="lchips" id="eChips"></div>
   <div id="eBody"></div>
+</section>
+
+<section id="pEditDept" class="pane hide">
+  <div class="hdr">
+    <div class="hrow">
+      <button class="ib" onclick="go('edit')" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+      <div style="flex:1;min-width:0">
+        <h1 id="edName"></h1>
+        <div class="sub" id="edSub"></div>
+      </div>
+    </div>
+  </div>
+  <div id="edBody"></div>
+  <div class="ft">
+    <span id="edLeft"></span>
+    <button class="btn" onclick="saveEditDept()">Save</button>
+  </div>
 </section>
 
 <nav class="tabs hide" id="tabs"></nav>
@@ -753,8 +782,11 @@ var NAVON = false;
 var SHEETX = null;
 var SLIST = '';
 var STAMP = '';
+var WEEK = null;
+var EDIT = null;
+var ELIST = '';
 var JUMPDEPT = '';
-var APPVER = '2026-08-31-s';
+var APPVER = '2026-09-01-a';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1081,7 +1113,7 @@ function fail(e) {
 
 function only(id) {
   var all = ['pSplash', 'pLogin', 'pHome', 'pToday', 'pDept', 'pReview', 'pHub', 'pRep',
-    'pDrill', 'pSaved', 'pMe', 'pEdit', 'pAdmin'];
+    'pDrill', 'pSaved', 'pMe', 'pEdit', 'pEditDept', 'pAdmin'];
   for (var i = 0; i < all.length; i++) $(all[i]).classList.toggle('hide', all[i] !== id);
   window.scrollTo(0, 0);
 }
@@ -1233,6 +1265,7 @@ function go(p, pop) {
   else if (p === 'saved') { only('pSaved'); mark('saved'); loadSaved(); }
   else if (p === 'me') { only('pMe'); mark('me'); renderMe(); }
   else if (p === 'edit') { only('pEdit'); mark('me'); }
+  else if (p === 'editDept') { only('pEditDept'); mark('me'); }
   else if (p === 'admin') { only('pAdmin'); mark('me'); loadAdmin(); }
 }
 
@@ -1252,7 +1285,6 @@ function start(boot) {
     h += '<option value="' + LISTS[i].key + '">' + esc(LISTS[i].label) + '</option>';
   }
   $('tList').innerHTML = h;
-  $('eList').innerHTML = h;
   var pos = cacheGet('cc_pos');
   if (!pos || pos.day !== today()) pos = null;
   $('tDay').value = pos && pos.date ? pos.date : today();
@@ -1278,8 +1310,7 @@ function start(boot) {
       applyMaster();
       if (MASTER.srn && pos && pos.srn) $('tSrn').value = pos.srn;
       if (boot.day && !MASTER.srn && $('tDay').value === boot.today) {
-        buildDeps(boot.day.departments || []);
-        $('tSub').textContent = MASTER.label + '  ·  ' + dmy(boot.today);
+        applyDay(boot.day.departments, boot.day.week);
         restoreLocal(++DAYSEQ);
       } else {
         refreshDay();
@@ -1328,7 +1359,7 @@ function warm() {
           withMaster: !cacheGet('cc_master_' + lk),
           mstamp: cacheGet('cc_mst_' + lk) || ''
         }).then(function (d) {
-          cacheSet(dk, d.departments || []);
+          cacheSet(dk, { departments: d.departments || [], week: d.week || null });
           FRESH['day_' + dk] = Date.now();
           stampIn(d);
           if (d.mstamp) cacheSet('cc_mst_' + lk, d.mstamp);
@@ -1413,7 +1444,7 @@ function renderHome(d) {
     '<div style="flex:1;min-width:0"><div class="k">Officer score  ·  ' + esc(d.range.label) + '</div>' +
     '<div class="v">' + fmt(t.officer) + '%</div>' +
     '<div class="m">' + esc(delta(t.officer, t.prevOfficer) || (t.yes + ' yes of ' + t.planned + ' work')) + '</div>' +
-    '<div class="side"><div>Dept score<b>' + fmt(t.dept) + '%</b></div>' +
+    '<div class="side"><div>Factory score<b>' + fmt(t.dept) + '%</b></div>' +
     '<div>Work<b>' + t.planned + '</b></div><div>Yes<b>' + t.yes + '</b></div><div>No<b>' + t.no + '</b></div></div>' +
     '</div></div>';
 
@@ -1501,28 +1532,25 @@ function loadFocus() {
 function drawFocus(d) {
   var box = $('hoFocus');
   if (!box) return;
-  var h = '';
+  var n = 0;
+  var h = '<div class="sec">Repeated No  ·  two checks in a row</div><div class="list">';
   for (var g = 0; g < d.groups.length; g++) {
     var grp = d.groups[g];
-    h += '<div class="sec">Top 5 in ' + esc(grp.label) + '</div><div class="list">';
-    if (!grp.works.length) {
-      h += '<div class="it"><div class="m" style="margin:0">' +
-        'Nothing failed in ' + esc(d.month) + '.</div></div>';
-    }
     for (var i = 0; i < grp.works.length; i++) {
       var w = grp.works[i];
+      n++;
       h += '<div class="it"><span class="ic" style="background:var(--bad-soft);color:var(--bad);' +
-        'font-weight:700;font-size:15px">' + w.no + '</span>' +
+        'font-weight:700;font-size:14px">' + w.days + '</span>' +
         '<div style="flex:1;min-width:0">' +
-        '<div class="n" style="font-weight:400;font-size:13.5px">' + esc(splitWork(w.work).en) + '</div>' +
-        '<div class="m">' + esc(w.departments.slice(0, 3).join(', ')) +
-        (w.departments.length > 3 ? ' +' + (w.departments.length - 3) : '') +
-        (w.doer ? '  ·  ' + esc(w.doer) : '') + '</div></div>' +
-        '<div class="r"><div class="m" style="margin:0">of ' + w.checked + '</div></div></div>';
+        '<div class="n" style="font-weight:500;font-size:13.5px">' + esc(splitWork(w.work).en) + '</div>' +
+        '<div class="m">' + esc(grp.label) + '  ·  ' + esc(w.department) +
+        '  ·  No since ' + esc(dmy(w.since).substring(0, 5)) + '</div></div></div>';
     }
-    h += '</div>';
   }
-  box.innerHTML = h;
+  if (!n) {
+    h += '<div class="it"><div class="m" style="margin:0">No work has been No two checks in a row.</div></div>';
+  }
+  box.innerHTML = h + '</div>';
 }
 
 function jumpEntry(key) {
@@ -1960,7 +1988,7 @@ function renderHub(d) {
     '<div style="flex:1;min-width:0"><div class="k">Your score  ·  all checklists</div>' +
     '<div class="v">' + fmt(t.officer) + '%</div>' +
     '<div class="m">' + esc(delta(t.officer, t.prevOfficer) || (t.yes + ' yes of ' + t.planned + ' work')) + '</div>' +
-    '<div class="side"><div>Dept score<b>' + fmt(t.dept) + '%</b></div>' +
+    '<div class="side"><div>Factory score<b>' + fmt(t.dept) + '%</b></div>' +
     '<div>Work<b>' + t.planned + '</b></div><div>Yes<b>' + t.yes + '</b></div><div>No<b>' + t.no + '</b></div></div>' +
     '</div></div>';
   h += '<div class="sec">Checklist wise  ·  tap for detail</div>' + scoreCards(d.checklists, true);
@@ -2233,9 +2261,9 @@ function refreshDay(needMaster) {
       $('tInfo').textContent = '';
       return;
     }
-    var old = cacheGet(dayKey());
+    var old = dayCache();
     if (old) {
-      buildDeps(old);
+      applyDay(old.departments, old.week);
       restoreLocal(seq);
       var was = cacheGet('cc_pos');
       savePos(was && was.day === today() ? was.dept : '');
@@ -2266,9 +2294,9 @@ function refreshDay(needMaster) {
         return;
       }
     }
-    cacheSet(dayKey(), d.departments || []);
+    cacheSet(dayKey(), { departments: d.departments || [], week: d.week || null });
     FRESH['day_' + dayKey()] = Date.now();
-    buildDeps(d.departments || []);
+    applyDay(d.departments, d.week);
     var pos = cacheGet('cc_pos');
     savePos(pos && pos.day === today() ? pos.dept : '');
     restoreLocal(seq);
@@ -2276,7 +2304,8 @@ function refreshDay(needMaster) {
     if (seq !== DAYSEQ) return;
     if (e.offline || e.unreachable) {
       if (!DEPS.length) {
-        buildDeps(cacheGet(dayKey()) || []);
+        var had = dayCache();
+        applyDay(had ? had.departments : [], had ? had.week : null);
         restoreLocal(seq);
       }
       return;
@@ -2290,7 +2319,9 @@ function savedLine(dp) {
   var t = String(dp.savedAt).match(/(\d{2}):(\d{2})/);
   var hh = t ? Number(t[1]) : -1;
   var when = hh < 0 ? '' : ((hh % 12) || 12) + ':' + t[2] + (hh < 12 ? ' am' : ' pm');
-  return (when ? '  ·  ' + when : '') + (dp.savedBy ? '  ·  ' + esc(dp.savedBy) : '');
+  var day = WEEK && dp.date && dp.date !== $('tDay').value
+    ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dateOf(dp.date).getDay()] + ' ' : '';
+  return (when ? '  ·  ' + day + when : '') + (dp.savedBy ? '  ·  ' + esc(dp.savedBy) : '');
 }
 
 function buildDeps(saved) {
@@ -2300,7 +2331,9 @@ function buildDeps(saved) {
   var meta = {};
   for (var i = 0; i < saved.length; i++) {
     var rows = saved[i].rows || [];
-    meta[saved[i].department] = { savedAt: saved[i].savedAt || '', savedBy: saved[i].savedBy || '' };
+    meta[saved[i].department] = {
+      savedAt: saved[i].savedAt || '', savedBy: saved[i].savedBy || '', date: saved[i].date || ''
+    };
     map[saved[i].department] = {};
     for (var j = 0; j < rows.length; j++) {
       map[saved[i].department][String(rows[j].work).toLowerCase()] = rows[j];
@@ -2327,7 +2360,8 @@ function buildDeps(saved) {
       department: dep.department, rows: out,
       saved: !!map[dep.department], dirty: false, queued: false,
       savedBy: meta[dep.department] ? meta[dep.department].savedBy : '',
-      savedAt: meta[dep.department] ? meta[dep.department].savedAt : ''
+      savedAt: meta[dep.department] ? meta[dep.department].savedAt : '',
+      date: meta[dep.department] ? meta[dep.department].date : ''
     });
   }
 }
@@ -2766,7 +2800,9 @@ function packDept(d) {
     }
     rows.push(o);
   }
-  return { department: DEPS[d].department, rows: rows };
+  var out = { department: DEPS[d].department, rows: rows };
+  if (WEEK && DEPS[d].date) out.date = DEPS[d].date;
+  return out;
 }
 
 function saveDept() {
@@ -2997,16 +3033,32 @@ function jumpTo(key, date, dept) {
 }
 
 function openEdit() {
-  $('eList').value = LIST;
+  ELIST = LIST || (LISTS.length ? LISTS[0].key : '');
   go('edit');
   loadWorks();
 }
 
+function pickEdit(key) {
+  ELIST = key;
+  loadWorks();
+}
+
 function loadWorks() {
+  var h = '';
+  for (var i = 0; i < LISTS.length; i++) {
+    h += '<button class="' + (LISTS[i].key === ELIST ? 'on' : '') + '" onclick="pickEdit(\'' +
+      q(LISTS[i].key) + '\')">' + esc(LISTS[i].label) + '</button>';
+  }
+  $('eChips').innerHTML = h;
+  if (!ELIST) {
+    $('eBody').innerHTML = '<div class="empty">No checklist is given to you yet.</div>';
+    return;
+  }
   $('eBody').innerHTML = skel(4);
-  api('works', { checklist: $('eList').value }).then(function (d) {
+  var key = ELIST;
+  api('works', { checklist: key }).then(function (d) {
+    if (ELIST !== key) return;
     WORKS = d;
-    $('eSub').textContent = d.label;
     renderWorks();
   }).catch(function (e) {
     $('eBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
@@ -3014,99 +3066,115 @@ function loadWorks() {
 }
 
 function renderWorks() {
-  var h = '';
-  var n = 0;
+  var h = '<div class="list">';
   for (var i = 0; i < WORKS.departments.length; i++) {
     var dep = WORKS.departments[i];
-    n += dep.works.length;
-    h += '<div class="sec">' + esc(dep.department) + '<button onclick="openWork(null,\'' +
-      q(dep.department) + '\')">Add</button></div><div class="list">';
-    for (var j = 0; j < dep.works.length; j++) {
-      var w = dep.works[j];
-      h += '<div class="it" onclick="openWork(' + w.row + ',\'' + q(dep.department) + '\')">' +
-        '<div style="flex:1;min-width:0">' +
-        '<div class="n" style="font-weight:400;font-size:13.5px">' + esc(splitWork(w.work).en) + '</div>' +
-        '<div class="m">' + esc(w.doer || 'No person set') + '</div></div>' + cv() + '</div>';
-    }
-    h += '</div>';
+    var doer = sameDoer(dep.works);
+    h += '<div class="it" onclick="openEditDept(' + i + ')"><div style="flex:1;min-width:0">' +
+      '<div class="n">' + esc(dep.department) + '</div>' +
+      '<div class="m">' + dep.works.length + ' work' + (doer ? '  ·  ' + esc(doer) : '') + '</div></div>' + cv() + '</div>';
   }
-  $('eBody').innerHTML = h || '<div class="empty">No work in this checklist yet. Tap + to add one.</div>';
+  $('eBody').innerHTML = h + '</div>';
 }
 
-function findWork(row) {
-  for (var i = 0; i < WORKS.departments.length; i++) {
-    for (var j = 0; j < WORKS.departments[i].works.length; j++) {
-      if (WORKS.departments[i].works[j].row === row) {
-        return { dep: WORKS.departments[i].department, w: WORKS.departments[i].works[j] };
-      }
-    }
-  }
-  return null;
+function sameDoer(works) {
+  if (!works.length) return '';
+  var d = (works[0].doer || '').trim();
+  if (!d) return '';
+  for (var i = 1; i < works.length; i++) if ((works[i].doer || '').trim() !== d) return '';
+  return d;
 }
 
-function openWork(row, dept) {
-  var found = row ? findWork(row) : null;
-  var w = found ? found.w : { work: '', doer: '' };
-  var dep = found ? found.dep : (dept || (WORKS.departments[0] ? WORKS.departments[0].department : ''));
-  var depSel = '';
-  if (!WORKS.fixedDept) {
-    depSel = '<label style="font-size:12px;color:var(--ink3);display:block;margin:14px 0 6px">Department</label>' +
-      '<select class="ctl" id="wDep">';
-    var seen = false;
-    for (var i = 0; i < WORKS.departments.length; i++) {
-      var d = WORKS.departments[i].department;
-      if (d === dep) seen = true;
-      depSel += '<option value="' + esc(d) + '"' + (d === dep ? ' selected' : '') + '>' + esc(d) + '</option>';
-    }
-    if (!seen && dep) depSel += '<option value="' + esc(dep) + '" selected>' + esc(dep) + '</option>';
-    depSel += '</select>';
+function openEditDept(i) {
+  var dep = WORKS.departments[i];
+  var rows = [];
+  for (var k = 0; k < dep.works.length; k++) {
+    rows.push({ row: dep.works[k].row, work: dep.works[k].work, doer: dep.works[k].doer || '',
+      was: { work: dep.works[k].work, doer: dep.works[k].doer || '' }, gone: false });
   }
-  var doerOpts = '';
+  EDIT = { dep: dep.department, rows: rows };
+  $('edName').textContent = dep.department;
+  $('edSub').textContent = WORKS.label;
+  renderEditDept();
+  go('editDept');
+}
+
+function renderEditDept() {
   var pool = WORKS.doers || [];
-  for (var k = 0; k < pool.length; k++) {
-    doerOpts += '<div class="opt" onclick="document.getElementById(\'wDoer\').value=\'' +
-      q(pool[k]) + '\'">' + esc(pool[k]) + '</div>';
+  var opts = '';
+  for (var k = 0; k < pool.length; k++) opts += '<option value="' + esc(pool[k]) + '">';
+  var all = sameDoer(EDIT.rows.filter(function (r) { return !r.gone; }));
+  var h = '<datalist id="doerPool">' + opts + '</datalist>' +
+    '<div class="allp"><label>Person for all work in this department</label>' +
+    '<input class="ctl" list="doerPool" placeholder="Type a name to set it on every work" value="' + esc(all) +
+    '" oninput="setAllDoer(this.value)"></div>';
+  for (var i = 0; i < EDIT.rows.length; i++) {
+    var r = EDIT.rows[i];
+    h += '<div class="wrow' + (r.gone ? ' gone' : '') + '" id="wr' + i + '">' +
+      (r.row ? '' : '<div class="new">New work</div>') +
+      '<div class="top"><textarea class="ctl" rows="2" placeholder="Work (English / हिंदी)"' +
+      ' oninput="EDIT.rows[' + i + '].work=this.value"' + (r.gone ? ' disabled' : '') + '>' + esc(r.work) + '</textarea>' +
+      (r.gone
+        ? '<button class="x undo" onclick="toggleGone(' + i + ')">Undo</button>'
+        : '<button class="x" onclick="toggleGone(' + i + ')" aria-label="Remove">&times;</button>') + '</div>' +
+      '<input class="ctl" list="doerPool" placeholder="Person" value="' + esc(r.doer) + '"' +
+      ' oninput="EDIT.rows[' + i + '].doer=this.value"' + (r.gone ? ' disabled' : '') + '></div>';
   }
-  var h = '<div class="mask" onclick="if(event.target===this)closeSheet()"><div class="sheet">' +
-    '<div class="sh"><h3>' + (row ? 'Edit work' : 'Add work') + '</h3>' +
-    '<button class="ib" style="background:var(--soft)" onclick="closeSheet()" aria-label="Close">' +
-    '<svg viewBox="0 0 24 24" style="stroke:var(--ink2)"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
-    '<div class="sb">' +
-    '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">Work</label>' +
-    '<textarea class="ctl" id="wTxt" rows="3" placeholder="English text / हिंदी text">' + esc(w.work) + '</textarea>' +
-    depSel +
-    '<label style="font-size:12px;color:var(--ink3);display:block;margin:14px 0 6px">Person</label>' +
-    '<input class="ctl" id="wDoer" placeholder="Who will do this" value="' + esc(w.doer) + '">' +
-    (pool.length ? '<div style="font-size:12px;color:var(--ink3);margin:14px 0 4px">Tap to pick</div>' + doerOpts : '') +
-    '</div><div class="sf">' +
-    (row ? '<button class="btn d" style="flex:1" onclick="removeWork(' + row + ')">Remove</button>' : '') +
-    '<button class="btn" style="flex:2" onclick="saveWork(' + (row || 0) + ')">Save</button>' +
-    '</div></div></div>';
-  openSheet(h);
+  h += '<button class="addw" onclick="addEditRow()">+ Add work</button>';
+  $('edBody').innerHTML = h;
+  paintEditFoot();
 }
 
-function saveWork(row) {
-  var txt = $('wTxt').value.trim();
-  if (!txt) { toast('Enter the work text.', true); return; }
-  var dep = WORKS.fixedDept || ($('wDep') ? $('wDep').value : '');
+function paintEditFoot() {
+  var n = 0;
+  for (var i = 0; i < EDIT.rows.length; i++) if (!EDIT.rows[i].gone) n++;
+  $('edLeft').textContent = n + ' work';
+}
+
+function setAllDoer(v) {
+  for (var i = 0; i < EDIT.rows.length; i++) {
+    if (EDIT.rows[i].gone) continue;
+    EDIT.rows[i].doer = v;
+    var box = $('wr' + i);
+    if (box) box.querySelector('input').value = v;
+  }
+}
+
+function toggleGone(i) {
+  var r = EDIT.rows[i];
+  if (!r.row && !r.gone) { EDIT.rows.splice(i, 1); renderEditDept(); return; }
+  r.gone = !r.gone;
+  renderEditDept();
+}
+
+function addEditRow() {
+  var last = EDIT.rows.length ? EDIT.rows[EDIT.rows.length - 1] : null;
+  EDIT.rows.push({ row: 0, work: '', doer: last ? last.doer : '', was: { work: '', doer: '' }, gone: false });
+  renderEditDept();
+  var box = $('wr' + (EDIT.rows.length - 1));
+  if (box) box.querySelector('textarea').focus();
+}
+
+function saveEditDept() {
+  var items = [];
+  for (var i = 0; i < EDIT.rows.length; i++) {
+    var r = EDIT.rows[i];
+    var work = (r.work || '').trim();
+    var doer = (r.doer || '').trim();
+    if (r.gone) { if (r.row) items.push({ row: r.row, remove: true }); continue; }
+    if (!work) { if (!r.row) continue; toast('A work is empty. Enter its text or remove it.', true); return; }
+    if (r.row && work === r.was.work && doer === r.was.doer) continue;
+    items.push({ row: r.row, work: work, doer: doer });
+  }
+  if (!items.length) { toast('Nothing changed.', true); go('edit'); return; }
   busy(true, 'Saving');
-  api('workSave', {
-    checklist: WORKS.checklist, row: row,
-    work: txt, department: dep, doer: $('wDoer').value.trim()
-  }).then(function () {
+  api('worksSave', { checklist: WORKS.checklist, department: EDIT.dep, works: items }).then(function (d) {
     busy(false);
-    closeSheet();
-    MASTER = null;
-    loadWorks();
-  }).catch(function (e) { busy(false); toast(e.message, true); });
-}
-
-function removeWork(row) {
-  busy(true, 'Removing');
-  api('workDelete', { checklist: WORKS.checklist, row: row }).then(function () {
-    busy(false);
-    closeSheet();
-    MASTER = null;
+    localStorage.removeItem('cc_master_' + WORKS.checklist);
+    localStorage.removeItem('cc_mst_' + WORKS.checklist);
+    if (WORKS.checklist === LIST) refreshDay(true);
+    toast(EDIT.dep + ' updated');
+    go('edit');
     loadWorks();
   }).catch(function (e) { busy(false); toast(e.message, true); });
 }
@@ -3169,6 +3237,23 @@ function beatTick() {
       showLogin(e.message);
     }
   });
+}
+
+function dayCache() {
+  var v = cacheGet(dayKey());
+  if (!v) return null;
+  if (v.departments) return v;
+  return { departments: v, week: null };
+}
+
+function applyDay(deps, week) {
+  WEEK = week || null;
+  buildDeps(deps || []);
+  if (MASTER) {
+    $('tSub').textContent = MASTER.label + '  ·  ' + (WEEK
+      ? 'Week ' + dmy(WEEK.from).substring(0, 5) + ' – ' + dmy(WEEK.to).substring(0, 5)
+      : dmy($('tDay').value));
+  }
 }
 
 function dayKey() {
