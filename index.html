@@ -788,7 +788,7 @@ var WEEK = null;
 var EDIT = null;
 var ELIST = '';
 var JUMPDEPT = '';
-var APPVER = '2026-09-03-b';
+var APPVER = '2026-09-03-c';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -865,8 +865,10 @@ function toast(msg, bad) {
   document.body.appendChild(t);
   setTimeout(function () { t.remove(); }, 3200);
 }
-var PHOTO_ON = { COMP: 'No', HR: 'Yes', QMSD: 'Yes', QMSS: 'Yes' };
-var PHOTO_MUST = { COMP: true, HR: true, QMSD: true, QMSS: true };
+var PHOTO_ON = { COMP: 'No', HR: 'Yes', QMSD: 'Yes', QMSS: 'Yes',
+  PREV_MI: 'Yes', PREV_HKD: 'Yes', PREV_HKW: 'Yes', PREV_ED: 'Yes', PREV_EW: 'Yes' };
+var PHOTO_MUST = { COMP: true, HR: true, QMSD: true, QMSS: true,
+  PREV_MI: true, PREV_HKD: true, PREV_HKW: true, PREV_ED: true, PREV_EW: true };
 
 function photoOn() {
   if (MASTER && typeof MASTER.photoOn === 'string') return MASTER.photoOn;
@@ -876,6 +878,14 @@ function photoOn() {
 function photoMust() {
   if (MASTER && typeof MASTER.photoMust === 'boolean') return MASTER.photoMust;
   return !!PHOTO_MUST[LIST];
+}
+
+function photoMax() {
+  return MASTER && MASTER.photoMax ? MASTER.photoMax : 2;
+}
+
+function unitLabel() {
+  return MASTER && MASTER.unit ? MASTER.unit : 'Departments';
 }
 
 function photoOk(w) {
@@ -2446,17 +2456,17 @@ function renderToday() {
   var h = '<div class="hero">' + ring(t.dept) +
     '<div style="flex:1;min-width:0"><div class="k">Dept score</div>' +
     '<div class="v">' + fmt(t.dept) + '%</div>' +
-    '<div class="m">' + t.ready + ' of ' + DEPS.length + ' departments started</div></div></div>';
+    '<div class="m">' + t.ready + ' of ' + DEPS.length + ' ' + unitLabel().toLowerCase() + ' started</div></div></div>';
   if (MASTER && MASTER.derived) {
     h += '<div class="sec">Departments  ·  work that was No ' + MASTER.derived.minNo + '+ times in ' +
       esc(dmy(MASTER.derived.from).substring(0, 5)) + ' – ' + esc(dmy(MASTER.derived.to).substring(0, 5)) + '</div>';
   } else {
-    h += '<div class="sec">Departments</div>';
+    h += '<div class="sec">' + esc(unitLabel()) + '</div>';
   }
   if (!DEPS.length) {
     h += '<div class="empty">' + (MASTER && MASTER.derived
       ? 'No work was No ' + MASTER.derived.minNo + ' times in Compliance last week. Nothing to check this week.'
-      : 'No department in this checklist.') + '</div>';
+      : 'Nothing is configured in this checklist yet.') + '</div>';
   }
   h += '<div class="list">';
   for (var d = 0; d < DEPS.length; d++) {
@@ -2530,7 +2540,7 @@ function paint(r) {
   if (wantPhoto) {
     var cam = '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
     h += '<div class="shots">';
-    for (var i = 0; i < 2; i++) {
+    for (var i = 0; i < photoMax(); i++) {
       var ph = w.photos[i];
       if (ph) {
         h += '<label class="att">' +
@@ -2701,7 +2711,7 @@ function pickPhoto(ev, r) {
       cvs.width = w;
       cvs.height = h;
       cvs.getContext('2d').drawImage(img, 0, 0, w, h);
-      if (DEPS[CUR].rows[r].photos.length < 2) {
+      if (DEPS[CUR].rows[r].photos.length < photoMax()) {
         DEPS[CUR].rows[r].photos.push(cvs.toDataURL('image/jpeg', 0.6));
       }
       DEPS[CUR].dirty = true;
