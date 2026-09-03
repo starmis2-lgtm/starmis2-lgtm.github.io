@@ -786,7 +786,7 @@ var WEEK = null;
 var EDIT = null;
 var ELIST = '';
 var JUMPDEPT = '';
-var APPVER = '2026-09-01-a';
+var APPVER = '2026-09-02-a';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -863,10 +863,14 @@ function toast(msg, bad) {
   document.body.appendChild(t);
   setTimeout(function () { t.remove(); }, 3200);
 }
-var PHOTO_LISTS = ['COMP', 'HR'];
+var PHOTO_ON = { COMP: 'No', HR: 'No', QMSD: 'Yes', QMSS: 'Yes' };
 
-function photoOk() {
-  return PHOTO_LISTS.indexOf(LIST) !== -1;
+function photoOn() {
+  return PHOTO_ON[LIST] || '';
+}
+
+function photoOk(w) {
+  return !!photoOn() && w.status === photoOn();
 }
 
 function shotsOf(r) {
@@ -2489,9 +2493,10 @@ function paint(r) {
   $('wk' + r).className = 'wk' + (w.status === 'No' ? ' no' : '');
   $('drt' + r).textContent = w.doer || 'Set person';
   var box = $('at' + r);
-  if (w.status !== 'No') { box.innerHTML = ''; return; }
+  var wantPhoto = photoOk(w);
+  if (w.status !== 'No' && !wantPhoto) { box.innerHTML = ''; return; }
   var h = '';
-  if (photoOk()) {
+  if (wantPhoto) {
     var cam = '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
     h += '<div class="shots">';
     for (var i = 0; i < 2; i++) {
@@ -2512,8 +2517,10 @@ function paint(r) {
     }
     h += '</div>';
   }
-  h += '<input class="nt" placeholder="Note (optional)" value="' + esc(w.note) +
-    '" oninput="setNote(' + r + ',this.value)"' + (photoOk() ? '' : ' style="margin-top:12px"') + '>';
+  if (w.status === 'No') {
+    h += '<input class="nt" placeholder="Note (optional)" value="' + esc(w.note) +
+      '" oninput="setNote(' + r + ',this.value)"' + (wantPhoto ? '' : ' style="margin-top:12px"') + '>';
+  }
   box.innerHTML = h;
 }
 
@@ -2554,7 +2561,8 @@ function saveDoer(r) {
 function setSt(r, v) {
   var w = DEPS[CUR].rows[r];
   w.status = w.status === v ? '' : v;
-  if (w.status !== 'No') { w.photos = []; w.note = ''; }
+  if (w.status !== 'No') w.note = '';
+  if (!photoOk(w)) w.photos = [];
   DEPS[CUR].dirty = true;
   paint(r);
   afterMark();
@@ -2565,7 +2573,8 @@ function markAll(v) {
   var rows = DEPS[CUR].rows;
   for (var i = 0; i < rows.length; i++) {
     rows[i].status = v;
-    if (v !== 'No') { rows[i].photos = []; rows[i].note = ''; }
+    if (v !== 'No') rows[i].note = '';
+    if (!photoOk(rows[i])) rows[i].photos = [];
   }
   DEPS[CUR].dirty = true;
   renderDept();
@@ -2794,10 +2803,8 @@ function packDept(d) {
     var w = DEPS[d].rows[r];
     if (!w.status) continue;
     var o = { work: w.work, doer: w.doer, status: w.status };
-    if (w.status === 'No') {
-      if (w.photos.length && photoOk()) o.photos = w.photos;
-      if (w.note) o.note = w.note;
-    }
+    if (w.status === 'No' && w.note) o.note = w.note;
+    if (w.photos.length && photoOk(w)) o.photos = w.photos;
     rows.push(o);
   }
   var out = { department: DEPS[d].department, rows: rows };
@@ -2875,7 +2882,7 @@ function renderReview() {
       if (DEPS[d].rows[r].status === 'No') {
         fails.push({
           dept: DEPS[d].department, work: splitWork(DEPS[d].rows[r].work).en,
-          photos: photoOk() ? DEPS[d].rows[r].photos.length : 0
+          photos: photoOk(DEPS[d].rows[r]) ? DEPS[d].rows[r].photos.length : 0
         });
       }
     }
