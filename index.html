@@ -788,7 +788,7 @@ var WEEK = null;
 var EDIT = null;
 var ELIST = '';
 var JUMPDEPT = '';
-var APPVER = '2026-09-03-a';
+var APPVER = '2026-09-03-b';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -866,7 +866,7 @@ function toast(msg, bad) {
   setTimeout(function () { t.remove(); }, 3200);
 }
 var PHOTO_ON = { COMP: 'No', HR: 'Yes', QMSD: 'Yes', QMSS: 'Yes' };
-var PHOTO_MUST = { COMP: true, HR: true, QMSD: true };
+var PHOTO_MUST = { COMP: true, HR: true, QMSD: true, QMSS: true };
 
 function photoOn() {
   if (MASTER && typeof MASTER.photoOn === 'string') return MASTER.photoOn;
@@ -3338,6 +3338,14 @@ function boot() {
   });
   qCount();
   if (!TOKEN) { showLogin(''); return; }
+  if (localStorage.getItem('cc_build') !== APPVER) {
+    var keys = [];
+    for (var i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+    for (var k = 0; k < keys.length; k++) {
+      if (keys[k].indexOf('cc_master_') === 0 || keys[k].indexOf('cc_mst_') === 0) localStorage.removeItem(keys[k]);
+    }
+    localStorage.setItem('cc_build', APPVER);
+  }
   var saved = cacheGet('cc_boot');
   only('pSplash');
   purgeDrafts().then(function () {
