@@ -788,7 +788,7 @@ var WEEK = null;
 var EDIT = null;
 var ELIST = '';
 var JUMPDEPT = '';
-var APPVER = '2026-09-03-c';
+var APPVER = '2026-09-03-d';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1717,28 +1717,34 @@ function openUser(i) {
 function viewAs(ev, email) {
   if (ev) ev.stopPropagation();
   busy(true, 'Opening their view');
-  api('viewAs', { email: email }).then(function (d) {
+  api('viewAs', { email: email }).then(function (b) {
     var mine = localStorage.getItem('cc_admin_token') || TOKEN;
     localStorage.setItem('cc_admin_token', mine);
-    TOKEN = d.token;
+    TOKEN = b.token;
     localStorage.setItem('cc_token', TOKEN);
-    USER = d.user;
-    NOTES = [];
+    switchUser(b);
     NOTESHOWN = true;
-    SAVED = null;
-    HOMEDATA = null;
-    REPCACHE = {};
-    MASTER = null;
-    DEPS = [];
-    closeSheet();
-    return api('boot', {});
-  }).then(function (b) {
     busy(false);
     start(b);
   }).catch(function (e) {
     busy(false);
     toast(e.message, true);
   });
+}
+
+function switchUser(b) {
+  USER = b.user;
+  NOTES = [];
+  SAVED = null;
+  HOMEDATA = null;
+  REPCACHE = {};
+  MASTER = null;
+  DEPS = [];
+  WEEK = null;
+  FRESH = {};
+  JUMPED = true;
+  localStorage.removeItem('cc_pos');
+  closeSheet();
 }
 
 function backToMe() {
@@ -1749,17 +1755,20 @@ function backToMe() {
   TOKEN = mine;
   localStorage.setItem('cc_token', TOKEN);
   localStorage.removeItem('cc_admin_token');
-  NOTES = [];
-  NOTESHOWN = false;
-  SAVED = null;
-  HOMEDATA = null;
-  REPCACHE = {};
-  MASTER = null;
-  DEPS = [];
+  var saved = cacheGet('cc_boot');
+  if (saved && saved.user) {
+    switchUser(saved);
+    NOTESHOWN = false;
+    busy(false);
+    start(saved);
+    catchUp(saved);
+    return;
+  }
   api('boot', {}).then(function (b) {
     busy(false);
     cacheSet('cc_boot', b);
-    USER = b.user;
+    switchUser(b);
+    NOTESHOWN = false;
     start(b);
   }).catch(function (e) {
     busy(false);
