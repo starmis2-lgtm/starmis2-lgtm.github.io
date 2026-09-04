@@ -801,7 +801,7 @@ var WEEK = null;
 var EDIT = null;
 var ELIST = '';
 var JUMPDEPT = '';
-var APPVER = '2026-09-04-b';
+var APPVER = '2026-09-04-c';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -879,9 +879,9 @@ function toast(msg, bad) {
   setTimeout(function () { t.remove(); }, 3200);
 }
 var PHOTO_ON = { COMP: 'No', HR: 'Yes', QMSD: 'Yes', QMSS: 'Yes',
-  PREV_MI: 'Yes', PREV_HKD: 'Yes', PREV_HKW: 'Yes', PREV_ED: 'Yes', PREV_EW: 'Yes' };
+  PREV_MI: 'Yes', PREV_HKD: 'Yes', PREV_HKW: 'Yes' };
 var PHOTO_MUST = { COMP: true, HR: true, QMSD: true, QMSS: true,
-  PREV_MI: true, PREV_HKD: true, PREV_HKW: true, PREV_ED: true, PREV_EW: true };
+  PREV_MI: true, PREV_HKD: true, PREV_HKW: true };
 
 function photoOn() {
   if (MASTER && typeof MASTER.photoOn === 'string') return MASTER.photoOn;
@@ -902,6 +902,7 @@ function unitLabel() {
 }
 
 function photoOk(w) {
+  if (w.pic === false) return false;
   return !!photoOn() && w.status === photoOn();
 }
 
@@ -910,7 +911,7 @@ function needPhoto(d) {
   var n = 0;
   for (var r = 0; r < DEPS[d].rows.length; r++) {
     var w = DEPS[d].rows[r];
-    if (w.status === photoOn() && !w.photos.length) n++;
+    if (photoOk(w) && !w.photos.length) n++;
   }
   return n;
 }
@@ -2436,6 +2437,7 @@ function buildDeps(saved) {
       out.push({
         work: dep.works[w].work,
         row: dep.works[w].row || 0,
+        pic: dep.works[w].pic,
         doer: prev.supervisor || dep.works[w].doer || '',
         baseDoer: dep.works[w].doer || '',
         status: prev.status || '',
