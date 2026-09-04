@@ -497,10 +497,7 @@
     </div>
   </div>
   <div id="pErr" class="err hide"></div>
-  <label>Username</label>
-  <input type="text" id="uIn" class="ctl" autocomplete="username" autocapitalize="none"
-    spellcheck="false" placeholder="Aapka naam, jaise SG00779-Anuj" oninput="pinClear()">
-  <label style="text-align:center;display:block">6-digit PIN</label>
+  <label style="text-align:center;display:block">Enter your 6-digit PIN</label>
   <div class="dots" id="pinDots"><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div class="pad">
     <button onclick="pinKey('1')">1</button><button onclick="pinKey('2')">2</button><button onclick="pinKey('3')">3</button>
@@ -509,7 +506,7 @@
     <button class="k" onclick="pinClear()">Clear</button><button onclick="pinKey('0')">0</button>
     <button class="k" onclick="pinBack()" aria-label="Backspace"><svg viewBox="0 0 24 24"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><path d="m18 9-6 6M12 9l6 6"/></svg></button>
   </div>
-  <p class="hint">Chhatha digit dabte hi sign in ho jayega. PIN bhool gaye to MIS team se reset karwao.</p>
+  <p class="hint">Chhatha digit dabte hi sign in ho jayega. PIN bhool gaye to MIS team se naya PIN lo.</p>
 </section>
 
 <section id="pHome" class="pane hide">
@@ -801,7 +798,7 @@ var WEEK = null;
 var EDIT = null;
 var ELIST = '';
 var JUMPDEPT = '';
-var APPVER = '2026-09-04-d';
+var APPVER = '2026-09-04-e';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1172,14 +1169,12 @@ function showLogin(msg) {
   TOKEN = '';
   PIN = '';
   paintPin(false);
-  $('uIn').value = localStorage.getItem('cc_user') || '';
   if (msg) {
     $('pErr').textContent = msg;
     $('pErr').classList.remove('hide');
   } else {
     $('pErr').classList.add('hide');
   }
-  if (!$('uIn').value) setTimeout(function () { $('uIn').focus(); }, 250);
 }
 
 var PIN = '';
@@ -1214,27 +1209,29 @@ function pinClear() {
 
 document.addEventListener('keydown', function (e) {
   if ($('pLogin').classList.contains('hide')) return;
-  if (document.activeElement === $('uIn')) {
-    if (e.key === 'Enter') $('uIn').blur();
-    return;
-  }
   if (/^[0-9]$/.test(e.key)) pinKey(e.key);
   else if (e.key === 'Backspace') pinBack();
 });
 
+function deviceId() {
+  var id = localStorage.getItem('cc_dev');
+  if (!id) {
+    id = 'd' + Date.now().toString(36) + Math.random().toString(36).substring(2, 10);
+    localStorage.setItem('cc_dev', id);
+  }
+  return id;
+}
+
 function doLogin() {
-  var u = $('uIn').value.trim();
-  if (!u) { pErr('Apna username likho.'); PIN = ''; paintPin(true); return; }
   if (PIN.length !== 6) return;
   PINBUSY = true;
   busy(true, 'Signing in');
   TOKEN = '';
   var pin = PIN;
-  api('login', { email: u, password: pin }).then(function (d) {
+  api('login', { password: pin, device: deviceId() }).then(function (d) {
     TOKEN = d.token;
     USER = d.user;
     localStorage.setItem('cc_token', TOKEN);
-    localStorage.setItem('cc_user', u);
     PIN = '';
     return api('boot', {});
   }).then(function (b) {
@@ -1668,7 +1665,7 @@ function renderMe() {
       '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9"/>' +
       '</svg></span><div style="flex:1;min-width:0"><div class="n">Manage users</div>' +
       '<div class="m">' + (USER.canPassword
-        ? 'Set PIN, unlock, switch account on or off'
+        ? 'Set PIN, switch account on or off'
         : 'Switch an account on or off') + '</div></div>' + cv() + '</div></div>';
   }
   h += '<div class="sec">App</div><div class="list">' +
@@ -1707,7 +1704,7 @@ function loadAdmin() {
         esc(ini(u.name)) + '</span>' +
         '<div style="flex:1;min-width:0"><div class="n">' + esc(u.name) +
         (u.active ? '' : ' <span class="pill a">Off</span>') +
-        (u.locked ? ' <span class="pill a">Locked</span>' : (u.pinLocked ? ' <span class="pill a">PIN locked</span>' : '')) + '</div>' +
+        (u.locked ? ' <span class="pill a">Locked</span>' : '') + '</div>' +
         '<div class="m">' + esc(u.email) + '</div>' +
         '<div class="m">' + esc(u.department || '') + '  ·  ' + u.tabs + ' tab(s)  ·  ' +
         (u.hasPassword ? 'password set' : 'no password') + '</div></div>' +
@@ -1734,17 +1731,14 @@ function openUser(i) {
     '<svg viewBox="0 0 24 24" style="stroke:var(--ink2)"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
     '<div class="sb">' +
     '<div class="m" style="color:var(--ink3);margin-bottom:16px">' + esc(u.email) + '</div>' +
-    (u.pinLocked
-      ? '<div class="m" style="color:var(--bad);font-weight:600;margin-bottom:12px">' +
-        'Locked after 3 wrong PINs. Setting a new PIN unlocks it.</div>'
-      : '') +
     (USER.canPassword
       ? '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">New 6-digit PIN</label>' +
         '<input class="ctl" id="npIn" type="tel" inputmode="numeric" maxlength="6" pattern="[0-9]*" placeholder="Digits only">' +
         '<div class="m" style="color:var(--ink3);margin-top:10px">' +
+        'Everyone signs in with their PIN alone, so no two people can have the same PIN. ' +
         'Saving a new PIN signs this user out of every phone.</div>' +
         '<button class="btn w" style="margin-top:14px" onclick="setUserPassword(\'' + q(u.email) + '\')">' +
-        (u.pinLocked ? 'Reset PIN and unlock' : 'Save PIN') + '</button><div style="height:20px"></div>'
+        'Save PIN</button><div style="height:20px"></div>'
       : '') +
     '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">Account</label>' +
     '<button class="btn w ' + (u.active ? 'd' : '') + '" onclick="setUserStatus(\'' + q(u.email) + '\',' +
