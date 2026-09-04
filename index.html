@@ -788,7 +788,7 @@ var WEEK = null;
 var EDIT = null;
 var ELIST = '';
 var JUMPDEPT = '';
-var APPVER = '2026-09-03-d';
+var APPVER = '2026-09-04-a';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -3142,15 +3142,75 @@ function loadWorks() {
 }
 
 function renderWorks() {
-  var h = '<div class="list">';
+  var kind = WORKS.kind || '';
+  var h = '';
+  if (kind === 'machines') {
+    h += '<div class="sec">' + esc(WORKS.unit) + '  ·  same work list for every machine</div>';
+  } else if (kind === 'floors') {
+    h += '<div class="sec">' + esc(WORKS.unit) + '  ·  ALL work shows on every floor</div>';
+  } else {
+    h += '<div class="sec">' + esc(WORKS.unit || 'Departments') + '</div>';
+  }
+  h += '<div class="list">';
   for (var i = 0; i < WORKS.departments.length; i++) {
     var dep = WORKS.departments[i];
-    var doer = sameDoer(dep.works);
+    var doer = kind ? '' : sameDoer(dep.works);
     h += '<div class="it" onclick="openEditDept(' + i + ')"><div style="flex:1;min-width:0">' +
       '<div class="n">' + esc(dep.department) + '</div>' +
-      '<div class="m">' + dep.works.length + ' work' + (doer ? '  ·  ' + esc(doer) : '') + '</div></div>' + cv() + '</div>';
+      '<div class="m">' + dep.works.length + ' work' + (doer ? '  ·  ' + esc(doer) : '') + '</div></div>' +
+      (kind === 'machines'
+        ? '<button class="x" style="width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--bad);font-size:18px" ' +
+          'onclick="event.stopPropagation();dropUnit(' + i + ')" aria-label="Remove">&times;</button>'
+        : cv()) + '</div>';
   }
-  $('eBody').innerHTML = h + '</div>';
+  h += '</div>';
+  if (kind === 'machines' || kind === 'floors') {
+    h += '<button class="addw" style="margin-bottom:24px" onclick="addUnit()">+ Add ' +
+      (kind === 'machines' ? 'machine' : 'floor') + '</button>';
+  }
+  $('eBody').innerHTML = h;
+}
+
+function addUnit() {
+  var kind = WORKS.kind;
+  var name = prompt(kind === 'machines' ? 'Machine name (e.g. P.T.K 0024)' : 'Floor name (e.g. THIRD FLOOR)');
+  name = (name || '').trim();
+  if (!name) return;
+  if (kind === 'floors') name = name.toUpperCase();
+  for (var i = 0; i < WORKS.departments.length; i++) {
+    if (WORKS.departments[i].department.toLowerCase() === name.toLowerCase()) { toast('Already there.', true); return; }
+  }
+  if (kind === 'machines') {
+    busy(true, 'Adding');
+    api('worksSave', { checklist: WORKS.checklist, department: '', works: [{ kind: 'dept', work: name }] }).then(function () {
+      busy(false);
+      afterWorksSave(name + ' added');
+    }).catch(function (e) { busy(false); toast(e.message, true); });
+    return;
+  }
+  WORKS.departments.push({ department: name, works: [] });
+  openEditDept(WORKS.departments.length - 1);
+}
+
+function dropUnit(i) {
+  var dep = WORKS.departments[i];
+  if (!confirm('Remove ' + dep.department + ' from the checklist?')) return;
+  busy(true, 'Removing');
+  var row = 0;
+  var units = WORKS.units || [];
+  for (var k = 0; k < units.length; k++) if (units[k].name === dep.department) row = units[k].row;
+  api('worksSave', { checklist: WORKS.checklist, department: '', works: [{ kind: 'dept', row: row, work: dep.department, remove: true }] })
+    .then(function () { busy(false); afterWorksSave(dep.department + ' removed'); })
+    .catch(function (e) { busy(false); toast(e.message, true); });
+}
+
+function afterWorksSave(msg) {
+  localStorage.removeItem('cc_master_' + WORKS.checklist);
+  localStorage.removeItem('cc_mst_' + WORKS.checklist);
+  if (WORKS.checklist === LIST) refreshDay(true);
+  toast(msg);
+  go('edit');
+  loadWorks();
 }
 
 function sameDoer(works) {
@@ -3176,14 +3236,21 @@ function openEditDept(i) {
 }
 
 function renderEditDept() {
+  var kind = WORKS.kind || '';
   var pool = WORKS.doers || [];
   var opts = '';
   for (var k = 0; k < pool.length; k++) opts += '<option value="' + esc(pool[k]) + '">';
   var all = sameDoer(EDIT.rows.filter(function (r) { return !r.gone; }));
-  var h = '<datalist id="doerPool">' + opts + '</datalist>' +
-    '<div class="allp"><label>Person for all work in this department</label>' +
-    '<input class="ctl" list="doerPool" placeholder="Type a name to set it on every work" value="' + esc(all) +
-    '" oninput="setAllDoer(this.value)"></div>';
+  var h = '<datalist id="doerPool">' + opts + '</datalist>';
+  if (kind === 'machines') {
+    h += '<div class="allp"><label>These works apply to every machine — editing here changes all machines</label></div>';
+  } else if (kind === 'floors') {
+    h += '<div class="allp"><label>Removing an ALL work here takes it off this floor only</label></div>';
+  } else if (!kind) {
+    h += '<div class="allp"><label>Person for all work in this department</label>' +
+      '<input class="ctl" list="doerPool" placeholder="Type a name to set it on every work" value="' + esc(all) +
+      '" oninput="setAllDoer(this.value)"></div>';
+  }
   for (var i = 0; i < EDIT.rows.length; i++) {
     var r = EDIT.rows[i];
     h += '<div class="wrow' + (r.gone ? ' gone' : '') + '" id="wr' + i + '">' +
@@ -3193,8 +3260,8 @@ function renderEditDept() {
       (r.gone
         ? '<button class="x undo" onclick="toggleGone(' + i + ')">Undo</button>'
         : '<button class="x" onclick="toggleGone(' + i + ')" aria-label="Remove">&times;</button>') + '</div>' +
-      '<input class="ctl" list="doerPool" placeholder="Person" value="' + esc(r.doer) + '"' +
-      ' oninput="EDIT.rows[' + i + '].doer=this.value"' + (r.gone ? ' disabled' : '') + '></div>';
+      (kind ? '' : '<input class="ctl" list="doerPool" placeholder="Person" value="' + esc(r.doer) + '"' +
+        ' oninput="EDIT.rows[' + i + '].doer=this.value"' + (r.gone ? ' disabled' : '') + '>') + '</div>';
   }
   h += '<button class="addw" onclick="addEditRow()">+ Add work</button>';
   $('edBody').innerHTML = h;
@@ -3244,14 +3311,9 @@ function saveEditDept() {
   }
   if (!items.length) { toast('Nothing changed.', true); go('edit'); return; }
   busy(true, 'Saving');
-  api('worksSave', { checklist: WORKS.checklist, department: EDIT.dep, works: items }).then(function (d) {
+  api('worksSave', { checklist: WORKS.checklist, department: EDIT.dep, works: items }).then(function () {
     busy(false);
-    localStorage.removeItem('cc_master_' + WORKS.checklist);
-    localStorage.removeItem('cc_mst_' + WORKS.checklist);
-    if (WORKS.checklist === LIST) refreshDay(true);
-    toast(EDIT.dep + ' updated');
-    go('edit');
-    loadWorks();
+    afterWorksSave(EDIT.dep + ' updated');
   }).catch(function (e) { busy(false); toast(e.message, true); });
 }
 
