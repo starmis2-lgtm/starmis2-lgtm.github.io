@@ -329,6 +329,19 @@
     margin-bottom: 10px; color: #fff; display: flex; align-items: center; gap: 13px; }
   .ub:active { background: rgba(255,255,255,.17); }
   .ub b { display: block; font-size: 15px; font-weight: 600; }
+  .dots { display: flex; justify-content: center; gap: 14px; margin: 18px 0 10px; }
+  .dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); display: block;
+    transition: background .12s, transform .12s; }
+  .dots i.on { background: #fff; border-color: #fff; }
+  .dots.bad i { border-color: #ff9c8f; background: transparent; animation: shake .35s; }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 300px; margin: 6px auto 0; }
+  .pad button { height: 60px; border-radius: 16px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.07);
+    color: #fff; font-size: 24px; font-weight: 500; letter-spacing: .5px; }
+  .pad button:active { background: rgba(255,255,255,.2); }
+  .pad button.k { font-size: 15px; color: #8ea2b6; font-weight: 600; }
+  .pad button.k svg { width: 22px; height: 22px; fill: none; stroke: #8ea2b6; stroke-width: 2; }
+  .pad button:disabled { opacity: .35; }
   .pwrap { position: relative; margin-bottom: 14px; }
   .pwrap .ctl { margin-bottom: 0; padding-right: 52px; }
   .eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
@@ -486,17 +499,17 @@
   <div id="pErr" class="err hide"></div>
   <label>Username</label>
   <input type="text" id="uIn" class="ctl" autocomplete="username" autocapitalize="none"
-    spellcheck="false" placeholder="Aapka naam, jaise SG00779-Anuj">
-  <label>Password</label>
-  <div class="pwrap">
-    <input type="password" id="pIn" class="ctl" autocomplete="current-password" placeholder="Password">
-    <button class="eye" onclick="togglePw()" aria-label="Show password">
-      <svg viewBox="0 0 24 24" id="eyeOn"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/><circle cx="12" cy="12" r="3"/></svg>
-      <svg viewBox="0 0 24 24" id="eyeOff" class="hide"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 19c-7 0-11-7-11-7a18.5 18.5 0 0 1 5.1-5.9m3.9-1A10.1 10.1 0 0 1 12 5c7 0 11 7 11 7a18.6 18.6 0 0 1-2.2 3.2M9.9 9.9a3 3 0 1 0 4.2 4.2"/><path d="m1 1 22 22"/></svg>
-    </button>
+    spellcheck="false" placeholder="Aapka naam, jaise SG00779-Anuj" oninput="pinClear()">
+  <label style="text-align:center;display:block">6-digit PIN</label>
+  <div class="dots" id="pinDots"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="pad">
+    <button onclick="pinKey('1')">1</button><button onclick="pinKey('2')">2</button><button onclick="pinKey('3')">3</button>
+    <button onclick="pinKey('4')">4</button><button onclick="pinKey('5')">5</button><button onclick="pinKey('6')">6</button>
+    <button onclick="pinKey('7')">7</button><button onclick="pinKey('8')">8</button><button onclick="pinKey('9')">9</button>
+    <button class="k" onclick="pinClear()">Clear</button><button onclick="pinKey('0')">0</button>
+    <button class="k" onclick="pinBack()" aria-label="Backspace"><svg viewBox="0 0 24 24"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><path d="m18 9-6 6M12 9l6 6"/></svg></button>
   </div>
-  <button class="btn w" onclick="doLogin()">Sign in</button>
-  <p class="hint">Ek baar sign in karne ke baad ye phone yaad rakhega.</p>
+  <p class="hint">Chhatha digit dabte hi sign in ho jayega. PIN bhool gaye to MIS team se reset karwao.</p>
 </section>
 
 <section id="pHome" class="pane hide">
@@ -788,7 +801,7 @@ var WEEK = null;
 var EDIT = null;
 var ELIST = '';
 var JUMPDEPT = '';
-var APPVER = '2026-09-04-a';
+var APPVER = '2026-09-04-b';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -1156,8 +1169,8 @@ function showLogin(msg) {
   only('pLogin');
   closeSheet();
   TOKEN = '';
-  $('pIn').value = '';
-  setPwVisible(false);
+  PIN = '';
+  paintPin(false);
   $('uIn').value = localStorage.getItem('cc_user') || '';
   if (msg) {
     $('pErr').textContent = msg;
@@ -1165,47 +1178,74 @@ function showLogin(msg) {
   } else {
     $('pErr').classList.add('hide');
   }
-  setTimeout(function () {
-    $($('uIn').value ? 'pIn' : 'uIn').focus();
-  }, 250);
+  if (!$('uIn').value) setTimeout(function () { $('uIn').focus(); }, 250);
 }
 
-function setPwVisible(on) {
-  $('pIn').type = on ? 'text' : 'password';
-  $('eyeOn').classList.toggle('hide', on);
-  $('eyeOff').classList.toggle('hide', !on);
+var PIN = '';
+var PINBUSY = false;
+
+function paintPin(bad) {
+  var box = $('pinDots');
+  var dots = box.querySelectorAll('i');
+  for (var i = 0; i < dots.length; i++) dots[i].className = i < PIN.length ? 'on' : '';
+  box.classList.toggle('bad', !!bad);
 }
 
-function togglePw() {
-  setPwVisible($('pIn').type === 'password');
+function pinKey(d) {
+  if (PINBUSY || PIN.length >= 6) return;
+  $('pErr').classList.add('hide');
+  PIN += d;
+  paintPin(false);
+  if (PIN.length === 6) doLogin();
+}
+
+function pinBack() {
+  if (PINBUSY) return;
+  PIN = PIN.slice(0, -1);
+  paintPin(false);
+}
+
+function pinClear() {
+  if (PINBUSY) return;
+  PIN = '';
+  paintPin(false);
 }
 
 document.addEventListener('keydown', function (e) {
-  if (e.key !== 'Enter') return;
   if ($('pLogin').classList.contains('hide')) return;
-  doLogin();
+  if (document.activeElement === $('uIn')) {
+    if (e.key === 'Enter') $('uIn').blur();
+    return;
+  }
+  if (/^[0-9]$/.test(e.key)) pinKey(e.key);
+  else if (e.key === 'Backspace') pinBack();
 });
 
 function doLogin() {
   var u = $('uIn').value.trim();
-  var pw = $('pIn').value;
-  if (!u) { pErr('Apna username likho.'); return; }
-  if (!pw) { pErr('Password likho.'); return; }
+  if (!u) { pErr('Apna username likho.'); PIN = ''; paintPin(true); return; }
+  if (PIN.length !== 6) return;
+  PINBUSY = true;
   busy(true, 'Signing in');
   TOKEN = '';
-  api('login', { email: u, password: pw }).then(function (d) {
+  var pin = PIN;
+  api('login', { email: u, password: pin }).then(function (d) {
     TOKEN = d.token;
     USER = d.user;
     localStorage.setItem('cc_token', TOKEN);
     localStorage.setItem('cc_user', u);
-    $('pIn').value = '';
+    PIN = '';
     return api('boot', {});
   }).then(function (b) {
+    PINBUSY = false;
     busy(false);
     cacheSet('cc_boot', b);
     start(b);
   }).catch(function (e) {
+    PINBUSY = false;
     busy(false);
+    PIN = '';
+    paintPin(true);
     pErr(e.message);
   });
 }
@@ -1627,7 +1667,7 @@ function renderMe() {
       '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9"/>' +
       '</svg></span><div style="flex:1;min-width:0"><div class="n">Manage users</div>' +
       '<div class="m">' + (USER.canPassword
-        ? 'Change password, switch account on or off'
+        ? 'Set PIN, unlock, switch account on or off'
         : 'Switch an account on or off') + '</div></div>' + cv() + '</div></div>';
   }
   h += '<div class="sec">App</div><div class="list">' +
@@ -1666,7 +1706,7 @@ function loadAdmin() {
         esc(ini(u.name)) + '</span>' +
         '<div style="flex:1;min-width:0"><div class="n">' + esc(u.name) +
         (u.active ? '' : ' <span class="pill a">Off</span>') +
-        (u.locked ? ' <span class="pill a">Locked</span>' : '') + '</div>' +
+        (u.locked ? ' <span class="pill a">Locked</span>' : (u.pinLocked ? ' <span class="pill a">PIN locked</span>' : '')) + '</div>' +
         '<div class="m">' + esc(u.email) + '</div>' +
         '<div class="m">' + esc(u.department || '') + '  ·  ' + u.tabs + ' tab(s)  ·  ' +
         (u.hasPassword ? 'password set' : 'no password') + '</div></div>' +
@@ -1693,13 +1733,17 @@ function openUser(i) {
     '<svg viewBox="0 0 24 24" style="stroke:var(--ink2)"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
     '<div class="sb">' +
     '<div class="m" style="color:var(--ink3);margin-bottom:16px">' + esc(u.email) + '</div>' +
+    (u.pinLocked
+      ? '<div class="m" style="color:var(--bad);font-weight:600;margin-bottom:12px">' +
+        'Locked after 3 wrong PINs. Setting a new PIN unlocks it.</div>'
+      : '') +
     (USER.canPassword
-      ? '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">New password</label>' +
-        '<input class="ctl" id="npIn" type="text" placeholder="At least 4 characters">' +
+      ? '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">New 6-digit PIN</label>' +
+        '<input class="ctl" id="npIn" type="tel" inputmode="numeric" maxlength="6" pattern="[0-9]*" placeholder="Digits only">' +
         '<div class="m" style="color:var(--ink3);margin-top:10px">' +
-        'Saving a new password signs this user out of every phone.</div>' +
+        'Saving a new PIN signs this user out of every phone.</div>' +
         '<button class="btn w" style="margin-top:14px" onclick="setUserPassword(\'' + q(u.email) + '\')">' +
-        'Save password</button><div style="height:20px"></div>'
+        (u.pinLocked ? 'Reset PIN and unlock' : 'Save PIN') + '</button><div style="height:20px"></div>'
       : '') +
     '<label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:6px">Account</label>' +
     '<button class="btn w ' + (u.active ? 'd' : '') + '" onclick="setUserStatus(\'' + q(u.email) + '\',' +
@@ -1779,8 +1823,8 @@ function backToMe() {
 
 function setUserPassword(email) {
   var pw = $('npIn').value.trim();
-  if (pw.length < 4) { toast('Password must be at least 4 characters.', true); return; }
-  busy(true, 'Saving password');
+  if (!/^\d{6}$/.test(pw)) { toast('PIN must be exactly 6 digits.', true); return; }
+  busy(true, 'Saving PIN');
   api('adminPassword', { email: email, password: pw }).then(function () {
     busy(false);
     closeSheet();
