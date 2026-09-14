@@ -1,4 +1,4 @@
-package `in`.starglobal.operation_bulletin
+package com.starglobal.operation_bulletin
 
 import io.flutter.embedding.android.FlutterActivity
 
