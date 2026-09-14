@@ -2,8 +2,8 @@
   "name": "Compliance Checklist",
   "short_name": "Checklist",
   "description": "Daily compliance checklist for the factory floor",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "./index.html",
+  "scope": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0f2233",
@@ -48,7 +48,7 @@
     {
       "name": "Data entry",
       "short_name": "Entry",
-      "url": "./?go=entry",
+      "url": "./index.html?go=entry",
       "icons": [
         {
           "src": "icon-192.png",
