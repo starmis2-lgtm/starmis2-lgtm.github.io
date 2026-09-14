@@ -34,7 +34,8 @@
     <img class="logo" src="icons/icon-192.png" alt="">
     <h1>Operation Bulletin</h1>
     <p id="msg">Opening the app...</p>
-    <a class="btn" id="openBtn" href="#">Open Operation Bulletin</a>
+    <a class="btn" id="apkBtn" href="app/operation-bulletin.apk" style="display:block;margin-bottom:12px;">&#11015; Download Android App (APK)</a>
+    <a class="btn" id="openBtn" href="#" style="background:rgba(255,255,255,.14);color:#fff;">Open in browser instead</a>
     <div class="hint" id="hint"></div>
   </div>
   <script>
@@ -58,8 +59,8 @@
         frame.addEventListener('load', function () { clearTimeout(slow); document.body.classList.remove('slow'); });
         frame.src = url;
       } else {
-        document.getElementById('msg').textContent = 'Install this page as an app: Chrome menu (⋮) → "Add to Home screen" / "Install app".';
-        document.getElementById('hint').textContent = 'After installing, open it from your home screen.';
+        document.getElementById('msg').textContent = 'Install the Android app for the best experience.';
+        document.getElementById('hint').textContent = 'After download, open the APK and allow "Install unknown apps" if asked. Login with your PIN.';
       }
     })();
   </script>
