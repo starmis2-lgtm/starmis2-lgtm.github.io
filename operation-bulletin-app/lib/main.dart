@@ -23,8 +23,10 @@ const kSeed = Color(0xFF0F766E);
 
 ThemeData buildTheme(Brightness brightness) {
   final scheme = ColorScheme.fromSeed(seedColor: kSeed, brightness: brightness);
-  final base = ThemeData(colorScheme: scheme, useMaterial3: true, brightness: brightness);
+  final base = ThemeData(colorScheme: scheme, useMaterial3: true, brightness: brightness, fontFamily: 'Inter');
   return base.copyWith(
+    visualDensity: VisualDensity.compact,
+    textTheme: base.textTheme.apply(fontFamily: 'Inter'),
     scaffoldBackgroundColor: brightness == Brightness.light ? const Color(0xFFF4F6F8) : scheme.surface,
     appBarTheme: AppBarTheme(
       backgroundColor: brightness == Brightness.light ? const Color(0xFFF4F6F8) : scheme.surface,
@@ -32,13 +34,14 @@ ThemeData buildTheme(Brightness brightness) {
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      titleTextStyle: base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: scheme.onSurface),
+      toolbarHeight: 52,
+      titleTextStyle: TextStyle(fontFamily: 'Inter', fontSize: 19, fontWeight: FontWeight.w700, color: scheme.onSurface, letterSpacing: -0.2),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
       color: scheme.surface,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6))),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6))),
       margin: EdgeInsets.zero,
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -47,18 +50,19 @@ ThemeData buildTheme(Brightness brightness) {
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5))),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: scheme.primary, width: 1.6)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       isDense: true,
+      labelStyle: const TextStyle(fontSize: 13),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      height: 68,
+      height: 60,
       indicatorColor: scheme.primaryContainer,
       labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(fontSize: 11, fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500)),
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
       elevation: 3,
     ),
-    chipTheme: base.chipTheme.copyWith(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)), labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+    chipTheme: base.chipTheme.copyWith(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)), labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), labelPadding: const EdgeInsets.symmetric(horizontal: 2)),
     snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
     filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), textStyle: const TextStyle(fontWeight: FontWeight.w700))),
     dividerTheme: DividerThemeData(color: scheme.outlineVariant.withValues(alpha: 0.5), space: 1),

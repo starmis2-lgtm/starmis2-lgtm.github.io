@@ -29,7 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: CustomScrollView(slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+              padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 SearchField(hint: 'Search users', onChanged: (v) => setState(() => q = v)),
                 const SizedBox(height: 8),
@@ -41,7 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SliverFillRemaining(hasScrollBody: false, child: EmptyState(icon: Icons.people_outline_rounded, title: 'No users found'))
           else
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 96),
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 96),
               sliver: SliverList.separated(itemCount: list.length, separatorBuilder: (_, __) => const SizedBox(height: 8), itemBuilder: (_, i) => _UserCard(u: list[i])),
             ),
         ]),
@@ -63,7 +63,7 @@ class _UserCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: () => showUserSheet(context, u),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(11),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             CircleAvatar(radius: 20, backgroundColor: cs.primaryContainer, child: Text(u.name.replaceFirst(RegExp(r'^SG\d+-'), '').isEmpty ? '?' : u.name.replaceFirst(RegExp(r'^SG\d+-'), '')[0].toUpperCase(), style: TextStyle(color: cs.onPrimaryContainer, fontWeight: FontWeight.w800))),
             const SizedBox(width: 12),

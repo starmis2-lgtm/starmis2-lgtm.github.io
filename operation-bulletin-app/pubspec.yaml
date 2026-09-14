@@ -1,7 +1,7 @@
 name: operation_bulletin
 description: Star Global Operation Bulletin - production bulletin data entry app.
 publish_to: 'none'
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ^3.8.0
@@ -16,6 +16,7 @@ dependencies:
   cached_network_image: ^3.4.1
   url_launcher: ^6.3.1
   intl: ^0.20.2
+  path_provider: ^2.1.4
 
 dev_dependencies:
   flutter_test:
@@ -24,3 +25,13 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700

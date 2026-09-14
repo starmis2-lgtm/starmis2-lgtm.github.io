@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
@@ -81,30 +83,58 @@ class AppState extends ChangeNotifier {
   }
 
   // ---------------- boot / auth ----------------
+  Future<File> _cacheFile() async {
+    final dir = await getApplicationSupportDirectory();
+    return File('${dir.path}/payload.json');
+  }
+
+  static Map<String, dynamic> _decode(String text) => jsonDecode(text) as Map<String, dynamic>;
+
+  /// Parses payload JSON off the UI thread.
+  Future<Map<String, dynamic>> _parse(String text) => compute(_decode, text);
+
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     api.token = prefs.getString(kTokenKey) ?? '';
+    // Show cached data instantly, then refresh from the server in the background.
+    if (api.token.isNotEmpty) {
+      try {
+        final f = await _cacheFile();
+        if (await f.exists()) {
+          final j = await _parse(await f.readAsString());
+          if (j['needLogin'] != true && j['error'] == null) {
+            data = Payload.fromJson(j);
+            needLogin = false;
+            booted = true;
+            notifyListeners();
+          }
+        }
+      } catch (_) {}
+    }
     await load(silent: true);
     booted = true;
     notifyListeners();
   }
 
   Future<void> load({bool silent = false}) async {
-    if (!silent) {
-      loading = true;
-      notifyListeners();
-    }
+    if (loading) return;
+    loading = true;
+    if (!silent) notifyListeners();
     try {
-      final j = await api.callJson('getInitialPayload', const []);
+      final r = await api.call('getInitialPayload', const []);
+      final text = r.toString();
+      final j = await _parse(text);
       if (j['needLogin'] == true) {
         needLogin = true;
         loginHint = s(j['email']);
         data = null;
+        try { final f = await _cacheFile(); if (await f.exists()) await f.delete(); } catch (_) {}
       } else {
         if (j['error'] != null) throw ApiException(j['error'].toString());
         data = Payload.fromJson(j);
         needLogin = false;
         _lib.clear();
+        try { (await _cacheFile()).writeAsString(text, flush: true); } catch (_) {}
       }
       error = null;
     } on ApiException catch (e) {
@@ -135,6 +165,7 @@ class AppState extends ChangeNotifier {
     api.token = '';
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(kTokenKey);
+    try { final f = await _cacheFile(); if (await f.exists()) await f.delete(); } catch (_) {}
     data = null;
     needLogin = true;
     loginHint = '';

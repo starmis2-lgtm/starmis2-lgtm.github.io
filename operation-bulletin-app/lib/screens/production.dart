@@ -28,7 +28,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
         child: CustomScrollView(slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+              padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 SearchField(hint: 'Search SRN or style', onChanged: (v) => setState(() => q = v)),
                 const SizedBox(height: 8),
@@ -40,8 +40,8 @@ class _ProductionScreenState extends State<ProductionScreen> {
             const SliverFillRemaining(hasScrollBody: false, child: EmptyState(icon: Icons.task_alt_rounded, title: 'No production bulletin pending', color: Color(0xFF047857)))
           else
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
-              sliver: SliverList.separated(itemCount: list.length, separatorBuilder: (_, __) => const SizedBox(height: 10), itemBuilder: (_, i) => _ProdCard(r: list[i])),
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+              sliver: SliverList.separated(itemCount: list.length, separatorBuilder: (_, __) => const SizedBox(height: 8), itemBuilder: (_, i) => _ProdCard(r: list[i])),
             ),
         ]),
       ),
@@ -69,7 +69,7 @@ class _ProdCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(11),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             SrnThumb(r.imageLink),
@@ -84,9 +84,9 @@ class _ProdCard extends StatelessWidget {
             ),
             IconButton.outlined(tooltip: 'Not required', visualDensity: VisualDensity.compact, onPressed: () => showNotRequired(context, r.srn), icon: const Icon(Icons.block_rounded, size: 18)),
           ]),
-          const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Divider()),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 7), child: Divider()),
           Row(children: [_kv(context, 'R&D DONE', r.rndDate), _kv(context, 'FIRST STITCH', r.stitchDate), _kv(context, 'DUE', r.delay.due)]),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(children: [
             Expanded(child: Align(alignment: Alignment.centerLeft, child: StatusPill(r.delay, waiting: r.waiting))),
             FilledButton.tonalIcon(

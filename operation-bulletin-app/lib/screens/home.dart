@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: CustomScrollView(slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 SearchField(hint: 'Search SRN or style', onChanged: (v) => setState(() => q = v)),
                 const SizedBox(height: 10),
@@ -87,10 +87,10 @@ class _HomeScreenState extends State<HomeScreen> {
             )
           else
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
               sliver: SliverList.separated(
                 itemCount: list.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) => _PendingCard(item: list[i]),
               ),
             ),
@@ -116,10 +116,10 @@ class _PendingCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(11),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SrnThumb(item.imageLink),
+            SrnThumb(item.imageLink, size: 50),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -144,7 +144,7 @@ class _PendingCard extends StatelessWidget {
             ),
           ]),
           for (final t in item.tasks) ...[
-            const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Divider()),
+            const Padding(padding: EdgeInsets.symmetric(vertical: 7), child: Divider()),
             Row(children: [
               Icon(t.type == 'Production' ? Icons.factory_outlined : Icons.science_outlined, size: 16, color: t.type == 'Production' ? const Color(0xFF047857) : const Color(0xFF7E22CE)),
               const SizedBox(width: 6),
@@ -165,8 +165,8 @@ class _PendingCard extends StatelessWidget {
                 style: FilledButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8)),
               ),
             ]),
-            const SizedBox(height: 6),
-            Wrap(spacing: 6, runSpacing: 6, children: [
+            const SizedBox(height: 4),
+            Wrap(spacing: 5, runSpacing: 5, children: [
               StatusPill(t.delay),
               if (t.key == 'mkRnd') for (final r in item.missingRoles) Pill(r, color: const Color(0xFFBE123C)),
             ]),

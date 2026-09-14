@@ -22,9 +22,9 @@ class MyPendingScreen extends StatelessWidget {
         child: list.isEmpty
             ? ListView(children: const [SizedBox(height: 120), EmptyState(icon: Icons.task_alt_rounded, title: 'No pending submissions', subtitle: 'Bulletins you submit for approval will show here until they are approved.', color: Color(0xFF047857))])
             : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                padding: const EdgeInsets.fromLTRB(12, 2, 12, 20),
                 itemCount: list.length + 1,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) {
                   if (i == 0) return Padding(padding: const EdgeInsets.only(bottom: 2), child: Text('Waiting for management approval. Edit any time before approval.', style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant)));
                   return _MyCard(a: list[i - 1]);
@@ -53,7 +53,7 @@ class _MyCard extends StatelessWidget {
     }
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(11),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
@@ -70,7 +70,7 @@ class _MyCard extends StatelessWidget {
               Text('₹${cost.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF047857))),
             ]),
           ]),
-          const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Divider()),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 7), child: Divider()),
           Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

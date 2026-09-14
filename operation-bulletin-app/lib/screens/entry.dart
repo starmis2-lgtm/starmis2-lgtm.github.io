@@ -50,10 +50,10 @@ class _EntryScreenState extends State<EntryScreen> {
             Expanded(
               child: ListView(
                 controller: _scroll,
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
                 children: [
                   _SetupCard(e: e, p: p),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
                   if (e.srn.isNotEmpty && !e.roleChosen)
                     Card(
                       child: Padding(
@@ -98,7 +98,7 @@ class _EntryScreenState extends State<EntryScreen> {
                     ),
                   for (var i = 0; i < e.visibleOps.length; i++) ...[
                     _OpRow(key: e.visibleOps[i].key, index: i, op: e.visibleOps[i], draft: e, payload: p),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                   ],
                   if (!e.locked) ...[const SizedBox(height: 6), _QuickAdd(search: _search, st: st)],
                   ],
@@ -224,7 +224,7 @@ class _SetupCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(10),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             Expanded(
@@ -245,7 +245,7 @@ class _SetupCard extends StatelessWidget {
               ),
             ),
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: e.editing ? null : () async {
@@ -253,7 +253,7 @@ class _SetupCard extends StatelessWidget {
               if (v != null) e.setSrn(v, p);
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(12), border: Border.all(color: e.srn.isEmpty ? cs.primary.withValues(alpha: 0.5) : cs.outlineVariant.withValues(alpha: 0.5))),
               child: Row(children: [
                 if (info != null) ...[SrnThumb(info.imageLink, size: 44, radius: 10), const SizedBox(width: 10)] else Icon(Icons.qr_code_2_rounded, color: cs.primary),
@@ -272,7 +272,7 @@ class _SetupCard extends StatelessWidget {
             ),
           ),
           if (e.srn.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text('BULLETIN TYPE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: cs.onSurfaceVariant)),
             const SizedBox(height: 6),
             Wrap(
@@ -298,7 +298,7 @@ class _SetupCard extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(children: [
             ActionChip(
               avatar: const Icon(Icons.calendar_month_rounded, size: 16),
@@ -314,9 +314,9 @@ class _SetupCard extends StatelessWidget {
             typePill(e.type),
           ]),
           if (noteText.isNotEmpty) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(color: noteColor.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: noteColor.withValues(alpha: 0.25))),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Icon(noteIcon, size: 16, color: noteColor),
@@ -345,6 +345,23 @@ class _OpRowState extends State<_OpRow> {
   OpDraft get op => widget.op;
   EntryDraft get d => widget.draft;
   Payload get p => widget.payload;
+
+  /// Auto-select manpower / machine from the operation name (only fills blanks).
+  void _autoFill(BuildContext context, String name) {
+    if (name.trim().length < 3) return;
+    final st = context.read<AppState>();
+    final g = st.guess(name, d.category);
+    var changed = false;
+    if (op.manpower.isEmpty && g.$1.isNotEmpty) {
+      op.manpower = g.$1;
+      changed = true;
+    }
+    if (d.category != 'Packing' && op.machine.isEmpty && op.manpower.toLowerCase() == 'operator' && g.$2.isNotEmpty) {
+      op.machine = g.$2;
+      changed = true;
+    }
+    if (changed) setState(() {});
+  }
 
   Future<void> _pickImage(BuildContext context) async {
     final src = await showModalBottomSheet<ImageSource>(
@@ -382,6 +399,33 @@ class _OpRowState extends State<_OpRow> {
     }
   }
 
+  Widget _miniDropdown({required String value, required List<String> items, required String hint, required ValueChanged<String?>? onChanged, IconData? icon, bool flex = true}) {
+    final cs = Theme.of(context).colorScheme;
+    final enabled = onChanged != null;
+    final child = Container(
+      height: 32,
+      padding: const EdgeInsets.only(left: 8, right: 4),
+      decoration: BoxDecoration(
+        color: value.isEmpty ? const Color(0xFFFFFBEB) : cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: value.isEmpty ? const Color(0xFFFDE68A) : cs.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value.isEmpty ? null : value,
+          isDense: true, isExpanded: true,
+          icon: Icon(enabled ? Icons.arrow_drop_down_rounded : Icons.lock_outline_rounded, size: enabled ? 20 : 13, color: cs.outline),
+          hint: Row(children: [if (icon != null) ...[Icon(icon, size: 13, color: const Color(0xFFB45309)), const SizedBox(width: 4)], Flexible(child: Text(hint, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFB45309))))]),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface, fontFamily: 'Inter'),
+          items: items.map((x) => DropdownMenuItem(value: x, child: Text(x, overflow: TextOverflow.ellipsis))).toList(),
+          selectedItemBuilder: (_) => items.map((x) => Row(children: [if (icon != null) ...[Icon(icon, size: 13, color: cs.primary), const SizedBox(width: 4)], Flexible(child: Text(x, overflow: TextOverflow.ellipsis))])).toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+    return flex ? Expanded(child: child) : child;
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -390,159 +434,157 @@ class _OpRowState extends State<_OpRow> {
     final isPacking = d.category == 'Packing';
     final mps = p.manpowerTypes.map((x) => x.name).toList();
     if (op.manpower.isNotEmpty && !mps.contains(op.manpower)) mps.add(op.manpower);
-    final mcs = List<String>.from(p.machineTypes);
+    final mcs = ['', ...p.machineTypes];
     if (op.machine.isNotEmpty && !mcs.contains(op.machine)) mcs.add(op.machine);
     final cost = op.cost(p);
-    final subParts = <String>[
-      if (op.manpower.isNotEmpty) op.manpower,
-      if (!isPacking && op.machine.isNotEmpty) op.machine,
-      if (op.op1pcCtl.text.trim().isNotEmpty) '${op.op1pcCtl.text.trim()} pc',
-    ];
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: Column(children: [
-        InkWell(
-          onTap: () => setState(() => op.expanded = !op.expanded),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
-            child: Row(children: [
-              Container(
-                width: 26, height: 26, alignment: Alignment.center,
-                decoration: BoxDecoration(color: op.expanded ? cs.primary : cs.surfaceContainerHigh, shape: BoxShape.circle),
-                child: Text('${widget.index + 1}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: op.expanded ? cs.onPrimary : cs.onSurfaceVariant)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 6, 8),
+        child: Column(children: [
+          Row(children: [
+            Container(
+              width: 22, height: 22, alignment: Alignment.center,
+              decoration: BoxDecoration(color: cs.surfaceContainerHigh, shape: BoxShape.circle),
+              child: Text('${widget.index + 1}', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: op.nameCtl,
+                readOnly: locked,
+                textCapitalization: TextCapitalization.sentences,
+                textInputAction: TextInputAction.next,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                onChanged: (v) {
+                  _autoFill(context, v);
+                  d.touch();
+                },
+                decoration: InputDecoration(
+                  hintText: 'Operation name', isDense: true, filled: false,
+                  border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: cs.primary)),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+                  hintStyle: TextStyle(color: cs.outline, fontWeight: FontWeight.w500),
+                ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(op.name.isEmpty ? 'Untitled operation' : op.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: op.name.isEmpty ? cs.outline : cs.onSurface)),
-                  Row(children: [
-                    Flexible(
-                      child: Text(
-                        subParts.isEmpty ? 'Tap to set manpower' : subParts.join(' · '),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: subParts.isEmpty ? const Color(0xFFB45309) : cs.onSurfaceVariant),
-                      ),
-                    ),
-                    if (cost > 0) Text('  ₹${cost.toStringAsFixed(2)}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF047857))),
-                    if (op.img.isNotEmpty) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.image_rounded, size: 12, color: Color(0xFF4338CA))),
-                    if (op.v1Ctl.text.trim().isNotEmpty) const Padding(padding: EdgeInsets.only(left: 3), child: Icon(Icons.play_circle_fill_rounded, size: 12, color: Color(0xFFE11D48))),
-                  ]),
+            ),
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 70,
+              child: TextField(
+                controller: op.timeCtl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: op.suggested ? const Color(0xFF92400E) : const Color(0xFF3730A3)),
+                onChanged: (_) {
+                  op.suggested = false;
+                  d.touch();
+                },
+                onTap: () => op.timeCtl.selection = TextSelection(baseOffset: 0, extentOffset: op.timeCtl.text.length),
+                decoration: InputDecoration(
+                  hintText: 'sec', isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
+                  fillColor: op.suggested ? const Color(0xFFFFFBEB) : const Color(0xFFEEF2FF),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: op.suggested ? const Color(0xFFFDE68A) : const Color(0xFFC7D2FE))),
+                  suffixText: prod ? 'p' : 's', suffixStyle: TextStyle(fontSize: 10, color: cs.outline),
+                ),
+              ),
+            ),
+            if (locked)
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.lock_outline_rounded, size: 15, color: cs.outlineVariant))
+            else
+              IconButton(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), tooltip: 'Remove', onPressed: () => d.remove(op), icon: Icon(Icons.delete_outline_rounded, size: 19, color: cs.outline)),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            const SizedBox(width: 30),
+            _miniDropdown(
+              value: op.manpower, items: mps, hint: 'Manpower', icon: Icons.person_outline_rounded,
+              onChanged: locked ? null : (v) {
+                op.manpower = v ?? '';
+                if (op.manpower.toLowerCase() == 'operator' && op.machine.isEmpty && !isPacking) {
+                  op.machine = p.machineTypes.firstWhere((x) => x.toLowerCase().contains('stitch'), orElse: () => '');
+                }
+                setState(() {});
+                d.touch();
+              },
+            ),
+            if (!isPacking) ...[
+              const SizedBox(width: 6),
+              _miniDropdown(
+                value: op.machine, items: mcs.where((x) => x.isNotEmpty).toList(), hint: 'Machine', icon: Icons.precision_manufacturing_outlined,
+                onChanged: locked ? null : (v) {
+                  op.machine = v ?? '';
+                  setState(() {});
+                  d.touch();
+                },
+              ),
+            ],
+            const SizedBox(width: 6),
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => setState(() => op.expanded = !op.expanded),
+              child: Container(
+                height: 32, padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(color: op.expanded ? cs.primaryContainer : cs.surfaceContainerLow, borderRadius: BorderRadius.circular(8), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5))),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (cost > 0) Text('₹${cost.toStringAsFixed(2)}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF047857))),
+                  if (op.img.isNotEmpty) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.image_rounded, size: 13, color: Color(0xFF4338CA))),
+                  if (op.v1Ctl.text.trim().isNotEmpty) const Padding(padding: EdgeInsets.only(left: 3), child: Icon(Icons.play_circle_fill_rounded, size: 13, color: Color(0xFFE11D48))),
+                  Icon(op.expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, size: 18, color: cs.onSurfaceVariant),
                 ]),
               ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 74,
-                child: TextField(
-                  controller: op.timeCtl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: op.suggested ? const Color(0xFF92400E) : const Color(0xFF3730A3)),
-                  onChanged: (_) {
-                    op.suggested = false;
-                    d.touch();
-                  },
-                  onTap: () => op.timeCtl.selection = TextSelection(baseOffset: 0, extentOffset: op.timeCtl.text.length),
-                  decoration: InputDecoration(
-                    hintText: 'sec', isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-                    fillColor: op.suggested ? const Color(0xFFFFFBEB) : const Color(0xFFEEF2FF),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: op.suggested ? const Color(0xFFFDE68A) : const Color(0xFFC7D2FE))),
-                    suffixText: prod ? 'p' : 's', suffixStyle: TextStyle(fontSize: 10, color: cs.outline),
-                  ),
-                ),
-              ),
-              if (locked)
-                Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.lock_outline_rounded, size: 16, color: cs.outlineVariant))
-              else
-                IconButton(
-                  visualDensity: VisualDensity.compact, tooltip: 'Remove',
-                  onPressed: () => d.remove(op),
-                  icon: Icon(Icons.delete_outline_rounded, size: 20, color: cs.outline),
-                ),
-            ]),
-          ),
-        ),
-        if (op.expanded) ...[
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              TextField(controller: op.nameCtl, readOnly: locked, textCapitalization: TextCapitalization.sentences, onChanged: (_) => d.touch(), decoration: const InputDecoration(labelText: 'Operation name')),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: op.manpower.isEmpty ? null : op.manpower,
-                    isExpanded: true,
-                    items: mps.map((x) => DropdownMenuItem(value: x, child: Text(x, overflow: TextOverflow.ellipsis))).toList(),
-                    onChanged: locked ? null : (v) {
-                      op.manpower = v ?? '';
-                      d.touch();
-                    },
-                    decoration: const InputDecoration(labelText: 'Manpower'),
-                  ),
-                ),
-                if (!isPacking) ...[
-                  const SizedBox(width: 10),
+            ),
+          ]),
+          if (op.expanded) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 30),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Row(children: [
+                  SizedBox(width: 90, child: TextField(controller: op.op1pcCtl, readOnly: locked, keyboardType: TextInputType.number, onChanged: (_) => d.touch(), decoration: const InputDecoration(labelText: 'Op / 1pc'))),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: op.machine.isEmpty ? null : op.machine,
-                      isExpanded: true,
-                      items: [const DropdownMenuItem(value: '', child: Text('None')), ...mcs.map((x) => DropdownMenuItem(value: x, child: Text(x, overflow: TextOverflow.ellipsis)))],
-                      onChanged: locked ? null : (v) {
-                        op.machine = v ?? '';
-                        d.touch();
-                      },
-                      decoration: const InputDecoration(labelText: 'Machine'),
+                    child: Text(
+                      op.timeNum > 0 ? '${op.target()} /hr  ·  ₹${cost.toStringAsFixed(2)} per pc${prod && op.rnd > 0 ? '  ·  R&D ${op.rnd}s' : ''}' : (prod && op.rnd > 0 ? 'R&D time ${op.rnd}s' : 'Enter time to see target / cost'),
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
                     ),
                   ),
+                ]),
+                const SizedBox(height: 8),
+                Row(children: [
+                  if (op.uploading)
+                    const SizedBox(width: 44, height: 44, child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5))))
+                  else if (op.img.isNotEmpty)
+                    GestureDetector(onLongPress: () => _pickImage(context), child: Stack(clipBehavior: Clip.none, children: [
+                      SrnThumb(op.img, size: 44, radius: 10),
+                      Positioned(right: -6, top: -6, child: GestureDetector(onTap: () => _pickImage(context), child: CircleAvatar(radius: 10, backgroundColor: cs.primary, child: const Icon(Icons.edit, size: 11, color: Colors.white)))),
+                    ]))
+                  else
+                    OutlinedButton.icon(onPressed: () => _pickImage(context), icon: const Icon(Icons.photo_camera_outlined, size: 17), label: const Text('Photo'), style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 10))),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: op.v1Ctl, keyboardType: TextInputType.url, onChanged: (_) => d.touch(),
+                      decoration: InputDecoration(labelText: 'Video link (optional)', suffixIcon: op.v1Ctl.text.trim().isEmpty ? null : IconButton(icon: const Icon(Icons.open_in_new_rounded, size: 17), onPressed: () => openLink(op.v1Ctl.text))),
+                    ),
+                  ),
+                ]),
+                if (prod) ...[
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(child: TextField(controller: op.v2Ctl, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Video link 2'))),
+                    const SizedBox(width: 8),
+                    Expanded(child: TextField(controller: op.v3Ctl, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Video link 3'))),
+                  ]),
                 ],
               ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(child: TextField(controller: op.op1pcCtl, readOnly: locked, keyboardType: TextInputType.number, onChanged: (_) => d.touch(), decoration: const InputDecoration(labelText: 'Op / 1pc'))),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: InputDecorator(
-                    decoration: const InputDecoration(labelText: 'Hr target / cost'),
-                    child: Text(op.timeNum > 0 ? '${op.target()} /hr  ·  ₹${cost.toStringAsFixed(2)}' : '—', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                  ),
-                ),
-              ]),
-              if (prod && op.rnd > 0) Padding(padding: const EdgeInsets.only(top: 8), child: Text('R&D time: ${op.rnd}s', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF7E22CE)))),
-              const SizedBox(height: 12),
-              Row(children: [
-                if (op.uploading)
-                  const SizedBox(width: 48, height: 48, child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5))))
-                else if (op.img.isNotEmpty)
-                  Stack(clipBehavior: Clip.none, children: [
-                    SrnThumb(op.img, size: 48, radius: 10),
-                    Positioned(right: -6, top: -6, child: GestureDetector(onTap: () => _pickImage(context), child: CircleAvatar(radius: 10, backgroundColor: cs.primary, child: const Icon(Icons.edit, size: 11, color: Colors.white)))),
-                  ])
-                else
-                  OutlinedButton.icon(onPressed: () => _pickImage(context), icon: const Icon(Icons.photo_camera_outlined, size: 18), label: const Text('Photo'), style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: op.v1Ctl, keyboardType: TextInputType.url, onChanged: (_) => d.touch(),
-                    decoration: InputDecoration(labelText: 'Video link (optional)', suffixIcon: op.v1Ctl.text.trim().isEmpty ? null : IconButton(icon: const Icon(Icons.open_in_new_rounded, size: 18), onPressed: () => openLink(op.v1Ctl.text))),
-                  ),
-                ),
-              ]),
-              if (prod) ...[
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(child: TextField(controller: op.v2Ctl, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Video link 2'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: TextField(controller: op.v3Ctl, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Video link 3'))),
-                ]),
-              ],
-            ]),
-          ),
-        ],
-      ]),
+            ),
+          ],
+        ]),
+      ),
     );
   }
 }
@@ -599,7 +641,7 @@ class _QuickAddState extends State<_QuickAdd> {
       color: cs.primary.withValues(alpha: 0.05),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: cs.primary.withValues(alpha: 0.25))),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
             Expanded(
@@ -724,7 +766,7 @@ class _BottomBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
           child: Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -738,7 +780,7 @@ class _BottomBar extends StatelessWidget {
             ],
             FilledButton.icon(
               onPressed: busy ? null : onSubmit,
-              style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14)),
+              style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12)),
               icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Icon(e.editing ? Icons.save_rounded : Icons.cloud_upload_rounded, size: 20),
               label: Text(busy ? 'Saving…' : label),
             ),
