@@ -20,9 +20,16 @@
     p { margin: 0 0 22px; opacity: .85; font-size: 14px; }
     a.btn { display: inline-block; background: #fff; color: #0f766e; font-weight: 700; padding: 12px 26px; border-radius: 10px; text-decoration: none; font-size: 15px; }
     .hint { margin-top: 26px; font-size: 12px; opacity: .7; }
+    #appFrame { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: #0f766e; display: none; }
+    body.embedded .wrap { display: none; }
+    body.embedded #appFrame { display: block; }
+    #fallback { position: fixed; left: 12px; right: 12px; bottom: 12px; display: none; text-align: center; }
+    body.embedded.slow #fallback { display: block; }
   </style>
 </head>
 <body>
+  <iframe id="appFrame" title="Operation Bulletin" allow="camera; microphone; clipboard-write" referrerpolicy="no-referrer-when-downgrade"></iframe>
+  <div id="fallback"><a class="btn" id="fallbackBtn" href="#">Open in browser</a></div>
   <div class="wrap">
     <img class="logo" src="icons/icon-192.png" alt="">
     <h1>Operation Bulletin</h1>
@@ -43,8 +50,13 @@
         return;
       }
       if (standalone || fromPwa) {
-        // Installed app: go straight to the web app (login is on Google, so it opens as a full page).
-        setTimeout(function () { window.location.replace(url); }, 250);
+        // Installed app: embed the web app full-screen (no browser bar). PIN login happens inside.
+        var frame = document.getElementById('appFrame');
+        document.getElementById('fallbackBtn').href = url;
+        document.body.classList.add('embedded');
+        var slow = setTimeout(function () { document.body.classList.add('slow'); }, 15000);
+        frame.addEventListener('load', function () { clearTimeout(slow); document.body.classList.remove('slow'); });
+        frame.src = url;
       } else {
         document.getElementById('msg').textContent = 'Install this page as an app: Chrome menu (⋮) → "Add to Home screen" / "Install app".';
         document.getElementById('hint').textContent = 'After installing, open it from your home screen.';

@@ -1,5 +1,5 @@
 // Minimal service worker: makes the app installable and shows the launcher offline.
-const CACHE = 'op-bulletin-v1';
+const CACHE = 'op-bulletin-v2';
 const ASSETS = ['./', './index.html', './config.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }).then(function () { return self.skipWaiting(); }));
