@@ -14,21 +14,17 @@ class MyPendingScreen extends StatelessWidget {
     final st = context.watch<AppState>();
     final p = st.data!;
     final list = p.myPending;
-    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('My Pending'), actions: [IconButton(onPressed: st.loading ? null : () => st.load(), icon: const Icon(Icons.refresh_rounded)), const UserMenu()]),
+      appBar: AppBar(title: const Text('My Pending'), actions: const [UserMenu()]),
       body: RefreshIndicator(
         onRefresh: () => st.load(silent: true),
         child: list.isEmpty
-            ? ListView(children: const [SizedBox(height: 120), EmptyState(icon: Icons.task_alt_rounded, title: 'No pending submissions', subtitle: 'Bulletins you submit for approval will show here until they are approved.', color: Color(0xFF047857))])
+            ? ListView(children: const [SizedBox(height: 120), EmptyState(icon: Icons.task_alt_rounded, title: 'No pending submissions', subtitle: 'Submitted bulletins wait here until approved.', color: Color(0xFF047857))])
             : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(12, 2, 12, 20),
-                itemCount: list.length + 1,
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+                itemCount: list.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, i) {
-                  if (i == 0) return Padding(padding: const EdgeInsets.only(bottom: 2), child: Text('Waiting for management approval. Edit any time before approval.', style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant)));
-                  return _MyCard(a: list[i - 1]);
-                },
+                itemBuilder: (_, i) => _MyCard(a: list[i]),
               ),
       ),
     );

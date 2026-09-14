@@ -10,6 +10,7 @@ import 'screens/my_pending.dart';
 import 'screens/production.dart';
 import 'screens/settings.dart';
 import 'state.dart';
+import 'widgets/common.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -135,6 +136,30 @@ class Shell extends StatefulWidget {
 class _ShellState extends State<Shell> {
   int _index = 0;
 
+  void _maybeShowUpdate(AppState st) {
+    final u = st.update;
+    if (u == null || st.updateShown) return;
+    st.updateShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.system_update_rounded),
+          title: Text('Update available · v${u.versionName}'),
+          content: Text(u.notes.isEmpty ? 'A new version of Operation Bulletin is ready. Download and install it to continue getting the latest features.' : u.notes),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Later')),
+            FilledButton.icon(onPressed: () {
+              Navigator.pop(ctx);
+              openLink(u.apkUrl);
+            }, icon: const Icon(Icons.download_rounded, size: 18), label: const Text('Download')),
+          ],
+        ),
+      );
+    });
+  }
+
   List<_Dest> _dests(AppState st) => [
         if (st.showHome) const _Dest('Home', Icons.home_outlined, Icons.home_rounded, HomeScreen()),
         if (st.showProduction) const _Dest('Production', Icons.factory_outlined, Icons.factory_rounded, ProductionScreen()),
@@ -147,7 +172,7 @@ class _ShellState extends State<Shell> {
   Widget build(BuildContext context) {
     final st = context.watch<AppState>();
     final dests = _dests(st);
-    // Honor tab switch requests from other screens.
+    _maybeShowUpdate(st);
     final req = st.requestedTab;
     if (req != null) {
       st.requestedTab = null;
@@ -155,8 +180,27 @@ class _ShellState extends State<Shell> {
       if (i >= 0) WidgetsBinding.instance.addPostFrameCallback((_) => setState(() => _index = i));
     }
     if (_index >= dests.length) _index = 0;
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      body: IndexedStack(index: _index, children: dests.map((d) => d.page).toList()),
+      body: Column(children: [
+        if (st.offline)
+          Material(
+            color: cs.errorContainer,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                child: Row(children: [
+                  Icon(Icons.wifi_off_rounded, size: 16, color: cs.onErrorContainer),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('No internet. Showing saved data.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onErrorContainer))),
+                  TextButton(onPressed: () => st.load(silent: true), child: const Text('Retry')),
+                ]),
+              ),
+            ),
+          ),
+        Expanded(child: IndexedStack(index: _index, children: dests.map((d) => d.page).toList())),
+      ]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),

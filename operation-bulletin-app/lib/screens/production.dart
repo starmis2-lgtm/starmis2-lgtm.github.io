@@ -20,9 +20,8 @@ class _ProductionScreenState extends State<ProductionScreen> {
     final st = context.watch<AppState>();
     final p = st.data!;
     final list = p.prodPending.where((r) => matches(q, '${r.srn} ${r.styleName} ${r.category}')).toList();
-    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Production Pending'), actions: [IconButton(onPressed: st.loading ? null : () => st.load(), icon: const Icon(Icons.refresh_rounded)), const UserMenu()]),
+      appBar: AppBar(title: const Text('Production Pending'), actions: const [UserMenu()]),
       body: RefreshIndicator(
         onRefresh: () => st.load(silent: true),
         child: CustomScrollView(slivers: [
@@ -31,8 +30,6 @@ class _ProductionScreenState extends State<ProductionScreen> {
               padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 SearchField(hint: 'Search SRN or style', onChanged: (v) => setState(() => q = v)),
-                const SizedBox(height: 8),
-                Text('R&D bulletin is done, production bulletin is pending. Due = First stitch + 5 working days.', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
               ]),
             ),
           ),

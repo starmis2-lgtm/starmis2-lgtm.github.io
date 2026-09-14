@@ -65,7 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Text('Enter your PIN', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 4),
                     Text(
-                      hint.isNotEmpty ? '$hint is not in the ACCESS sheet. Login with your PIN instead.' : 'Your personal PIN is set by MIS / Management in Settings.',
+                      hint.isNotEmpty ? '$hint has no access. Use your PIN.' : 'Ask MIS / Management if you don\'t have one.',
                       style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 18),
@@ -95,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ]),
                 ),
                 const SizedBox(height: 22),
-                Text('Data stays in the company Google Sheet. Nothing is shared publicly.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11)),
+                Text('Star Global · MIS', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11)),
               ]),
             ),
           ),

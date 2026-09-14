@@ -61,7 +61,7 @@ class _EntryScreenState extends State<EntryScreen> {
                         child: Column(children: [
                           Icon(Icons.category_outlined, color: cs.primary, size: 30),
                           const SizedBox(height: 6),
-                          Text('Select the bulletin type above (Stitching, Pasting, Helper…) to enter its operations.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+                          Text('Select a bulletin type above to start.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
                         ]),
                       ),
                     )
@@ -92,7 +92,7 @@ class _EntryScreenState extends State<EntryScreen> {
                         child: Column(children: [
                           Icon(Icons.playlist_add_rounded, color: cs.outline, size: 30),
                           const SizedBox(height: 6),
-                          Text(e.locked ? (e.srn.isEmpty ? 'Select an SRN to load its R&D operations.' : (e.ops.isEmpty ? 'No R&D bulletin found for this SRN.' : 'No ${roleLabel(e.role)} operations in this bulletin.')) : 'No ${e.role == 'All' ? '' : '${roleLabel(e.role)} '}operations yet. Type a name below to add, or copy from a similar SRN.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+                          Text(e.locked ? (e.srn.isEmpty ? 'Select an SRN.' : (e.ops.isEmpty ? 'No R&D bulletin for this SRN.' : 'No ${roleLabel(e.role)} operations.')) : 'No operations yet. Type a name below.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
                         ]),
                       ),
                     ),
@@ -158,6 +158,7 @@ class _EntryScreenState extends State<EntryScreen> {
       }
     }
     setState(() => _busy = true);
+    HapticFeedback.mediumImpact();
     try {
       final String msg;
       final wasEditing = e.editing;
@@ -200,26 +201,24 @@ class _SetupCard extends StatelessWidget {
     IconData noteIcon = Icons.info_outline_rounded;
     switch (e.mode) {
       case EntryMode.prod:
-        if (e.srn.isEmpty) {
-          noteText = 'Production: select the SRN. Operations come from its R&D bulletin, you only enter the production time.';
-        } else if (e.ops.isEmpty) {
-          noteText = 'No ${e.category} R&D bulletin found for ${e.srn}. Create the R&D bulletin first.';
+        if (e.srn.isNotEmpty && e.ops.isEmpty) {
+          noteText = 'No R&D bulletin yet for ${e.srn}. Create R&D first.';
           noteColor = const Color(0xFFB45309);
           noteIcon = Icons.warning_amber_rounded;
-        } else {
-          noteText = 'Operations are locked to the R&D bulletin. Type the production time in each row.';
+        } else if (e.srn.isNotEmpty) {
+          noteText = 'Production time entry · operations locked to R&D';
           noteIcon = Icons.lock_outline_rounded;
         }
       case EntryMode.editRnd:
-        noteText = 'Editing existing ${e.category} R&D bulletin of ${e.srn}. Image / video changes save directly. Adding, removing or changing operations goes for approval.';
+        noteText = 'Editing existing R&D · photo/video save directly, operation changes go for approval';
         noteColor = const Color(0xFF9A3412);
         noteIcon = Icons.edit_outlined;
       case EntryMode.editPending:
-        noteText = 'Editing your pending submission for ${e.srn}. Changes are saved to the approval queue.';
+        noteText = 'Editing pending submission';
         noteColor = const Color(0xFF9A3412);
         noteIcon = Icons.pending_actions_outlined;
       case EntryMode.fresh:
-        if (e.srn.isNotEmpty) noteText = 'New ${e.category} R&D bulletin for ${e.srn}. First submission goes for management approval.';
+        break;
     }
 
     return Card(
@@ -676,10 +675,8 @@ class _QuickAddState extends State<_QuickAdd> {
               child: const Icon(Icons.add_rounded),
             ),
           ]),
-          const SizedBox(height: 8),
-          if (q.isEmpty) ...[
-            Text(roleSel.isEmpty ? 'Type the operation name, then enter its time in the row.' : 'Type a ${roleLabel(roleSel)} operation name, press Enter or tap +, then enter its time. Manpower is set to $roleSel automatically.', style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant)),
-          ] else ...[
+          if (q.isNotEmpty) ...[
+            const SizedBox(height: 8),
             for (final x in hits)
               _SugRow(
                 title: x.name, added: have.contains(x.key),

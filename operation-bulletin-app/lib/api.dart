@@ -19,7 +19,17 @@ class Api {
   String token = '';
 
   Future<dynamic> call(String fn, List<dynamic> args,
-      {bool withToken = true, Duration timeout = const Duration(seconds: 90)}) async {
+      {bool withToken = true, Duration timeout = const Duration(seconds: 45), int retries = 1}) async {
+    try {
+      return await _call(fn, args, withToken: withToken, timeout: timeout);
+    } on ApiException catch (e) {
+      final transient = e.message.startsWith('Network error') || e.message.startsWith('Server took too long') || e.message.startsWith('Server error 5');
+      if (retries > 0 && transient) return call(fn, args, withToken: withToken, timeout: timeout, retries: retries - 1);
+      rethrow;
+    }
+  }
+
+  Future<dynamic> _call(String fn, List<dynamic> args, {required bool withToken, required Duration timeout}) async {
     final a = List<dynamic>.from(args);
     if (withToken) a.add(token);
     final req = http.Request('POST', Uri.parse(execUrl))
@@ -42,7 +52,7 @@ class Api {
         if (code >= 400) throw ApiException('Server error $code');
       }
     } on TimeoutException {
-      throw ApiException('Server took too long to respond. Check your internet and try again.');
+      throw ApiException('Server took too long to respond. Check your internet.');
     } on http.ClientException catch (e) {
       throw ApiException('Network error: ${e.message}');
     }

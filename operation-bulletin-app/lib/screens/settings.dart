@@ -19,10 +19,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final st = context.watch<AppState>();
     final p = st.data!;
-    final cs = Theme.of(context).colorScheme;
     final list = p.accessUsers.where((u) => matches(q, '${u.email} ${u.name} ${u.department} ${u.designation}')).toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings · Access'), actions: [IconButton(onPressed: st.loading ? null : () => st.load(), icon: const Icon(Icons.refresh_rounded)), const UserMenu()]),
+      appBar: AppBar(title: const Text('Users & Access'), actions: const [UserMenu()]),
       floatingActionButton: FloatingActionButton.extended(onPressed: () => showUserSheet(context, null), icon: const Icon(Icons.person_add_alt_1_rounded), label: const Text('Add user')),
       body: RefreshIndicator(
         onRefresh: () => st.load(silent: true),
@@ -32,8 +31,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 SearchField(hint: 'Search users', onChanged: (v) => setState(() => q = v)),
-                const SizedBox(height: 8),
-                Text('Access is read from the ACCESS sheet. Users with no tabs ticked see all normal tabs. Settings is It/Mis & Management only, Dashboard is Management only.', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
               ]),
             ),
           ),
@@ -183,8 +180,8 @@ Future<void> showUserSheet(BuildContext context, AccessUser? u) async {
             const SizedBox(height: 6),
             Wrap(spacing: 6, runSpacing: 6, children: p.allTabs.map((t) => FilterChip(label: Text(t), selected: tabs.contains(t), onSelected: (v) => setS(() => v ? tabs.add(t) : tabs.remove(t)))).toList()),
             const SizedBox(height: 6),
-            Text('Leave all unticked to allow every normal tab. Dashboard needs Department = Management. Settings needs It/Mis or Management. PIN is for mobile login and must be unique per user.', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
-            const SizedBox(height: 16),
+            Text('No tabs ticked = all tabs. PIN must be unique.', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+            const SizedBox(height: 14),
             Row(children: [
               if (u != null && !isMe) ...[
                 OutlinedButton.icon(onPressed: busy ? null : remove, icon: const Icon(Icons.delete_outline_rounded, size: 18), label: const Text('Remove'), style: OutlinedButton.styleFrom(foregroundColor: cs.error)),

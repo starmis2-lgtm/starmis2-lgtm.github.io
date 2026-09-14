@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -8,8 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'models.dart';
+import 'update.dart';
 
 const kTokenKey = 'pb_auth_token';
+const kDraftKey = 'pb_entry_draft';
 
 enum EntryMode { fresh, editRnd, prod, editPending }
 
@@ -56,6 +59,15 @@ class OpDraft {
     };
   }
 
+  Map<String, dynamic> save() => {
+        'n': nameCtl.text, 'mp': manpower, 'mc': machine, 'pc': op1pcCtl.text, 't': timeCtl.text,
+        'v1': v1Ctl.text, 'v2': v2Ctl.text, 'v3': v3Ctl.text, 'img': img, 'rnd': rnd, 'sug': suggested,
+      };
+
+  static OpDraft restore(Map<String, dynamic> j) => OpDraft(
+        name: s(j['n']), manpower: s(j['mp']), machine: s(j['mc']), op1pc: s(j['pc']), time: s(j['t']),
+        v1: s(j['v1']), v2: s(j['v2']), v3: s(j['v3']), img: s(j['img']), rnd: n(j['rnd']), suggested: b(j['sug']));
+
   void dispose() {
     for (final c in [nameCtl, op1pcCtl, timeCtl, v1Ctl, v2Ctl, v3Ctl]) {
       c.dispose();
@@ -70,9 +82,17 @@ class AppState extends ChangeNotifier {
   bool booted = false;
   bool needLogin = true;
   bool loading = false;
+  bool offline = false;
+  int pendingWrites = 0;
   String loginHint = '';
   String? error;
   Payload? data;
+  AppUpdate? update;
+  bool updateShown = false;
+  String appVersion = '';
+  DateTime? lastSync;
+
+  bool get syncing => loading || pendingWrites > 0;
 
   /// Bottom-nav index requested by another screen (e.g. Home → Entry).
   int? requestedTab;
@@ -96,6 +116,25 @@ class AppState extends ChangeNotifier {
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     api.token = prefs.getString(kTokenKey) ?? '';
+    entry.onChanged = _persistDraft;
+    AppUpdate.currentVersion().then((v) {
+      appVersion = v;
+      notifyListeners();
+    });
+    Connectivity().onConnectivityChanged.listen((res) {
+      final off = res.every((r) => r == ConnectivityResult.none);
+      if (off != offline) {
+        offline = off;
+        notifyListeners();
+        if (!off && data == null && !needLogin) load(silent: true);
+      }
+    });
+    AppUpdate.check().then((u) {
+      if (u != null) {
+        update = u;
+        notifyListeners();
+      }
+    });
     // Show cached data instantly, then refresh from the server in the background.
     if (api.token.isNotEmpty) {
       try {
@@ -112,8 +151,33 @@ class AppState extends ChangeNotifier {
       } catch (_) {}
     }
     await load(silent: true);
+    await _restoreDraft(prefs);
     booted = true;
     notifyListeners();
+  }
+
+  Future<void> _restoreDraft(SharedPreferences prefs) async {
+    final raw = prefs.getString(kDraftKey);
+    if (raw == null || raw.isEmpty || data == null) return;
+    try {
+      entry.restoreFrom(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {}
+  }
+
+  Future<void> _persistDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (entry.isEmpty) {
+        await prefs.remove(kDraftKey);
+      } else {
+        await prefs.setString(kDraftKey, jsonEncode(entry.save()));
+      }
+    } catch (_) {}
+  }
+
+  /// Refresh in the background without blocking the caller.
+  void refreshLater() {
+    Future<void>.delayed(const Duration(milliseconds: 50), () => load(silent: true));
   }
 
   Future<void> load({bool silent = false}) async {
@@ -134,16 +198,33 @@ class AppState extends ChangeNotifier {
         data = Payload.fromJson(j);
         needLogin = false;
         _lib.clear();
+        lastSync = DateTime.now();
         try { (await _cacheFile()).writeAsString(text, flush: true); } catch (_) {}
       }
       error = null;
+      offline = false;
     } on ApiException catch (e) {
       error = e.message;
+      if (e.message.startsWith('Network error')) offline = true;
     } catch (e) {
       error = e.toString();
     }
     loading = false;
     notifyListeners();
+  }
+
+  /// Runs a write against the server; the data refresh happens in the background.
+  Future<String> _write(Future<String> Function() fn) async {
+    pendingWrites++;
+    notifyListeners();
+    try {
+      final msg = await fn();
+      refreshLater();
+      return msg;
+    } finally {
+      pendingWrites--;
+      notifyListeners();
+    }
   }
 
   Future<String?> login(String pin) async {
@@ -196,35 +277,15 @@ class AppState extends ChangeNotifier {
   bool get showSettings => _tabAllowed('Settings');
 
   // ---------------- actions ----------------
-  Future<String> submitBulletin(Map<String, dynamic> payload) async {
-    final msg = await api.callMsg('submitBulletinData', [payload]);
-    await load(silent: true);
-    return msg;
-  }
+  Future<String> submitBulletin(Map<String, dynamic> payload) => _write(() => api.callMsg('submitBulletinData', [payload]));
 
-  Future<String> updatePending(String id, List<Map<String, dynamic>> ops) async {
-    final msg = await api.callMsg('updatePendingSubmission', [id, jsonEncode(ops)]);
-    await load(silent: true);
-    return msg;
-  }
+  Future<String> updatePending(String id, List<Map<String, dynamic>> ops) => _write(() => api.callMsg('updatePendingSubmission', [id, jsonEncode(ops)]));
 
-  Future<String> setNotRequired(String srn, List<Map<String, String>> items) async {
-    final msg = await api.callMsg('setNotRequired', [srn, jsonEncode(items)]);
-    await load(silent: true);
-    return msg;
-  }
+  Future<String> setNotRequired(String srn, List<Map<String, String>> items) => _write(() => api.callMsg('setNotRequired', [srn, jsonEncode(items)]));
 
-  Future<String> saveUser(Map<String, dynamic> u) async {
-    final msg = await api.callMsg('saveAccessUser', [jsonEncode(u)]);
-    await load(silent: true);
-    return msg;
-  }
+  Future<String> saveUser(Map<String, dynamic> u) => _write(() => api.callMsg('saveAccessUser', [jsonEncode(u)]));
 
-  Future<String> deleteUser(String email) async {
-    final msg = await api.callMsg('deleteAccessUser', [email]);
-    await load(silent: true);
-    return msg;
-  }
+  Future<String> deleteUser(String email) => _write(() => api.callMsg('deleteAccessUser', [email]));
 
   Future<String> uploadImage(Uint8List bytes, String mime, String fileName, String srn, String opName) async {
     final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
@@ -328,6 +389,39 @@ class _LibAcc {
 
 /// The data-entry form state. Lives in AppState so it survives tab switches.
 class EntryDraft extends ChangeNotifier {
+  Future<void> Function()? onChanged;
+
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    onChanged?.call();
+  }
+
+  bool get isEmpty => srn.isEmpty && ops.isEmpty;
+
+  Map<String, dynamic> save() => {
+        'category': category, 'type': type, 'srn': srn, 'role': role, 'date': date.toIso8601String(),
+        'mode': mode.index, 'pendingId': pendingId, 'bulletinFor': bulletinFor,
+        'ops': ops.map((o) => o.save()).toList(),
+      };
+
+  void restoreFrom(Map<String, dynamic> j) {
+    _clearOps();
+    category = s(j['category']).isEmpty ? 'Making' : s(j['category']);
+    type = s(j['type']).isEmpty ? 'R&D' : s(j['type']);
+    srn = s(j['srn']);
+    role = s(j['role']);
+    date = DateTime.tryParse(s(j['date'])) ?? DateTime.now();
+    final mi = n(j['mode']).toInt();
+    mode = (mi >= 0 && mi < EntryMode.values.length) ? EntryMode.values[mi] : EntryMode.fresh;
+    pendingId = s(j['pendingId']);
+    bulletinFor = s(j['bulletinFor']);
+    for (final o in l(j['ops'])) {
+      ops.add(OpDraft.restore(m(o)));
+    }
+    super.notifyListeners();
+  }
+
   String category = 'Making';
   String type = 'R&D';
   String srn = '';

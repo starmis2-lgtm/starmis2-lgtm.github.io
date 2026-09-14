@@ -192,6 +192,14 @@ class UserMenu extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       onSelected: (v) async {
         if (v == 'refresh') await st.load();
+        if (v == 'update') {
+          final u = st.update;
+          if (u != null) {
+            openLink(u.apkUrl);
+          } else if (context.mounted) {
+            toast(context, 'You have the latest version (${st.appVersion}).');
+          }
+        }
         if (v == 'logout') {
           if (!context.mounted) return;
           final ok = await confirm(context, 'Logout', 'Logout from this device?', yes: 'Logout');
@@ -202,11 +210,18 @@ class UserMenu extends StatelessWidget {
         PopupMenuItem(enabled: false, child: ListTile(contentPadding: EdgeInsets.zero, dense: true, title: Text(a?.displayName ?? '', style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${a?.department ?? ''}${a?.email.isNotEmpty == true ? '\n${a!.email}' : ''}'))),
         const PopupMenuDivider(),
         const PopupMenuItem(value: 'refresh', child: ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: Icon(Icons.refresh_rounded), title: Text('Refresh data'))),
+        PopupMenuItem(value: 'update', child: ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: Icon(st.update != null ? Icons.system_update_rounded : Icons.verified_rounded, color: st.update != null ? cs.error : null), title: Text(st.update != null ? 'Update to v${st.update!.versionName}' : 'Version ${st.appVersion}'))),
         const PopupMenuItem(value: 'logout', child: ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: Icon(Icons.logout_rounded), title: Text('Logout'))),
       ],
       child: Padding(
         padding: const EdgeInsets.only(right: 12),
-        child: CircleAvatar(radius: 17, backgroundColor: cs.primaryContainer, child: Text(letter, style: TextStyle(color: cs.onPrimaryContainer, fontWeight: FontWeight.w800))),
+        child: Stack(clipBehavior: Clip.none, children: [
+          CircleAvatar(radius: 16, backgroundColor: cs.primaryContainer, child: Text(letter, style: TextStyle(color: cs.onPrimaryContainer, fontWeight: FontWeight.w800, fontSize: 13))),
+          if (st.syncing)
+            const Positioned(right: -3, bottom: -3, child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)))
+          else if (st.update != null)
+            Positioned(right: -2, top: -2, child: Container(width: 10, height: 10, decoration: BoxDecoration(color: cs.error, shape: BoxShape.circle, border: Border.all(color: cs.surface, width: 1.5)))),
+        ]),
       ),
     );
   }
@@ -319,8 +334,7 @@ Future<void> showNotRequired(BuildContext context, String srn) async {
               children: coreMakingRoles.map((r) => FilterChip(label: Text(r), selected: roles[r]!, onSelected: (v) => setS(() => roles[r] = v))).toList(),
             ),
             const SizedBox(height: 8),
-            Text('Ticked items leave the pending list. A whole bulletin ticked here is also skipped in the MIS score. Untick to make it pending again.', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: FilledButton(

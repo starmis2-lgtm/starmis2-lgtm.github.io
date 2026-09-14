@@ -20,7 +20,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final st = context.watch<AppState>();
     final p = st.data!;
-    final cs = Theme.of(context).colorScheme;
     final all = p.pending;
     final counts = <String, int>{'all': all.length, 'delayed': 0, 'today': 0, 'upcoming': 0, 'nodue': 0};
     for (final it in all) {
@@ -39,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pending Bulletins'),
-        actions: [IconButton(tooltip: 'Refresh', onPressed: st.loading ? null : () => st.load(), icon: const Icon(Icons.refresh_rounded)), const UserMenu()],
+        actions: const [UserMenu()],
       ),
       body: RefreshIndicator(
         onRefresh: () => st.load(silent: true),
@@ -74,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ]),
             ),
           ),
-          if (st.loading) const SliverToBoxAdapter(child: LinearProgressIndicator(minHeight: 2)),
+          if (st.loading && all.isEmpty) const SliverToBoxAdapter(child: LinearProgressIndicator(minHeight: 2)),
           if (list.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
@@ -94,12 +93,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 itemBuilder: (_, i) => _PendingCard(item: list[i]),
               ),
             ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-              child: Text('R&D due = Order date + 10 working days · Production due = First stitch + 5 working days · −2 MIS pts per day late', textAlign: TextAlign.center, style: TextStyle(fontSize: 10.5, color: cs.onSurfaceVariant)),
-            ),
-          ),
         ]),
       ),
     );
