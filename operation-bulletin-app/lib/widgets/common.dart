@@ -100,6 +100,30 @@ StatusBits statusBits(TaskDelay? t, {bool waiting = false}) {
   return StatusBits('UPCOMING', const Color(0xFF047857), '${t.daysLeft} day${t.daysLeft == 1 ? '' : 's'} left');
 }
 
+/// Short status text for compact lists: "5d left", "+3d late · -6", "Today", "No due".
+String shortStatus(TaskDelay? t, {bool waiting = false}) {
+  if (waiting) return 'Waiting';
+  if (t == null || !t.hasDue) return 'No due';
+  if (t.status == 'delayed') return '+${t.late}d late${t.impact > 0 ? ' · −${t.impact}' : ''}';
+  if (t.status == 'today') return 'Due today';
+  return '${t.daysLeft}d left';
+}
+
+class MiniStatus extends StatelessWidget {
+  const MiniStatus(this.t, {super.key, this.waiting = false});
+  final TaskDelay? t;
+  final bool waiting;
+  @override
+  Widget build(BuildContext context) {
+    final b = statusBits(t, waiting: waiting);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(color: b.color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(6)),
+      child: Text(shortStatus(t, waiting: waiting), style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: b.color)),
+    );
+  }
+}
+
 class StatusPill extends StatelessWidget {
   const StatusPill(this.t, {super.key, this.waiting = false});
   final TaskDelay? t;

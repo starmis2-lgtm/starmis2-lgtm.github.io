@@ -89,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
               sliver: SliverList.separated(
                 itemCount: list.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
                 itemBuilder: (_, i) => _PendingCard(item: list[i]),
               ),
             ),
@@ -108,64 +108,73 @@ class _PendingCard extends StatelessWidget {
     final st = context.read<AppState>();
     final cs = Theme.of(context).colorScheme;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(11),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SrnThumb(item.imageLink, size: 50),
-            const SizedBox(width: 12),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          color: cs.primary.withValues(alpha: 0.06),
+          padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+          child: Row(children: [
+            SrnThumb(item.imageLink, size: 40, radius: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Text(item.srn, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                  const SizedBox(width: 8),
-                  if (item.status == 'Partial') const Pill('Partial', color: Color(0xFFB45309)),
-                  if (item.status == 'Not Started') const Pill('Not started', color: Color(0xFF64748B)),
+                  Text(item.srn, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800)),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(item.styleName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500))),
                 ]),
-                Text(item.styleName.isEmpty ? '-' : item.styleName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
-                Text(
-                  'Qty ${item.shippingQty}${item.orderDate.isNotEmpty ? ' · Order ${item.orderDate}' : ''}${item.stitchDate.isNotEmpty ? ' · Stitch ${item.stitchDate}' : ''}',
-                  style: TextStyle(fontSize: 11, color: cs.outline, fontWeight: FontWeight.w600),
-                ),
+                Text('Qty ${item.shippingQty}${item.orderDate.isNotEmpty ? ' · Order ${item.orderDate}' : ''}${item.stitchDate.isNotEmpty ? ' · Stitch ${item.stitchDate}' : ''}', style: TextStyle(fontSize: 10.5, color: cs.outline, fontWeight: FontWeight.w600)),
               ]),
             ),
-            IconButton.outlined(
-              tooltip: 'Not required',
-              visualDensity: VisualDensity.compact,
-              onPressed: () => showNotRequired(context, item.srn),
-              icon: const Icon(Icons.block_rounded, size: 18),
-            ),
+            IconButton(visualDensity: VisualDensity.compact, tooltip: 'Not required', onPressed: () => showNotRequired(context, item.srn), icon: Icon(Icons.block_rounded, size: 18, color: cs.outline)),
           ]),
-          for (final t in item.tasks) ...[
-            const Padding(padding: EdgeInsets.symmetric(vertical: 7), child: Divider()),
-            Row(children: [
-              Icon(t.type == 'Production' ? Icons.factory_outlined : Icons.science_outlined, size: 16, color: t.type == 'Production' ? const Color(0xFF047857) : const Color(0xFF7E22CE)),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(t.label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
-                  Text('Due ${t.delay.hasDue ? t.delay.due : '—'}', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
-                ]),
-              ),
-              FilledButton.icon(
-                onPressed: () {
-                  final preset = t.key == 'mkRnd' && item.missingRoles.length == 1 ? item.missingRoles.first : (t.type == 'Production' ? 'All' : '');
-                  st.entry.start(item.srn, t.category, t.type, st.data, role: preset);
-                  st.goToTab(Tabs.entry);
-                },
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Create'),
-                style: FilledButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8)),
-              ),
-            ]),
-            const SizedBox(height: 4),
-            Wrap(spacing: 5, runSpacing: 5, children: [
-              StatusPill(t.delay),
-              if (t.key == 'mkRnd') for (final r in item.missingRoles) Pill(r, color: const Color(0xFFBE123C)),
-            ]),
-          ],
-        ]),
-      ),
+        ),
+        for (var i = 0; i < item.tasks.length; i++) ...[
+          if (i > 0) const Divider(indent: 10, endIndent: 10),
+          _TaskLine(item: item, t: item.tasks[i], st: st),
+        ],
+      ]),
+    );
+  }
+}
+
+class _TaskLine extends StatelessWidget {
+  const _TaskLine({required this.item, required this.t, required this.st});
+  final PendingItem item;
+  final PendingTask t;
+  final AppState st;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isProd = t.type == 'Production';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+      child: Row(children: [
+        Icon(isProd ? Icons.factory_outlined : Icons.science_outlined, size: 15, color: isProd ? const Color(0xFF047857) : const Color(0xFF7E22CE)),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Row(children: [
+            Text(t.label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            const SizedBox(width: 8),
+            if (t.delay.hasDue) Text(t.delay.due, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+            const SizedBox(width: 6),
+            MiniStatus(t.delay),
+          ]),
+        ),
+        SizedBox(
+          height: 30,
+          child: FilledButton.tonal(
+            onPressed: () {
+              final preset = t.key == 'mkRnd' && item.missingRoles.length == 1 ? item.missingRoles.first : (isProd ? 'All' : '');
+              st.entry.start(item.srn, t.category, t.type, st.data, role: preset);
+              st.goToTab(Tabs.entry);
+            },
+            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12), visualDensity: VisualDensity.compact, textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            child: const Text('Create'),
+          ),
+        ),
+      ]),
     );
   }
 }

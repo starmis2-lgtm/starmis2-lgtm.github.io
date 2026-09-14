@@ -552,7 +552,7 @@ class EntryDraft extends ChangeNotifier {
 
   OpDraft add({String name = '', String manpower = '', String machine = '', String op1pc = '', String time = '', bool suggested = false, bool expanded = false}) {
     final mp = (role.isNotEmpty && role != 'All') ? role : manpower;
-    final d = OpDraft(name: name, manpower: mp, machine: machine, op1pc: op1pc, time: time, suggested: suggested, expanded: expanded);
+    final d = OpDraft(name: name, manpower: mp, machine: machine, op1pc: op1pc.isEmpty ? '1' : op1pc, time: time, suggested: suggested, expanded: expanded);
     ops.add(d);
     notifyListeners();
     return d;

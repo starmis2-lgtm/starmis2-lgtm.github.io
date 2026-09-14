@@ -71,18 +71,6 @@ class _EntryScreenState extends State<EntryScreen> {
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                       if (!e.locked && !e.editing)
                         TextButton.icon(onPressed: () => _copyFrom(context, st), icon: const Icon(Icons.copy_all_rounded, size: 18), label: const Text('Copy from SRN'), style: TextButton.styleFrom(visualDensity: VisualDensity.compact)),
-                      if (e.ops.isNotEmpty)
-                        IconButton(
-                          tooltip: 'Expand / collapse all', visualDensity: VisualDensity.compact,
-                          onPressed: () {
-                            final anyClosed = e.ops.any((o) => !o.expanded);
-                            for (final o in e.ops) {
-                              o.expanded = anyClosed;
-                            }
-                            e.touch();
-                          },
-                          icon: const Icon(Icons.unfold_more_rounded, size: 20),
-                        ),
                     ]),
                   ),
                   if (e.visibleOps.isEmpty)
@@ -150,7 +138,6 @@ class _EntryScreenState extends State<EntryScreen> {
       final bad = e.firstInvalid();
       if (bad >= 0) {
         final o = e.ops[bad];
-        o.expanded = true;
         e.role = (o.manpower.isNotEmpty && e.role != 'All') ? o.manpower : 'All';
         e.touch();
         toast(context, '"${o.name.isEmpty ? 'Operation ${bad + 1}' : o.name}" needs a name, type and time greater than 0.', error: true);
@@ -272,40 +259,29 @@ class _SetupCard extends StatelessWidget {
           ),
           if (e.srn.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text('BULLETIN TYPE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: cs.onSurfaceVariant)),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6, runSpacing: 6,
-              children: [
+            DropdownButtonFormField<String>(
+              initialValue: e.role.isEmpty ? null : e.role,
+              isExpanded: true,
+              decoration: InputDecoration(labelText: 'Bulletin type', prefixIcon: const Icon(Icons.category_outlined, size: 20), fillColor: e.role.isEmpty ? const Color(0xFFFFFBEB) : null),
+              hint: const Text('Select bulletin type'),
+              items: [
                 for (final r in _roles(p, e))
-                  ChoiceChip(
-                    label: Text(e.countFor(r) > 0 ? '${roleLabel(r)}  ${e.countFor(r)}' : roleLabel(r)),
-                    selected: e.role == r,
-                    onSelected: (_) => e.setRole(r),
-                    showCheckmark: false,
-                    selectedColor: cs.primary,
-                    labelStyle: TextStyle(fontWeight: FontWeight.w700, color: e.role == r ? cs.onPrimary : cs.onSurface),
-                  ),
-                ChoiceChip(
-                  label: Text(e.ops.isNotEmpty ? 'All  ${e.ops.length}' : 'All'),
-                  selected: e.role == 'All',
-                  onSelected: (_) => e.setRole('All'),
-                  showCheckmark: false,
-                  selectedColor: cs.secondary,
-                  labelStyle: TextStyle(fontWeight: FontWeight.w700, color: e.role == 'All' ? cs.onSecondary : cs.onSurfaceVariant),
-                ),
+                  DropdownMenuItem(value: r, child: Row(children: [Expanded(child: Text(roleLabel(r), overflow: TextOverflow.ellipsis)), if (e.countFor(r) > 0) Pill('${e.countFor(r)} ops', color: cs.primary)])),
+                DropdownMenuItem(value: 'All', child: Row(children: [const Expanded(child: Text('All types')), if (e.ops.isNotEmpty) Pill('${e.ops.length} ops', color: cs.secondary)])),
               ],
+              onChanged: (v) => e.setRole(v ?? ''),
             ),
           ],
           const SizedBox(height: 8),
           Row(children: [
-            ActionChip(
-              avatar: const Icon(Icons.calendar_month_rounded, size: 16),
-              label: Text('${e.date.day.toString().padLeft(2, '0')}-${e.date.month.toString().padLeft(2, '0')}-${e.date.year}'),
+            OutlinedButton.icon(
               onPressed: () async {
                 final d = await showDatePicker(context: context, initialDate: e.date, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 365)));
                 if (d != null) e.setDate(d);
               },
+              icon: const Icon(Icons.calendar_month_rounded, size: 17),
+              label: Text('${e.date.day.toString().padLeft(2, '0')}-${e.date.month.toString().padLeft(2, '0')}-${e.date.year}', style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface)),
+              style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 12), foregroundColor: cs.onSurface),
             ),
             const SizedBox(width: 8),
             catPill(e.category),
@@ -437,6 +413,8 @@ class _OpRowState extends State<_OpRow> {
     if (op.machine.isNotEmpty && !mcs.contains(op.machine)) mcs.add(op.machine);
     final cost = op.cost(p);
 
+    final pc = int.tryParse(op.op1pcCtl.text.trim()) ?? 0;
+
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Padding(
@@ -487,7 +465,7 @@ class _OpRowState extends State<_OpRow> {
                   contentPadding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
                   fillColor: op.suggested ? const Color(0xFFFFFBEB) : const Color(0xFFEEF2FF),
                   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: op.suggested ? const Color(0xFFFDE68A) : const Color(0xFFC7D2FE))),
-                  suffixText: prod ? 'p' : 's', suffixStyle: TextStyle(fontSize: 10, color: cs.outline),
+                  suffixText: 's', suffixStyle: TextStyle(fontSize: 10, color: cs.outline),
                 ),
               ),
             ),
@@ -521,70 +499,101 @@ class _OpRowState extends State<_OpRow> {
                 },
               ),
             ],
-            const SizedBox(width: 6),
-            InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => setState(() => op.expanded = !op.expanded),
-              child: Container(
-                height: 32, padding: const EdgeInsets.symmetric(horizontal: 8),
-                decoration: BoxDecoration(color: op.expanded ? cs.primaryContainer : cs.surfaceContainerLow, borderRadius: BorderRadius.circular(8), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5))),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  if (cost > 0) Text('₹${cost.toStringAsFixed(2)}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF047857))),
-                  if (op.img.isNotEmpty) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.image_rounded, size: 13, color: Color(0xFF4338CA))),
-                  if (op.v1Ctl.text.trim().isNotEmpty) const Padding(padding: EdgeInsets.only(left: 3), child: Icon(Icons.play_circle_fill_rounded, size: 13, color: Color(0xFFE11D48))),
-                  Icon(op.expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, size: 18, color: cs.onSurfaceVariant),
-                ]),
-              ),
-            ),
           ]),
-          if (op.expanded) ...[
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.only(left: 30),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Row(children: [
-                  SizedBox(width: 90, child: TextField(controller: op.op1pcCtl, readOnly: locked, keyboardType: TextInputType.number, onChanged: (_) => d.touch(), decoration: const InputDecoration(labelText: 'Op / 1pc'))),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      op.timeNum > 0 ? '${op.target()} /hr  ·  ₹${cost.toStringAsFixed(2)} per pc${prod && op.rnd > 0 ? '  ·  R&D ${op.rnd}s' : ''}' : (prod && op.rnd > 0 ? 'R&D time ${op.rnd}s' : 'Enter time to see target / cost'),
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
-                    ),
+          const SizedBox(height: 6),
+          Row(children: [
+            const SizedBox(width: 30),
+            // Ops per piece stepper
+            Container(
+              height: 32,
+              decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(8), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5))),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                _stepBtn(Icons.remove_rounded, locked || pc <= 1 ? null : () { op.op1pcCtl.text = '${pc - 1}'; setState(() {}); d.touch(); }),
+                SizedBox(
+                  width: 34,
+                  child: TextField(
+                    controller: op.op1pcCtl, readOnly: locked, textAlign: TextAlign.center, keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
+                    onChanged: (_) { setState(() {}); d.touch(); },
+                    decoration: const InputDecoration(isDense: true, filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, contentPadding: EdgeInsets.zero),
                   ),
-                ]),
-                const SizedBox(height: 8),
-                Row(children: [
-                  if (op.uploading)
-                    const SizedBox(width: 44, height: 44, child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5))))
-                  else if (op.img.isNotEmpty)
-                    GestureDetector(onLongPress: () => _pickImage(context), child: Stack(clipBehavior: Clip.none, children: [
-                      SrnThumb(op.img, size: 44, radius: 10),
-                      Positioned(right: -6, top: -6, child: GestureDetector(onTap: () => _pickImage(context), child: CircleAvatar(radius: 10, backgroundColor: cs.primary, child: const Icon(Icons.edit, size: 11, color: Colors.white)))),
-                    ]))
-                  else
-                    OutlinedButton.icon(onPressed: () => _pickImage(context), icon: const Icon(Icons.photo_camera_outlined, size: 17), label: const Text('Photo'), style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 10))),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: op.v1Ctl, keyboardType: TextInputType.url, onChanged: (_) => d.touch(),
-                      decoration: InputDecoration(labelText: 'Video link (optional)', suffixIcon: op.v1Ctl.text.trim().isEmpty ? null : IconButton(icon: const Icon(Icons.open_in_new_rounded, size: 17), onPressed: () => openLink(op.v1Ctl.text))),
-                    ),
-                  ),
-                ]),
-                if (prod) ...[
-                  const SizedBox(height: 8),
-                  Row(children: [
-                    Expanded(child: TextField(controller: op.v2Ctl, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Video link 2'))),
-                    const SizedBox(width: 8),
-                    Expanded(child: TextField(controller: op.v3Ctl, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Video link 3'))),
-                  ]),
-                ],
+                ),
+                _stepBtn(Icons.add_rounded, locked ? null : () { op.op1pcCtl.text = '${pc + 1}'; setState(() {}); d.touch(); }),
+                Padding(padding: const EdgeInsets.only(right: 8), child: Text('ops/pc', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant))),
               ]),
             ),
-          ],
+            const SizedBox(width: 6),
+            // Photo
+            if (op.uploading)
+              const SizedBox(width: 32, height: 32, child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5))))
+            else if (op.img.isNotEmpty)
+              GestureDetector(onTap: () => _pickImage(context), child: SrnThumb(op.img, size: 32, radius: 8))
+            else
+              _iconBox(Icons.photo_camera_outlined, 'Photo', () => _pickImage(context), cs),
+            const SizedBox(width: 6),
+            // Video link(s)
+            _iconBox(op.v1Ctl.text.trim().isEmpty ? Icons.link_rounded : Icons.play_circle_fill_rounded, 'Video', () => _editVideo(context), cs, active: op.v1Ctl.text.trim().isNotEmpty, activeColor: const Color(0xFFE11D48)),
+            const Spacer(),
+            if (prod && op.rnd > 0) Padding(padding: const EdgeInsets.only(right: 6), child: Text('R&D ${op.rnd}s', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF7E22CE)))),
+            if (op.timeNum > 0)
+              Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                Text('₹${cost.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF047857))),
+                Text('${op.target()} /hr', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: cs.outline)),
+              ]),
+          ]),
         ]),
       ),
     );
+  }
+
+  Widget _stepBtn(IconData icon, VoidCallback? onTap) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(width: 30, height: 32, child: Icon(icon, size: 17, color: onTap == null ? cs.outlineVariant : cs.primary)),
+    );
+  }
+
+  Widget _iconBox(IconData icon, String tip, VoidCallback onTap, ColorScheme cs, {bool active = false, Color? activeColor}) {
+    return Tooltip(
+      message: tip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 36, height: 32,
+          decoration: BoxDecoration(color: active ? (activeColor ?? cs.primary).withValues(alpha: 0.10) : cs.surfaceContainerLow, borderRadius: BorderRadius.circular(8), border: Border.all(color: active ? (activeColor ?? cs.primary).withValues(alpha: 0.4) : cs.outlineVariant.withValues(alpha: 0.5))),
+          child: Icon(icon, size: 18, color: active ? (activeColor ?? cs.primary) : cs.onSurfaceVariant),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editVideo(BuildContext context) async {
+    final prod = d.isProd;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Video link'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: op.v1Ctl, keyboardType: TextInputType.url, autofocus: true, decoration: const InputDecoration(labelText: 'Video link', hintText: 'https://...')),
+          if (prod) ...[
+            const SizedBox(height: 8),
+            TextField(controller: op.v2Ctl, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Video link 2')),
+            const SizedBox(height: 8),
+            TextField(controller: op.v3Ctl, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Video link 3')),
+          ],
+        ]),
+        actions: [
+          if (op.v1Ctl.text.trim().isNotEmpty) TextButton.icon(onPressed: () => openLink(op.v1Ctl.text), icon: const Icon(Icons.open_in_new_rounded, size: 16), label: const Text('Open')),
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done')),
+        ],
+      ),
+    );
+    setState(() {});
+    d.touch();
   }
 }
 

@@ -1,6 +1,6 @@
 {
-  "versionCode": 4,
-  "versionName": "1.3.0",
+  "versionCode": 5,
+  "versionName": "1.4.0",
   "apk": "https://starmis2-lgtm.github.io/operation-bulletin/app/operation-bulletin.apk",
-  "notes": "Faster entry, in-app update check, draft autosave, offline mode."
+  "notes": "Compact home list, bulletin type dropdown, ops/pc, photo and video on every row."
 }
