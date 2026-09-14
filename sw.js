@@ -1,5 +1,5 @@
 // ===== GITHUB REPO  ·  file name: sw.js =====
-const CACHE = 'checklist-v25';
+const CACHE = 'checklist-v26';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
@@ -42,6 +42,7 @@ self.addEventListener('fetch', function (e) {
   if (e.request.url.indexOf('script.google.com') !== -1) return;
   // Other apps hosted under this origin (e.g. /SG-Data-Manage/) have their own service worker — leave them alone.
   if (new URL(e.request.url).pathname.indexOf('/SG-Data-Manage/') === 0) return;
+  if (new URL(e.request.url).pathname.indexOf('/operation-bulletin/') === 0) return;
   if (isShell(e.request)) {
     e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(function (hit) {
       const net = fromNetwork(e.request).catch(function () {

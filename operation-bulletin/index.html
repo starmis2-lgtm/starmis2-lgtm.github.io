@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Operation Bulletin</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Op Bulletin">
+  <script src="config.js"></script>
+  <style>
+    html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f766e; color: #fff; }
+    .wrap { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; text-align: center; }
+    .logo { width: 96px; height: 96px; border-radius: 22px; margin-bottom: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    h1 { font-size: 22px; margin: 0 0 6px; }
+    p { margin: 0 0 22px; opacity: .85; font-size: 14px; }
+    a.btn { display: inline-block; background: #fff; color: #0f766e; font-weight: 700; padding: 12px 26px; border-radius: 10px; text-decoration: none; font-size: 15px; }
+    .hint { margin-top: 26px; font-size: 12px; opacity: .7; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <img class="logo" src="icons/icon-192.png" alt="">
+    <h1>Operation Bulletin</h1>
+    <p id="msg">Opening the app...</p>
+    <a class="btn" id="openBtn" href="#">Open Operation Bulletin</a>
+    <div class="hint" id="hint"></div>
+  </div>
+  <script>
+    (function () {
+      var url = window.OB_APP_URL;
+      var btn = document.getElementById('openBtn');
+      btn.href = url;
+      if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(function () {}); }
+      var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      var fromPwa = location.search.indexOf('source=pwa') > -1;
+      if (!navigator.onLine) {
+        document.getElementById('msg').textContent = 'You are offline. Connect to the internet and tap the button.';
+        return;
+      }
+      if (standalone || fromPwa) {
+        // Installed app: go straight to the web app (login is on Google, so it opens as a full page).
+        setTimeout(function () { window.location.replace(url); }, 250);
+      } else {
+        document.getElementById('msg').textContent = 'Install this page as an app: Chrome menu (⋮) → "Add to Home screen" / "Install app".';
+        document.getElementById('hint').textContent = 'After installing, open it from your home screen.';
+      }
+    })();
+  </script>
+</body>
+</html>
