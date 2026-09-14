@@ -91,7 +91,7 @@ class _ProdCard extends StatelessWidget {
             Expanded(child: Align(alignment: Alignment.centerLeft, child: StatusPill(r.delay, waiting: r.waiting))),
             FilledButton.tonalIcon(
               onPressed: () {
-                st.entry.start(r.srn, r.category, 'Production', st.data);
+                st.entry.start(r.srn, r.category, 'Production', st.data, role: 'All');
                 st.goToTab(Tabs.entry);
               },
               icon: const Icon(Icons.add_rounded, size: 18),

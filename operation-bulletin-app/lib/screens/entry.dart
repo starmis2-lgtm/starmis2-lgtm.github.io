@@ -54,8 +54,20 @@ class _EntryScreenState extends State<EntryScreen> {
                 children: [
                   _SetupCard(e: e, p: p),
                   const SizedBox(height: 14),
+                  if (e.srn.isNotEmpty && !e.roleChosen)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+                        child: Column(children: [
+                          Icon(Icons.category_outlined, color: cs.primary, size: 30),
+                          const SizedBox(height: 6),
+                          Text('Select the bulletin type above (Stitching, Pasting, Helper…) to enter its operations.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+                        ]),
+                      ),
+                    )
+                  else ...[
                   SectionLabel(
-                    'Operations · ${e.ops.length}',
+                    e.role == 'All' || e.role.isEmpty ? 'Operations · ${e.ops.length}' : '${roleLabel(e.role)} · ${e.visibleOps.length} ops  (total ${e.ops.length})',
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                       if (!e.locked && !e.editing)
                         TextButton.icon(onPressed: () => _copyFrom(context, st), icon: const Icon(Icons.copy_all_rounded, size: 18), label: const Text('Copy from SRN'), style: TextButton.styleFrom(visualDensity: VisualDensity.compact)),
@@ -73,22 +85,23 @@ class _EntryScreenState extends State<EntryScreen> {
                         ),
                     ]),
                   ),
-                  if (e.ops.isEmpty)
+                  if (e.visibleOps.isEmpty)
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
                         child: Column(children: [
                           Icon(Icons.playlist_add_rounded, color: cs.outline, size: 30),
                           const SizedBox(height: 6),
-                          Text(e.locked ? (e.srn.isEmpty ? 'Select an SRN to load its R&D operations.' : 'No R&D bulletin found for this SRN.') : 'No operations yet. Add from the list below or copy from a similar SRN.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+                          Text(e.locked ? (e.srn.isEmpty ? 'Select an SRN to load its R&D operations.' : (e.ops.isEmpty ? 'No R&D bulletin found for this SRN.' : 'No ${roleLabel(e.role)} operations in this bulletin.')) : 'No ${e.role == 'All' ? '' : '${roleLabel(e.role)} '}operations yet. Type a name below to add, or copy from a similar SRN.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
                         ]),
                       ),
                     ),
-                  for (var i = 0; i < e.ops.length; i++) ...[
-                    _OpRow(key: e.ops[i].key, index: i, op: e.ops[i], draft: e, payload: p),
+                  for (var i = 0; i < e.visibleOps.length; i++) ...[
+                    _OpRow(key: e.visibleOps[i].key, index: i, op: e.visibleOps[i], draft: e, payload: p),
                     const SizedBox(height: 8),
                   ],
                   if (!e.locked) ...[const SizedBox(height: 6), _QuickAdd(search: _search, st: st)],
+                  ],
                 ],
               ),
             ),
@@ -136,9 +149,11 @@ class _EntryScreenState extends State<EntryScreen> {
     } else {
       final bad = e.firstInvalid();
       if (bad >= 0) {
-        e.ops[bad].expanded = true;
+        final o = e.ops[bad];
+        o.expanded = true;
+        e.role = (o.manpower.isNotEmpty && e.role != 'All') ? o.manpower : 'All';
         e.touch();
-        toast(context, 'Operation ${bad + 1} needs a name, manpower and time greater than 0.', error: true);
+        toast(context, '"${o.name.isEmpty ? 'Operation ${bad + 1}' : o.name}" needs a name, type and time greater than 0.', error: true);
         return;
       }
     }
@@ -167,6 +182,13 @@ class _SetupCard extends StatelessWidget {
   const _SetupCard({required this.e, required this.p});
   final EntryDraft e;
   final Payload p;
+
+  /// Roles offered as bulletin types: all manpower types from Validation plus any extra role already in the draft.
+  static List<String> _roles(Payload p, EntryDraft e) {
+    final set = <String>{...p.manpowerTypes.map((x) => x.name), ...e.ops.map((o) => o.manpower).where((x) => x.isNotEmpty)};
+    final list = set.toList()..sort((a, b) => roleRank(a) != roleRank(b) ? roleRank(a).compareTo(roleRank(b)) : a.compareTo(b));
+    return list;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -249,6 +271,33 @@ class _SetupCard extends StatelessWidget {
               ]),
             ),
           ),
+          if (e.srn.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('BULLETIN TYPE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: cs.onSurfaceVariant)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6, runSpacing: 6,
+              children: [
+                for (final r in _roles(p, e))
+                  ChoiceChip(
+                    label: Text(e.countFor(r) > 0 ? '${roleLabel(r)}  ${e.countFor(r)}' : roleLabel(r)),
+                    selected: e.role == r,
+                    onSelected: (_) => e.setRole(r),
+                    showCheckmark: false,
+                    selectedColor: cs.primary,
+                    labelStyle: TextStyle(fontWeight: FontWeight.w700, color: e.role == r ? cs.onPrimary : cs.onSurface),
+                  ),
+                ChoiceChip(
+                  label: Text(e.ops.isNotEmpty ? 'All  ${e.ops.length}' : 'All'),
+                  selected: e.role == 'All',
+                  onSelected: (_) => e.setRole('All'),
+                  showCheckmark: false,
+                  selectedColor: cs.secondary,
+                  labelStyle: TextStyle(fontWeight: FontWeight.w700, color: e.role == 'All' ? cs.onSecondary : cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           Row(children: [
             ActionChip(
@@ -517,8 +566,10 @@ class _QuickAddState extends State<_QuickAdd> {
 
   void _addNew(String q) {
     if (q.isEmpty) return;
-    final g = widget.st.guess(q, widget.st.entry.category);
-    widget.st.entry.add(name: q, manpower: g.$1, machine: g.$2, op1pc: '1', expanded: false);
+    final e = widget.st.entry;
+    final g = widget.st.guess(q, e.category);
+    final mp = (e.role.isEmpty || e.role == 'All') ? g.$1 : e.role;
+    widget.st.entry.add(name: q, manpower: mp, machine: mp.toLowerCase() == 'operator' ? g.$2 : '', op1pc: '1', expanded: false);
     widget.search.clear();
     setState(() {});
   }
@@ -535,10 +586,13 @@ class _QuickAddState extends State<_QuickAdd> {
     final e = st.entry;
     final cs = Theme.of(context).colorScheme;
     final q = widget.search.text.trim();
-    final lib = st.library(e.category);
+    final roleSel = e.role == 'All' ? '' : e.role;
+    final libAll = st.library(e.category);
+    final libRole = roleSel.isEmpty ? libAll : libAll.where((x) => x.manpower.toLowerCase() == roleSel.toLowerCase()).toList();
+    final lib = libRole.isEmpty ? libAll : libRole;
     final have = e.haveKeys;
     final terms = q.toLowerCase().split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-    final hits = q.isEmpty ? lib.where((x) => !have.contains(x.key)).take(14).toList() : lib.where((x) => terms.every(x.key.contains)).take(8).toList();
+    final hits = q.isEmpty ? <LibOp>[] : lib.where((x) => terms.every(x.key.contains)).take(8).toList();
     final exact = lib.any((x) => x.key == q.toLowerCase().replaceAll(RegExp(r'\s+'), ' '));
 
     return Card(
@@ -562,7 +616,7 @@ class _QuickAddState extends State<_QuickAdd> {
                   _focus.requestFocus();
                 },
                 decoration: InputDecoration(
-                  hintText: 'Type operation name to add…', prefixIcon: const Icon(Icons.search_rounded), fillColor: cs.surface,
+                  hintText: roleSel.isEmpty ? 'Type operation name to add…' : 'Add ${roleLabel(roleSel)} operation…', prefixIcon: const Icon(Icons.add_rounded), fillColor: cs.surface,
                   suffixIcon: q.isEmpty ? null : IconButton(icon: const Icon(Icons.close_rounded, size: 18), onPressed: () => setState(() => widget.search.clear())),
                 ),
               ),
@@ -580,18 +634,9 @@ class _QuickAddState extends State<_QuickAdd> {
               child: const Icon(Icons.add_rounded),
             ),
           ]),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           if (q.isEmpty) ...[
-            if (lib.isEmpty)
-              Text('No history yet for ${e.category}. Type a name above and tap +.', style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant))
-            else ...[
-              Text('COMMON OPERATIONS · TAP TO ADD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: cs.onSurfaceVariant)),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6, runSpacing: 6,
-                children: hits.map((x) => ActionChip(label: Text(x.name), onPressed: () => _addLib(x), backgroundColor: cs.surface, side: BorderSide(color: cs.primary.withValues(alpha: 0.35)), labelStyle: TextStyle(color: cs.primary, fontWeight: FontWeight.w600))).toList(),
-              ),
-            ],
+            Text(roleSel.isEmpty ? 'Type the operation name, then enter its time in the row.' : 'Type a ${roleLabel(roleSel)} operation name, press Enter or tap +, then enter its time. Manpower is set to $roleSel automatically.', style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant)),
           ] else ...[
             for (final x in hits)
               _SugRow(
@@ -602,7 +647,8 @@ class _QuickAddState extends State<_QuickAdd> {
             if (!exact)
               Builder(builder: (_) {
                 final g = st.guess(q, e.category);
-                return _SugRow(title: 'Add “$q” as new operation', sub: '${g.$1.isEmpty ? 'manpower?' : g.$1}${g.$2.isNotEmpty ? ' · ${g.$2}' : ''} · you enter the time', highlight: true, onTap: () => _addNew(q));
+                final mp = roleSel.isEmpty ? g.$1 : roleSel;
+                return _SugRow(title: 'Add “$q” as new operation', sub: '${mp.isEmpty ? 'manpower?' : mp}${g.$2.isNotEmpty && mp.toLowerCase() == 'operator' ? ' · ${g.$2}' : ''} · you enter the time', highlight: true, onTap: () => _addNew(q));
               }),
           ],
         ]),
@@ -659,13 +705,18 @@ class _BottomBar extends StatelessWidget {
     final e = st.entry;
     final p = st.data!;
     final cs = Theme.of(context).colorScheme;
-    var ops = 0;
-    num time = 0, cost = 0;
+    var ops = 0, rOps = 0;
+    num time = 0, cost = 0, rTime = 0;
+    final roleSel = e.role == 'All' ? '' : e.role;
     for (final o in e.ops) {
       if (o.timeNum <= 0) continue;
       ops++;
       time += o.timeNum;
       cost += o.cost(p);
+      if (roleSel.isNotEmpty && o.manpower == roleSel) {
+        rOps++;
+        rTime += o.timeNum;
+      }
     }
     final label = e.editing ? 'Save changes' : (e.mode == EntryMode.editRnd ? 'Update' : 'Submit');
     return Material(
@@ -677,8 +728,8 @@ class _BottomBar extends StatelessWidget {
           child: Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Text('$ops ops · ${(time / 60).toStringAsFixed(2)} min', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
-                Text('₹${cost.toStringAsFixed(2)} / pc', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF047857))),
+                if (roleSel.isNotEmpty) Text('${roleLabel(roleSel)}: $rOps ops · ${(rTime / 60).toStringAsFixed(2)} min', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: cs.primary)),
+                Text('Total $ops ops · ${(time / 60).toStringAsFixed(2)} min · ₹${cost.toStringAsFixed(2)}/pc', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5, color: roleSel.isNotEmpty ? cs.onSurfaceVariant : cs.onSurface)),
               ]),
             ),
             if (e.editing) ...[

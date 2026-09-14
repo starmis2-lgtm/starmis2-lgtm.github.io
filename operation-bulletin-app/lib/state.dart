@@ -300,6 +300,8 @@ class EntryDraft extends ChangeNotifier {
   String category = 'Making';
   String type = 'R&D';
   String srn = '';
+  /// Selected bulletin type = manpower role ('' = none yet, 'All' = show everything).
+  String role = '';
   DateTime date = DateTime.now();
   EntryMode mode = EntryMode.fresh;
   String pendingId = '';
@@ -307,6 +309,14 @@ class EntryDraft extends ChangeNotifier {
   final List<OpDraft> ops = [];
 
   bool get isProd => type == 'Production';
+  bool get roleChosen => role.isNotEmpty;
+  List<OpDraft> get visibleOps => role == 'All' || role.isEmpty ? ops : ops.where((o) => o.manpower == role).toList();
+  int countFor(String r) => ops.where((o) => o.manpower == r).length;
+
+  void setRole(String r) {
+    role = r;
+    notifyListeners();
+  }
   bool get locked => mode == EntryMode.prod || (mode == EntryMode.editPending && isProd);
   bool get editing => mode == EntryMode.editPending;
 
@@ -314,6 +324,7 @@ class EntryDraft extends ChangeNotifier {
     category = 'Making';
     type = 'R&D';
     srn = '';
+    role = '';
     date = DateTime.now();
     pendingId = '';
     _reload(p);
@@ -334,6 +345,7 @@ class EntryDraft extends ChangeNotifier {
   void setSrn(String v, Payload? p) {
     if (editing) return;
     srn = v;
+    role = '';
     _reload(p);
   }
 
@@ -343,11 +355,12 @@ class EntryDraft extends ChangeNotifier {
   }
 
   /// Start a bulletin for [srn] (from Home / Production tabs).
-  void start(String srnV, String cat, String typ, Payload? p) {
+  void start(String srnV, String cat, String typ, Payload? p, {String role = ''}) {
     pendingId = '';
     category = cat == 'Packing' ? 'Packing' : 'Making';
     type = typ == 'Production' ? 'Production' : 'R&D';
     srn = srnV;
+    this.role = role;
     date = DateTime.now();
     _reload(p);
   }
@@ -394,6 +407,7 @@ class EntryDraft extends ChangeNotifier {
     category = a.category == 'Packing' ? 'Packing' : 'Making';
     type = a.type == 'Production' ? 'Production' : 'R&D';
     srn = a.srn;
+    role = 'All';
     date = DateTime.tryParse(a.date) ?? DateTime.now();
     mode = EntryMode.editPending;
     pendingId = a.id;
@@ -412,7 +426,8 @@ class EntryDraft extends ChangeNotifier {
   static String _fmt(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
   OpDraft add({String name = '', String manpower = '', String machine = '', String op1pc = '', String time = '', bool suggested = false, bool expanded = false}) {
-    final d = OpDraft(name: name, manpower: manpower, machine: machine, op1pc: op1pc, time: time, suggested: suggested, expanded: expanded);
+    final mp = (role.isNotEmpty && role != 'All') ? role : manpower;
+    final d = OpDraft(name: name, manpower: mp, machine: machine, op1pc: op1pc, time: time, suggested: suggested, expanded: expanded);
     ops.add(d);
     notifyListeners();
     return d;

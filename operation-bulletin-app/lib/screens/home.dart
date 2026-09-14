@@ -156,7 +156,8 @@ class _PendingCard extends StatelessWidget {
               ),
               FilledButton.icon(
                 onPressed: () {
-                  st.entry.start(item.srn, t.category, t.type, st.data);
+                  final preset = t.key == 'mkRnd' && item.missingRoles.length == 1 ? item.missingRoles.first : (t.type == 'Production' ? 'All' : '');
+                  st.entry.start(item.srn, t.category, t.type, st.data, role: preset);
                   st.goToTab(Tabs.entry);
                 },
                 icon: const Icon(Icons.add_rounded, size: 18),

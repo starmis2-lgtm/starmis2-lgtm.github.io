@@ -239,5 +239,23 @@ class LibOp {
   final num time;
 }
 
+/// Friendly label for a manpower role used as "bulletin type".
+String roleLabel(String role) {
+  final r = role.trim().toLowerCase();
+  if (r == 'operator') return 'Stitching';
+  if (r == 'paster') return 'Pasting';
+  if (r == 'thread cutter' || r == 'thread cutting') return 'Thread Cutting';
+  if (r == 'endline qc' || r == 'end line checker') return 'Endline QC';
+  if (r.contains('niddle') || r.contains('needle')) return 'Hand Needle';
+  return role;
+}
+
+const roleOrder = ['Operator', 'Paster', 'Helper', 'Hand Niddle Operator', 'Thread cutter', 'Endline QC'];
+
+int roleRank(String role) {
+  final i = roleOrder.indexWhere((x) => x.toLowerCase() == role.toLowerCase());
+  return i < 0 ? 999 : i;
+}
+
 const taskLabels = {'mkRnd': 'Making R&D', 'pkRnd': 'Packing R&D', 'mkProd': 'Making Production', 'pkProd': 'Packing Production'};
 const coreMakingRoles = ['Operator', 'Helper', 'Paster', 'Thread cutter', 'Endline QC'];
