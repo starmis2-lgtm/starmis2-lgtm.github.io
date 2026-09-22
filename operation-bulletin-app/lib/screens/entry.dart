@@ -149,10 +149,11 @@ class _EntryScreenState extends State<EntryScreen> {
     try {
       final String msg;
       final wasEditing = e.editing;
+      final label = '${e.category} ${e.type}${e.role.isNotEmpty && e.role != 'All' ? ' · ${roleLabel(e.role)}' : ''}';
       if (wasEditing) {
-        msg = await st.updatePending(e.pendingId, ops);
+        msg = await st.updatePending(e.pendingId, ops, srn: e.srn, label: label);
       } else {
-        msg = await st.submitBulletin(e.payload(p));
+        msg = await st.submitBulletin(e.payload(p), srn: e.srn, label: label);
       }
       if (!context.mounted) return;
       toast(context, msg);
@@ -366,7 +367,7 @@ class _OpRowState extends State<_OpRow> {
       final url = await st.uploadImage(bytes, 'image/jpeg', x.name, d.srn, op.name);
       op.img = url;
       d.touch();
-      if (context.mounted) toast(context, 'Image uploaded.');
+      if (context.mounted) toast(context, url.startsWith('local:') ? 'Photo saved on phone, uploads with the bulletin.' : 'Photo uploaded.');
     } catch (e) {
       if (context.mounted) toast(context, 'Image upload failed: $e', error: true);
     } finally {

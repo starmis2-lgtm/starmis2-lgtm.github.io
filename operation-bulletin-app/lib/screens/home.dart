@@ -20,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final st = context.watch<AppState>();
     final p = st.data!;
+    final cs = Theme.of(context).colorScheme;
     final all = p.pending;
     final counts = <String, int>{'all': all.length, 'delayed': 0, 'today': 0, 'upcoming': 0, 'nodue': 0};
     for (final it in all) {
@@ -47,29 +48,36 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SearchField(hint: 'Search SRN or style', onChanged: (v) => setState(() => q = v)),
+                Row(children: [
+                  _Stat(label: 'Delayed', value: counts['delayed'] ?? 0, color: const Color(0xFFB91C1C), on: filter == 'delayed', onTap: () => setState(() => filter = filter == 'delayed' ? 'all' : 'delayed')),
+                  const SizedBox(width: 8),
+                  _Stat(label: 'Due today', value: counts['today'] ?? 0, color: const Color(0xFFB45309), on: filter == 'today', onTap: () => setState(() => filter = filter == 'today' ? 'all' : 'today')),
+                  const SizedBox(width: 8),
+                  _Stat(label: 'Upcoming', value: counts['upcoming'] ?? 0, color: const Color(0xFF047857), on: filter == 'upcoming', onTap: () => setState(() => filter = filter == 'upcoming' ? 'all' : 'upcoming')),
+                ]),
                 const SizedBox(height: 10),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: defs.where((d) => d.$1 == 'all' || (counts[d.$1] ?? 0) > 0).map((d) {
-                      final on = filter == d.$1;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text('${d.$2}  ${counts[d.$1]}'),
-                          selected: on,
-                          onSelected: (_) => setState(() => filter = d.$1),
-                          selectedColor: d.$3,
-                          labelStyle: TextStyle(color: on ? Colors.white : d.$3, fontWeight: FontWeight.w700),
-                          side: BorderSide(color: d.$3.withValues(alpha: on ? 1 : 0.35)),
-                          backgroundColor: d.$3.withValues(alpha: 0.08),
-                          showCheckmark: false,
-                        ),
-                      );
-                    }).toList(),
+                SearchField(hint: 'Search SRN or style', onChanged: (v) => setState(() => q = v)),
+                if (st.outbox.items.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => st.goToTab(Tabs.myPending),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(color: cs.primaryContainer.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(10)),
+                      child: Row(children: [
+                        Icon(st.offline ? Icons.cloud_off_rounded : Icons.cloud_sync_rounded, size: 16, color: cs.primary),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(st.offline ? '${st.outbox.items.length} bulletin(s) saved on phone · waiting for internet' : '${st.outbox.items.length} bulletin(s) syncing…', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onPrimaryContainer))),
+                        Icon(Icons.chevron_right_rounded, size: 18, color: cs.primary),
+                      ]),
+                    ),
                   ),
-                ),
+                ],
+                if (filter != 'all') ...[
+                  const SizedBox(height: 6),
+                  Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: () => setState(() => filter = 'all'), icon: const Icon(Icons.close_rounded, size: 16), label: Text('Showing ${defs.firstWhere((d) => d.$1 == filter).$2} · show all'), style: TextButton.styleFrom(visualDensity: VisualDensity.compact))),
+                ],
               ]),
             ),
           ),
@@ -94,6 +102,37 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
         ]),
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value, required this.color, required this.on, required this.onTap});
+  final String label;
+  final int value;
+  final Color color;
+  final bool on;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+          decoration: BoxDecoration(
+            color: on ? color : cs.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: on ? color : cs.outlineVariant.withValues(alpha: 0.6)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('$value', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: on ? Colors.white : color, height: 1.1)),
+            Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: on ? Colors.white.withValues(alpha: 0.9) : cs.onSurfaceVariant)),
+          ]),
+        ),
       ),
     );
   }

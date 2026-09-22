@@ -18,14 +18,16 @@ class MyPendingScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('My Pending'), actions: const [UserMenu()]),
       body: RefreshIndicator(
         onRefresh: () => st.load(silent: true),
-        child: list.isEmpty
-            ? ListView(children: const [SizedBox(height: 120), EmptyState(icon: Icons.task_alt_rounded, title: 'No pending submissions', subtitle: 'Submitted bulletins wait here until approved.', color: Color(0xFF047857))])
-            : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
-                itemCount: list.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, i) => _MyCard(a: list[i]),
-              ),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+          children: [
+            const OutboxList(),
+            if (list.isEmpty && st.outbox.items.isEmpty)
+              const Padding(padding: EdgeInsets.only(top: 90), child: EmptyState(icon: Icons.task_alt_rounded, title: 'No pending submissions', subtitle: 'Submitted bulletins wait here until approved.', color: Color(0xFF047857)))
+            else
+              for (final a in list) ...[_MyCard(a: a), const SizedBox(height: 8)],
+          ],
+        ),
       ),
     );
   }

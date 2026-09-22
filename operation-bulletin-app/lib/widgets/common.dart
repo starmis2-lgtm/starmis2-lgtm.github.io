@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -46,6 +48,15 @@ class SrnThumb extends StatelessWidget {
     final box = BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(radius), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)));
     if (link.trim().isEmpty) {
       return Container(width: size, height: size, decoration: box, child: Icon(Icons.image_outlined, color: cs.outline, size: size * 0.42));
+    }
+    if (link.startsWith('local:')) {
+      return Container(
+        width: size, height: size, decoration: box, clipBehavior: Clip.antiAlias,
+        child: Stack(fit: StackFit.expand, children: [
+          Image.file(File(link.substring(6)), fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.broken_image_outlined, color: cs.outline, size: size * 0.4)),
+          Positioned(right: 2, bottom: 2, child: Icon(Icons.cloud_upload_outlined, size: size * 0.3, color: Colors.white, shadows: const [Shadow(blurRadius: 4, color: Colors.black54)])),
+        ]),
+      );
     }
     return GestureDetector(
       onTap: () => openLink(viewUrl(link)),
@@ -385,6 +396,67 @@ Future<void> showNotRequired(BuildContext context, String srn) async {
       );
     }),
   );
+}
+
+/// Queued offline writes, shown on My Pending (and a summary line on Home).
+class OutboxList extends StatelessWidget {
+  const OutboxList({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final st = context.watch<AppState>();
+    final ob = st.outbox;
+    if (ob.items.isEmpty) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(4, 2, 4, 6),
+        child: Row(children: [
+          Icon(st.offline ? Icons.cloud_off_rounded : Icons.cloud_sync_rounded, size: 16, color: st.offline ? cs.error : cs.primary),
+          const SizedBox(width: 6),
+          Expanded(child: Text(st.offline ? 'Waiting for internet · ${ob.items.length} to sync' : (ob.processing ? 'Syncing…' : '${ob.items.length} waiting to sync'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant))),
+          if (!st.offline && !ob.processing) TextButton(onPressed: () => st.syncOutbox(), style: TextButton.styleFrom(visualDensity: VisualDensity.compact), child: const Text('Sync now')),
+        ]),
+      ),
+      for (final it in ob.items) ...[
+        Card(
+          color: it.status == 'failed' ? cs.errorContainer.withValues(alpha: 0.35) : cs.surface,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+            child: Row(children: [
+              SizedBox(
+                width: 26,
+                child: it.status == 'syncing'
+                    ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+                    : Icon(it.status == 'failed' ? Icons.error_outline_rounded : Icons.schedule_rounded, size: 20, color: it.status == 'failed' ? cs.error : cs.outline),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${it.srn} · ${it.label}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  Text(
+                    it.status == 'failed' ? it.lastError : (it.status == 'syncing' ? 'Sending…' : 'Saved on phone · ${l(it.data['operations']).isNotEmpty ? l(it.data['operations']).length : l(it.data['ops']).length} ops'),
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: it.status == 'failed' ? cs.error : cs.onSurfaceVariant),
+                  ),
+                ]),
+              ),
+              if (it.status == 'failed') IconButton(tooltip: 'Retry', visualDensity: VisualDensity.compact, onPressed: () => ob.retry(it.id), icon: const Icon(Icons.refresh_rounded, size: 20)),
+              if (it.status != 'syncing')
+                IconButton(
+                  tooltip: 'Discard', visualDensity: VisualDensity.compact,
+                  onPressed: () async {
+                    if (await confirm(context, 'Discard', 'Delete this unsent bulletin from the phone?', yes: 'Delete', danger: true)) ob.remove(it.id);
+                  },
+                  icon: Icon(Icons.delete_outline_rounded, size: 20, color: cs.outline),
+                ),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 6),
+      ],
+      const SizedBox(height: 6),
+    ]);
+  }
 }
 
 class SectionLabel extends StatelessWidget {

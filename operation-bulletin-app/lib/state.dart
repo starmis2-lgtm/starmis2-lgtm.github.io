@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'models.dart';
+import 'outbox.dart';
 import 'update.dart';
 
 const kTokenKey = 'pb_auth_token';
@@ -76,8 +77,11 @@ class OpDraft {
 }
 
 class AppState extends ChangeNotifier {
-  AppState(this.api);
+  AppState(this.api) : outbox = Outbox(api) {
+    outbox.addListener(notifyListeners);
+  }
   final Api api;
+  final Outbox outbox;
 
   bool booted = false;
   bool needLogin = true;
@@ -92,7 +96,7 @@ class AppState extends ChangeNotifier {
   String appVersion = '';
   DateTime? lastSync;
 
-  bool get syncing => loading || pendingWrites > 0;
+  bool get syncing => loading || pendingWrites > 0 || outbox.processing;
 
   /// Bottom-nav index requested by another screen (e.g. Home → Entry).
   int? requestedTab;
@@ -121,14 +125,22 @@ class AppState extends ChangeNotifier {
       appVersion = v;
       notifyListeners();
     });
+    await outbox.load();
     Connectivity().onConnectivityChanged.listen((res) {
       final off = res.every((r) => r == ConnectivityResult.none);
       if (off != offline) {
         offline = off;
         notifyListeners();
-        if (!off && data == null && !needLogin) load(silent: true);
+        if (!off) {
+          if (data == null && !needLogin) load(silent: true);
+          syncOutbox();
+        }
       }
     });
+    try {
+      final res = await Connectivity().checkConnectivity();
+      offline = res.every((r) => r == ConnectivityResult.none);
+    } catch (_) {}
     AppUpdate.check().then((u) {
       if (u != null) {
         update = u;
@@ -154,6 +166,21 @@ class AppState extends ChangeNotifier {
     await _restoreDraft(prefs);
     booted = true;
     notifyListeners();
+    syncOutbox();
+  }
+
+  /// Sends queued offline writes; refreshes data if anything was sent.
+  Future<void> syncOutbox() async {
+    if (needLogin || api.token.isEmpty) return;
+    final sent = await outbox.process();
+    if (sent) refreshLater();
+  }
+
+  /// Called when the app comes back to the foreground.
+  void onResume() {
+    syncOutbox();
+    final last = lastSync;
+    if (last == null || DateTime.now().difference(last) > const Duration(minutes: 2)) load(silent: true);
   }
 
   Future<void> _restoreDraft(SharedPreferences prefs) async {
@@ -236,6 +263,7 @@ class AppState extends ChangeNotifier {
       await prefs.setString(kTokenKey, api.token);
       await load();
       if (needLogin) return 'Login failed. Please try again.';
+      syncOutbox();
       return null;
     } on ApiException catch (e) {
       return e.message;
@@ -277,9 +305,20 @@ class AppState extends ChangeNotifier {
   bool get showSettings => _tabAllowed('Settings');
 
   // ---------------- actions ----------------
-  Future<String> submitBulletin(Map<String, dynamic> payload) => _write(() => api.callMsg('submitBulletinData', [payload]));
+  /// Queues a bulletin submission; it is sent right away when online, otherwise when the connection returns.
+  Future<String> submitBulletin(Map<String, dynamic> payload, {required String srn, required String label}) async {
+    await outbox.add(kind: 'submit', data: payload, srn: srn, label: label);
+    if (offline) return 'Saved on phone. Will sync when internet is back.';
+    syncOutbox();
+    return 'Saved. Syncing to server…';
+  }
 
-  Future<String> updatePending(String id, List<Map<String, dynamic>> ops) => _write(() => api.callMsg('updatePendingSubmission', [id, jsonEncode(ops)]));
+  Future<String> updatePending(String id, List<Map<String, dynamic>> ops, {required String srn, required String label}) async {
+    await outbox.add(kind: 'updatePending', data: {'id': id, 'ops': ops}, srn: srn, label: label);
+    if (offline) return 'Saved on phone. Will sync when internet is back.';
+    syncOutbox();
+    return 'Saved. Syncing to server…';
+  }
 
   Future<String> setNotRequired(String srn, List<Map<String, String>> items) => _write(() => api.callMsg('setNotRequired', [srn, jsonEncode(items)]));
 
@@ -287,11 +326,25 @@ class AppState extends ChangeNotifier {
 
   Future<String> deleteUser(String email) => _write(() => api.callMsg('deleteAccessUser', [email]));
 
+  /// Uploads a photo; when offline (or the upload fails on the network) it is kept on the phone
+  /// and uploaded together with the bulletin later. Returns a Drive link or a `local:` path.
   Future<String> uploadImage(Uint8List bytes, String mime, String fileName, String srn, String opName) async {
-    final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
-    final j = await api.callJson('uploadOperationImage', [dataUrl, mime, fileName, srn, opName]);
-    if (j['error'] != null) throw ApiException(j['error'].toString());
-    return s(j['url']);
+    Future<String> keepLocal() async {
+      final dir = await outbox.imageDir();
+      final f = File('${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await f.writeAsBytes(bytes, flush: true);
+      return 'local:${f.path}';
+    }
+    if (offline) return keepLocal();
+    try {
+      final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
+      final j = await api.callJson('uploadOperationImage', [dataUrl, mime, fileName, srn, opName]);
+      if (j['error'] != null) throw ApiException(j['error'].toString());
+      return s(j['url']);
+    } on ApiException catch (e) {
+      if (e.message.startsWith('Network error') || e.message.startsWith('Server took too long')) return keepLocal();
+      rethrow;
+    }
   }
 
   // ---------------- operation library ----------------

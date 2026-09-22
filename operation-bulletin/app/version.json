@@ -1,6 +1,6 @@
 {
-  "versionCode": 5,
-  "versionName": "1.4.0",
+  "versionCode": 6,
+  "versionName": "1.5.0",
   "apk": "https://starmis2-lgtm.github.io/operation-bulletin/app/operation-bulletin.apk",
-  "notes": "Compact home list, bulletin type dropdown, ops/pc, photo and video on every row."
+  "notes": "Offline mode: bulletins and photos are saved on the phone and sync automatically when internet returns. New home summary tiles."
 }

@@ -133,8 +133,39 @@ class Shell extends StatefulWidget {
   State<Shell> createState() => _ShellState();
 }
 
-class _ShellState extends State<Shell> {
+class _ShellState extends State<Shell> with WidgetsBindingObserver {
   int _index = 0;
+  AppState? _st;
+  VoidCallback? _msgListener;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final st = context.read<AppState>();
+      _st = st;
+      _msgListener = () {
+        final m = st.outbox.message.value;
+        if (m == null || !mounted) return;
+        st.outbox.message.value = null;
+        toast(context, m, error: m.contains('Error') || m.contains('not') && m.contains('found'));
+      };
+      st.outbox.message.addListener(_msgListener!);
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (_msgListener != null) _st?.outbox.message.removeListener(_msgListener!);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _st?.onResume();
+  }
 
   void _maybeShowUpdate(AppState st) {
     final u = st.update;
