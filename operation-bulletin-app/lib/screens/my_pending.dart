@@ -22,8 +22,8 @@ class MyPendingScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
           children: [
             const OutboxList(),
-            for (final r in p.myRejected.where((x) => !st.dismissedRejected.contains(x.id))) ...[_RejectedCard(r: r), const SizedBox(height: 8)],
-            if (list.isEmpty && st.outbox.items.isEmpty && p.myRejected.where((x) => !st.dismissedRejected.contains(x.id)).isEmpty)
+            for (final r in st.visibleRejected) ...[_RejectedCard(r: r), const SizedBox(height: 8)],
+            if (list.isEmpty && st.outbox.items.isEmpty && st.visibleRejected.isEmpty)
               const Padding(padding: EdgeInsets.only(top: 90), child: EmptyState(icon: Icons.task_alt_rounded, title: 'No pending submissions', subtitle: 'Submitted bulletins wait here until approved.', color: Color(0xFF047857)))
             else
               for (final a in list) ...[_MyCard(a: a), const SizedBox(height: 8)],

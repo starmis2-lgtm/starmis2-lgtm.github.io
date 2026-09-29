@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,6 +15,7 @@ import 'update.dart';
 
 const kTokenKey = 'pb_auth_token';
 const kDraftKey = 'pb_entry_draft';
+const kRejSeenKey = 'pb_rej_seen';
 
 enum EntryMode { fresh, editRnd, prod, editPending }
 
@@ -155,6 +157,7 @@ class AppState extends ChangeNotifier {
           final j = await _parse(await f.readAsString());
           if (j['needLogin'] != true && j['error'] == null) {
             data = Payload.fromJson(j);
+            rejected = List<Rejected>.from(data!.myRejected);
             needLogin = false;
             booted = true;
             notifyListeners();
@@ -162,11 +165,13 @@ class AppState extends ChangeNotifier {
         }
       } catch (_) {}
     }
+    seenRejected.addAll(prefs.getStringList(kRejSeenKey) ?? const []);
     await load(silent: true);
     await _restoreDraft(prefs);
     booted = true;
     notifyListeners();
     syncOutbox();
+    startRejectedPolling();
   }
 
   /// Sends queued offline writes; refreshes data if anything was sent.
@@ -179,6 +184,8 @@ class AppState extends ChangeNotifier {
   /// Called when the app comes back to the foreground.
   void onResume() {
     syncOutbox();
+    pollRejected();
+    startRejectedPolling();
     final last = lastSync;
     if (last == null || DateTime.now().difference(last) > const Duration(minutes: 2)) load(silent: true);
   }
@@ -223,6 +230,7 @@ class AppState extends ChangeNotifier {
       } else {
         if (j['error'] != null) throw ApiException(j['error'].toString());
         data = Payload.fromJson(j);
+        rejected = List<Rejected>.from(data!.myRejected);
         needLogin = false;
         _lib.clear();
         lastSync = DateTime.now();
@@ -325,6 +333,40 @@ class AppState extends ChangeNotifier {
   Future<String> saveUser(Map<String, dynamic> u) => _write(() => api.callMsg('saveAccessUser', [jsonEncode(u)]));
 
   final Set<String> dismissedRejected = {};
+  List<Rejected> rejected = [];
+  final Set<String> seenRejected = {};
+  Timer? _rejTimer;
+
+  List<Rejected> get visibleRejected => rejected.where((r) => !dismissedRejected.contains(r.id)).toList();
+  List<Rejected> get unseenRejected => visibleRejected.where((r) => !seenRejected.contains(r.id)).toList();
+
+  Future<void> markRejectedSeen() async {
+    seenRejected.addAll(rejected.map((r) => r.id));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(kRejSeenKey, seenRejected.toList());
+    } catch (_) {}
+  }
+
+  Future<void> pollRejected() async {
+    if (needLogin || offline || api.token.isEmpty) return;
+    try {
+      final j = await api.callJson('getMyRejectedLight', const []);
+      if (j['needLogin'] == true || j['error'] != null) return;
+      rejected = l(j['myRejected']).map((e) => Rejected.fromJson(m(e))).toList();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  void startRejectedPolling() {
+    _rejTimer?.cancel();
+    _rejTimer = Timer.periodic(const Duration(minutes: 2), (_) => pollRejected());
+  }
+
+  void stopRejectedPolling() {
+    _rejTimer?.cancel();
+    _rejTimer = null;
+  }
 
   Future<void> dismissRejected(String id) async {
     dismissedRejected.add(id);

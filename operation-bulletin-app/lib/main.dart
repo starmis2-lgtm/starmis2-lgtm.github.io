@@ -165,6 +165,43 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _st?.onResume();
+    if (state == AppLifecycleState.paused) _st?.stopRejectedPolling();
+  }
+
+  bool _rejDialogOpen = false;
+
+  void _maybeShowRejected(AppState st) {
+    final fresh = st.unseenRejected;
+    if (fresh.isEmpty || _rejDialogOpen) return;
+    _rejDialogOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.block_rounded, color: Color(0xFFBE123C)),
+          title: Text(fresh.length == 1 ? 'Bulletin rejected' : '${fresh.length} bulletins rejected'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              for (final r in fresh) ...[
+                Text('${r.srn} · ${r.category} ${r.type}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(r.reason, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFBE123C))),
+                Text('By ${r.rejectedBy} · ${r.rejectedAt}', style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                const SizedBox(height: 10),
+              ],
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Close')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Open My Pending')),
+          ],
+        ),
+      );
+      await st.markRejectedSeen();
+      _rejDialogOpen = false;
+      if (go == true && mounted) st.goToTab(Tabs.myPending);
+    });
   }
 
   void _maybeShowUpdate(AppState st) {
@@ -204,6 +241,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     final st = context.watch<AppState>();
     final dests = _dests(st);
     _maybeShowUpdate(st);
+    _maybeShowRejected(st);
     final req = st.requestedTab;
     if (req != null) {
       st.requestedTab = null;
@@ -235,7 +273,11 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: dests.map((d) => NavigationDestination(icon: Icon(d.icon), selectedIcon: Icon(d.selectedIcon), label: d.label)).toList(),
+        destinations: dests.map((d) {
+          final n = d.label == 'My Pending' ? st.visibleRejected.length : 0;
+          Widget ic(IconData i) => n > 0 ? Badge(label: Text('$n'), backgroundColor: const Color(0xFFE11D48), child: Icon(i)) : Icon(i);
+          return NavigationDestination(icon: ic(d.icon), selectedIcon: ic(d.selectedIcon), label: d.label);
+        }).toList(),
       ),
     );
   }

@@ -1,6 +1,6 @@
 {
-  "versionCode": 7,
-  "versionName": "1.6.0",
+  "versionCode": 8,
+  "versionName": "1.7.0",
   "apk": "https://starmis2-lgtm.github.io/operation-bulletin/app/operation-bulletin.apk",
-  "notes": "Rejected bulletins now show in My Pending with the reason."
+  "notes": "Rejected bulletins now pop up right away with the reason, and My Pending shows a red count."
 }
