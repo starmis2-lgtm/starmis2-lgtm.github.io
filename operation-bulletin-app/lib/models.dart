@@ -150,6 +150,15 @@ class MyPending {
   num get totalTime => operations.fold<num>(0, (a, o) => a + (n(o.time) > 0 ? n(o.time) : 0));
 }
 
+class Rejected {
+  Rejected({required this.id, required this.srn, this.styleName = '', this.category = '', this.type = '', this.reason = '', this.rejectedBy = '', this.rejectedAt = '', this.submittedAt = '', this.ops = 0});
+  final String id, srn, styleName, category, type, reason, rejectedBy, rejectedAt, submittedAt;
+  final int ops;
+  factory Rejected.fromJson(Map<String, dynamic> j) => Rejected(
+        id: s(j['id']), srn: s(j['srn']), styleName: s(j['styleName']), category: s(j['category']), type: s(j['type']),
+        reason: s(j['reason']), rejectedBy: s(j['rejectedBy']), rejectedAt: s(j['rejectedAt']), submittedAt: s(j['submittedAt']), ops: n(j['ops']).toInt());
+}
+
 class AccessUser {
   AccessUser({required this.email, this.name = '', this.designation = '', this.department = '', this.tabs = const [], this.pin = ''});
   final String email, name, designation, department, pin;
@@ -169,7 +178,7 @@ class Payload {
   Payload({
     required this.access, this.srns = const [], this.manpowerTypes = const [], this.machineTypes = const [],
     this.submitted = const [], this.packing = const [], this.pending = const [], this.prodPending = const [],
-    this.myPending = const [], this.notRequired = const [], this.accessUsers = const [], this.allTabs = const [],
+    this.myPending = const [], this.myRejected = const [], this.notRequired = const [], this.accessUsers = const [], this.allTabs = const [],
     this.approvalsCount = 0,
   });
   final Access access;
@@ -180,6 +189,7 @@ class Payload {
   final List<PendingItem> pending;
   final List<ProdPending> prodPending;
   final List<MyPending> myPending;
+  final List<Rejected> myRejected;
   final List<NotReq> notRequired;
   final List<AccessUser> accessUsers;
   final List<String> allTabs;
@@ -195,6 +205,7 @@ class Payload {
         pending: l(j['pending']).map((e) => PendingItem.fromJson(m(e))).toList(),
         prodPending: l(j['prodPending']).map((e) => ProdPending.fromJson(m(e))).toList(),
         myPending: l(j['myPending']).map((e) => MyPending.fromJson(m(e))).toList(),
+        myRejected: l(j['myRejected']).map((e) => Rejected.fromJson(m(e))).toList(),
         notRequired: l(j['notRequired']).map((e) => NotReq.fromJson(m(e))).toList(),
         accessUsers: l(j['accessUsers']).map((e) => AccessUser.fromJson(m(e))).toList(),
         allTabs: l(j['allTabs']).map(s).toList(),

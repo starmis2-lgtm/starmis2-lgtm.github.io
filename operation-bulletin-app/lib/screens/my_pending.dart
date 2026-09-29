@@ -22,12 +22,49 @@ class MyPendingScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
           children: [
             const OutboxList(),
-            if (list.isEmpty && st.outbox.items.isEmpty)
+            for (final r in p.myRejected.where((x) => !st.dismissedRejected.contains(x.id))) ...[_RejectedCard(r: r), const SizedBox(height: 8)],
+            if (list.isEmpty && st.outbox.items.isEmpty && p.myRejected.where((x) => !st.dismissedRejected.contains(x.id)).isEmpty)
               const Padding(padding: EdgeInsets.only(top: 90), child: EmptyState(icon: Icons.task_alt_rounded, title: 'No pending submissions', subtitle: 'Submitted bulletins wait here until approved.', color: Color(0xFF047857)))
             else
               for (final a in list) ...[_MyCard(a: a), const SizedBox(height: 8)],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RejectedCard extends StatelessWidget {
+  const _RejectedCard({required this.r});
+  final Rejected r;
+  @override
+  Widget build(BuildContext context) {
+    final st = context.read<AppState>();
+    const red = Color(0xFFBE123C);
+    return Card(
+      color: const Color(0xFFFFF1F2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Color(0xFFFECDD3))),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.block_rounded, color: red, size: 20)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Text(r.srn, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                const SizedBox(width: 6),
+                const Pill('REJECTED', color: red),
+              ]),
+              Text('${r.category} ${r.type}${r.styleName.isNotEmpty ? ' · ${r.styleName}' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+              const SizedBox(height: 4),
+              Text(r.reason, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: red)),
+              const SizedBox(height: 2),
+              Text('By ${r.rejectedBy} · ${r.rejectedAt}', style: const TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
+            ]),
+          ),
+          TextButton(onPressed: () => st.dismissRejected(r.id), child: const Text('OK')),
+        ]),
       ),
     );
   }

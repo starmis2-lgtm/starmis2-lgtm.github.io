@@ -324,6 +324,16 @@ class AppState extends ChangeNotifier {
 
   Future<String> saveUser(Map<String, dynamic> u) => _write(() => api.callMsg('saveAccessUser', [jsonEncode(u)]));
 
+  final Set<String> dismissedRejected = {};
+
+  Future<void> dismissRejected(String id) async {
+    dismissedRejected.add(id);
+    notifyListeners();
+    try {
+      await api.callMsg('dismissRejected', [id]);
+    } catch (_) {}
+  }
+
   Future<String> deleteUser(String email) => _write(() => api.callMsg('deleteAccessUser', [email]));
 
   /// Uploads a photo; when offline (or the upload fails on the network) it is kept on the phone
