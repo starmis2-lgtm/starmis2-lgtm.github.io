@@ -28,7 +28,7 @@ phone / web app  ──►  Cloudflare Worker (this folder)  ──►  Apps Scr
    - Deploy.
 3. Open the Worker URL (`https://starmis2-lgtm-github-io.<your-subdomain>.workers.dev/`). It should show
    `{"ok":true,"service":"operation-bulletin",...}`.
-4. Put that URL in `operation-bulletin/api.json` (`{"url": "https://..."}`) — the app reads it at start.
+4. Put that URL in `operation-bulletin/api.json` (`{"url": "https://..."}`) — the app reads it at start. Live: `https://starmis2-lgtm-github-io.star-mis2.workers.dev/`.
    Without it the app keeps calling Apps Script directly.
 
 Every push to `main` that changes this folder redeploys the Worker automatically.
