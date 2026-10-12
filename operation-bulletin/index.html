@@ -1,68 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <base href="/operation-bulletin/">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Operation Bulletin</title>
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="description" content="Star Global - Operation Bulletin">
   <meta name="theme-color" content="#0f766e">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Op Bulletin">
-  <script src="config.js"></script>
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>Operation Bulletin</title>
   <style>
-    html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f766e; color: #fff; }
-    .wrap { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; text-align: center; }
-    .logo { width: 96px; height: 96px; border-radius: 22px; margin-bottom: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
-    h1 { font-size: 22px; margin: 0 0 6px; }
-    p { margin: 0 0 22px; opacity: .85; font-size: 14px; }
-    a.btn { display: inline-block; background: #fff; color: #0f766e; font-weight: 700; padding: 12px 26px; border-radius: 10px; text-decoration: none; font-size: 15px; }
-    .hint { margin-top: 26px; font-size: 12px; opacity: .7; }
-    #appFrame { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: #0f766e; display: none; }
-    body.embedded .wrap { display: none; }
-    body.embedded #appFrame { display: block; }
-    #fallback { position: fixed; left: 12px; right: 12px; bottom: 12px; display: none; text-align: center; }
-    body.embedded.slow #fallback { display: block; }
+    html, body { margin: 0; height: 100%; background: #0f766e; }
+    #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+            color: #fff; font: 600 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    #boot img { width: 84px; height: 84px; border-radius: 22px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    #boot .bar { width: 120px; height: 4px; border-radius: 4px; background: rgba(255,255,255,.25); overflow: hidden; }
+    #boot .bar i { display: block; width: 40%; height: 100%; background: #fff; border-radius: 4px; animation: mv 1.1s ease-in-out infinite; }
+    @keyframes mv { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
   </style>
 </head>
 <body>
-  <iframe id="appFrame" title="Operation Bulletin" allow="camera; microphone; clipboard-write" referrerpolicy="no-referrer-when-downgrade"></iframe>
-  <div id="fallback"><a class="btn" id="fallbackBtn" href="#">Open in browser</a></div>
-  <div class="wrap">
-    <img class="logo" src="icons/icon-192.png" alt="">
-    <h1>Operation Bulletin</h1>
-    <p id="msg">Opening the app...</p>
-    <a class="btn" id="apkBtn" href="app/operation-bulletin.apk" style="display:block;margin-bottom:12px;">&#11015; Download Android App (APK)</a>
-    <a class="btn" id="openBtn" href="#" style="background:rgba(255,255,255,.14);color:#fff;">Open in browser instead</a>
-    <div class="hint" id="hint"></div>
-  </div>
+  <div id="boot"><img src="icons/icon-192.png" alt=""><div>Operation Bulletin</div><div class="bar"><i></i></div></div>
   <script>
-    (function () {
-      var url = window.OB_APP_URL;
-      var btn = document.getElementById('openBtn');
-      btn.href = url;
-      if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(function () {}); }
-      var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-      var fromPwa = location.search.indexOf('source=pwa') > -1;
-      if (!navigator.onLine) {
-        document.getElementById('msg').textContent = 'You are offline. Connect to the internet and tap the button.';
-        return;
-      }
-      if (standalone || fromPwa) {
-        // Installed app: embed the web app full-screen (no browser bar). PIN login happens inside.
-        var frame = document.getElementById('appFrame');
-        document.getElementById('fallbackBtn').href = url;
-        document.body.classList.add('embedded');
-        var slow = setTimeout(function () { document.body.classList.add('slow'); }, 15000);
-        frame.addEventListener('load', function () { clearTimeout(slow); document.body.classList.remove('slow'); });
-        frame.src = url;
-      } else {
-        document.getElementById('msg').textContent = 'Install the Android app for the best experience.';
-        document.getElementById('hint').textContent = 'After download, open the APK and allow "Install unknown apps" if asked. Login with your PIN.';
-      }
-    })();
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+    }
+    window.addEventListener('flutter-first-frame', function () { var b = document.getElementById('boot'); if (b) b.remove(); });
   </script>
+  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
