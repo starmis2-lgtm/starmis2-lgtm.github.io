@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -18,6 +19,7 @@ class AppUpdate {
 
   /// Returns the newer release, or null when up to date / offline.
   static Future<AppUpdate?> check() async {
+    if (kIsWeb) return null; // the web app is always the latest version
     try {
       final info = await PackageInfo.fromPlatform();
       final cur = int.tryParse(info.buildNumber) ?? 0;

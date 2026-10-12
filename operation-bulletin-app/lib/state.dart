@@ -410,6 +410,7 @@ class AppState extends ChangeNotifier {
   /// and uploaded together with the bulletin later. Returns a Drive link or a `local:` path.
   Future<String> uploadImage(Uint8List bytes, String mime, String fileName, String srn, String opName) async {
     Future<String> keepLocal() async {
+      if (kIsWeb) throw ApiException('No internet. Connect and add the photo again.');
       final dir = await outbox.imageDir();
       final f = File('${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg');
       await f.writeAsBytes(bytes, flush: true);
