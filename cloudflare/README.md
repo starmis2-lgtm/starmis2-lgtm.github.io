@@ -22,11 +22,11 @@ phone / web app  ──►  Cloudflare Worker (this folder)  ──►  Apps Scr
 
 1. **D1 database** `operation-bulletin` — already created; its id is in `wrangler.toml`.
 2. **Workers & Pages → Create → Import a repository** → GitHub → `starmis2-lgtm/starmis2-lgtm.github.io`.
-   - Project name: `operation-bulletin` (must match `name` in `wrangler.toml`)
+   - Project name: `starmis2-lgtm-github-io` (must match `name` in `wrangler.toml`)
    - Root directory: `cloudflare`
    - Build command: empty · Deploy command: `npx wrangler deploy` (default)
    - Deploy.
-3. Open the Worker URL (`https://operation-bulletin.<your-subdomain>.workers.dev/`). It should show
+3. Open the Worker URL (`https://starmis2-lgtm-github-io.<your-subdomain>.workers.dev/`). It should show
    `{"ok":true,"service":"operation-bulletin",...}`.
 4. Put that URL in `operation-bulletin/api.json` (`{"url": "https://..."}`) — the app reads it at start.
    Without it the app keeps calling Apps Script directly.
