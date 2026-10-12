@@ -223,6 +223,32 @@ class Payload {
   final List<MyPending> myPending;
   final List<Rejected> myRejected;
   final List<NotReq> notRequired;
+
+  /// Manpower name as written in the sheet for a key from [mpKeyOf].
+  String mpName(String key) {
+    for (final x in manpowerTypes) {
+      if (mpKeyOf(x.name) == key) return x.name;
+    }
+    return _mpDefaults[key] ?? key;
+  }
+
+  /// Manpower names allowed in an operation type.
+  List<String> sectionManpower(String category, String sec) {
+    final x = sectionByKey(category, sec);
+    return x == null ? <String>[] : x.mpKeys.map(mpName).toList();
+  }
+
+  /// The NOT REQUIRED sheet row of an operation type, if it is marked.
+  NotReq? typeNotRequired(String srn, String category, String sec) {
+    final task = category == 'Packing' ? 'pkRnd' : 'mkRnd';
+    final x = sectionByKey(category, sec);
+    if (x == null) return null;
+    final role = mpKeyOf(mpName(x.mpKeys.first));
+    for (final n in notRequired) {
+      if (n.srn == srn && n.task == task && n.role.isNotEmpty && mpKeyOf(n.role) == role) return n;
+    }
+    return null;
+  }
   final List<AccessUser> accessUsers;
   final List<String> allTabs;
   final int approvalsCount;
@@ -304,6 +330,81 @@ bool mpAllowed(String name, String category) {
   if (category == 'Packing') return k == 'finalqc' || k == 'pressman' || k == 'helper';
   return k != 'finalqc' && k != 'pressman';
 }
+
+/// Manpower name reduced to a fixed key ('operator', 'helper', 'paster', 'handneedle', 'threadcutter', 'endlineqc', 'finalqc', 'pressman').
+String mpKeyOf(String name) {
+  final k = _mpKey(name);
+  if (k.contains('niddle') || k.contains('needle')) return 'handneedle';
+  if (k == 'threadcutting') return 'threadcutter';
+  if (k == 'endlinechecker') return 'endlineqc';
+  return k;
+}
+
+/// One operation type of the data entry (a chip at the top) and the manpower allowed in it.
+class OpSection {
+  const OpSection(this.key, this.label, this.mpKeys, {this.machine = false});
+  final String key, label;
+  final List<String> mpKeys;
+  /// Rows of this type need a machine (stitching).
+  final bool machine;
+}
+
+const makingSections = [
+  OpSection('stitching', 'Stitching', ['operator', 'helper'], machine: true),
+  OpSection('pasting', 'Pasting', ['paster']),
+  OpSection('helper', 'Helper', ['helper']),
+  OpSection('handneedle', 'Hand Needle', ['handneedle']),
+  OpSection('threadcut', 'Thread Cutting', ['threadcutter']),
+  OpSection('endline', 'Endline QC', ['endlineqc']),
+];
+
+const packingSections = [
+  OpSection('helper', 'Helper', ['helper']),
+  OpSection('finalqc', 'Final QC', ['finalqc']),
+  OpSection('pressing', 'Pressing', ['pressman']),
+];
+
+List<OpSection> sectionsFor(String category) => category == 'Packing' ? packingSections : makingSections;
+
+OpSection? sectionByKey(String category, String key) {
+  for (final x in sectionsFor(category)) {
+    if (x.key == key) return x;
+  }
+  return null;
+}
+
+/// Operation type of a saved row. A Making helper row with a machine belongs to Stitching.
+String sectionOf(String category, String manpower, String machine) {
+  final k = mpKeyOf(manpower);
+  if (category == 'Packing') {
+    if (k == 'pressman') return 'pressing';
+    return k;
+  }
+  switch (k) {
+    case 'operator':
+      return 'stitching';
+    case 'helper':
+      return machine.trim().isEmpty ? 'helper' : 'stitching';
+    case 'paster':
+      return 'pasting';
+    case 'handneedle':
+      return 'handneedle';
+    case 'threadcutter':
+      return 'threadcut';
+    case 'endlineqc':
+      return 'endline';
+  }
+  return k;
+}
+
+/// Chip label of an operation type; unknown types use the manpower name.
+String sectionLabel(String category, String key, [String manpower = '']) =>
+    sectionByKey(category, key)?.label ?? (manpower.isEmpty ? key : roleLabel(manpower));
+
+const _mpDefaults = {
+  'operator': 'Operator', 'helper': 'Helper', 'paster': 'Paster', 'handneedle': 'Hand Niddle Operator',
+  'threadcutter': 'Thread cutter', 'endlineqc': 'Endline QC', 'finalqc': 'Final QC', 'pressman': 'Press Man',
+};
 
 const roleOrder = ['Operator', 'Paster', 'Helper', 'Hand Niddle Operator', 'Thread cutter', 'Endline QC'];
 

@@ -139,12 +139,15 @@ class _PmReviewPageState extends State<PmReviewPage> {
     final name = TextEditingController();
     final time = TextEditingController();
     final pc = TextEditingController(text: '1');
+    final cat = widget.a.category;
+    var sec = '';
     var mp = '';
     var mc = '';
     final ok = await showModalBottomSheet<bool>(
       context: context, isScrollControlled: true, showDragHandle: true, useSafeArea: true,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setS) {
-        final mps = p.manpowerTypes.map((x) => x.name).toList();
+        final mps = sec.isEmpty ? <String>[] : p.sectionManpower(cat, sec);
+        final needMc = !isPacking && (sectionByKey(cat, sec)?.machine ?? false);
         return Padding(
           padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -156,27 +159,49 @@ class _PmReviewPageState extends State<PmReviewPage> {
               controller: name, autofocus: true, textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(labelText: 'Operation name'),
               onChanged: (v) {
-                if (mp.isEmpty && v.trim().length >= 3) {
-                  final g = st.guess(v, widget.a.category);
+                if (sec.isEmpty && v.trim().length >= 3) {
+                  final g = st.guess(v, cat);
+                  final k = sectionOf(cat, g.$1, mpKeyOf(g.$1) == 'operator' ? g.$2 : '');
+                  if (sectionByKey(cat, k) == null) return;
                   setS(() {
-                    mp = g.$1;
-                    if (!isPacking && mp.toLowerCase() == 'operator') mc = g.$2;
+                    sec = k;
+                    final allowed = p.sectionManpower(cat, k);
+                    mp = allowed.contains(g.$1) ? g.$1 : allowed.first;
+                    mc = (sectionByKey(cat, k)!.machine && !isPacking) ? g.$2 : '';
                   });
                 }
               },
             ),
             const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: mp.isEmpty || !mps.contains(mp) ? null : mp, isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Manpower'),
-              items: mps.map((x) => DropdownMenuItem(value: x, child: Text(x))).toList(),
-              onChanged: (v) => setS(() => mp = v ?? ''),
-            ),
-            if (!isPacking) ...[
+            Text('Operation type', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 4),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final x in sectionsFor(cat))
+                ChoiceChip(
+                  label: Text(x.label), selected: sec == x.key, showCheckmark: false, visualDensity: VisualDensity.compact,
+                  onSelected: (_) => setS(() {
+                    sec = x.key;
+                    final allowed = p.sectionManpower(cat, x.key);
+                    if (!allowed.contains(mp)) mp = allowed.isEmpty ? '' : allowed.first;
+                    if (!x.machine || isPacking) mc = '';
+                  }),
+                ),
+            ]),
+            if (mps.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                key: ValueKey('mp$sec'),
+                initialValue: mp.isEmpty || !mps.contains(mp) ? null : mp, isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Manpower'),
+                items: mps.map((x) => DropdownMenuItem(value: x, child: Text(x))).toList(),
+                onChanged: (v) => setS(() => mp = v ?? ''),
+              ),
+            ],
+            if (needMc) ...[
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 initialValue: mc.isEmpty || !p.machineTypes.contains(mc) ? null : mc, isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Machine (optional)'),
+                decoration: const InputDecoration(labelText: 'Machine'),
                 items: p.machineTypes.map((x) => DropdownMenuItem(value: x, child: Text(x))).toList(),
                 onChanged: (v) => setS(() => mc = v ?? ''),
               ),
@@ -189,7 +214,7 @@ class _PmReviewPageState extends State<PmReviewPage> {
                 child: TextField(
                   controller: time, keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                  decoration: const InputDecoration(labelText: 'Your time (sec)', suffixText: 's'),
+                  decoration: const InputDecoration(labelText: 'Your total time (sec)', suffixText: 's'),
                 ),
               ),
             ]),
@@ -197,7 +222,11 @@ class _PmReviewPageState extends State<PmReviewPage> {
             FilledButton.icon(
               onPressed: () {
                 if (name.text.trim().isEmpty || mp.isEmpty || (num.tryParse(time.text.trim()) ?? 0) <= 0) {
-                  toast(ctx, 'Enter name, manpower and time.', error: true);
+                  toast(ctx, 'Enter name, operation type and total time.', error: true);
+                  return;
+                }
+                if (needMc && mc.isEmpty) {
+                  toast(ctx, 'Select the machine for stitching.', error: true);
                   return;
                 }
                 Navigator.pop(ctx, true);

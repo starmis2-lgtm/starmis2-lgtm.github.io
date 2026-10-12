@@ -24,7 +24,7 @@ class OpDraft {
   OpDraft({
     String name = '', this.manpower = '', this.machine = '', String op1pc = '', String time = '',
     String v1 = '', String v2 = '', String v3 = '', this.img = '', this.rnd = 0, this.suggested = false, this.expanded = false,
-    this.fromHeader = false,
+    this.fromHeader = false, this.sec = '',
   })  : nameCtl = TextEditingController(text: name),
         op1pcCtl = TextEditingController(text: op1pc),
         timeCtl = TextEditingController(text: time),
@@ -39,6 +39,8 @@ class OpDraft {
   bool suggested, expanded, uploading = false;
   /// Manpower / machine come from the type chosen at the top of the form.
   bool fromHeader;
+  /// Operation type (chip) the row belongs to, e.g. 'stitching'; see [sectionOf].
+  String sec;
 
   String get name => nameCtl.text.trim();
   String get time => timeCtl.text.trim();
@@ -67,12 +69,12 @@ class OpDraft {
 
   Map<String, dynamic> save() => {
         'n': nameCtl.text, 'mp': manpower, 'mc': machine, 'pc': op1pcCtl.text, 't': timeCtl.text,
-        'v1': v1Ctl.text, 'v2': v2Ctl.text, 'v3': v3Ctl.text, 'img': img, 'rnd': rnd, 'sug': suggested, 'fh': fromHeader,
+        'v1': v1Ctl.text, 'v2': v2Ctl.text, 'v3': v3Ctl.text, 'img': img, 'rnd': rnd, 'sug': suggested, 'fh': fromHeader, 'sec': sec,
       };
 
   static OpDraft restore(Map<String, dynamic> j) => OpDraft(
         name: s(j['n']), manpower: s(j['mp']), machine: s(j['mc']), op1pc: s(j['pc']), time: s(j['t']),
-        v1: s(j['v1']), v2: s(j['v2']), v3: s(j['v3']), img: s(j['img']), rnd: n(j['rnd']), suggested: b(j['sug']), fromHeader: b(j['fh']));
+        v1: s(j['v1']), v2: s(j['v2']), v3: s(j['v3']), img: s(j['img']), rnd: n(j['rnd']), suggested: b(j['sug']), fromHeader: b(j['fh']), sec: s(j['sec']));
 
   void dispose() {
     for (final c in [nameCtl, op1pcCtl, timeCtl, v1Ctl, v2Ctl, v3Ctl]) {
@@ -424,6 +426,27 @@ class AppState extends ChangeNotifier {
 
   Future<String> rejectRequest(String id, String reason) => _write(() => api.callMsg('rejectBulletin', [id, reason]));
 
+  /// Marks one operation type of an SRN as not required (or required again); saved in the NOT REQUIRED sheet.
+  Future<String> markTypeNotRequired(String srn, String category, String role, bool on) async {
+    final msg = await _write(() => api.callMsg('markTypeNotRequired', [srn, category, role, on]));
+    _nrLocal['$srn|$category|${mpKeyOf(role)}'] = on;
+    notifyListeners();
+    return msg;
+  }
+
+  /// Not-required marks saved from this phone, used until the next payload has them.
+  final Map<String, bool> _nrLocal = {};
+
+  /// True when the operation type [sec] of [srn] is marked not required.
+  bool isTypeNotRequired(String srn, String category, String sec) {
+    final x = sectionByKey(category, sec);
+    final p = data;
+    if (x == null || p == null) return false;
+    final local = _nrLocal['$srn|$category|${mpKeyOf(p.mpName(x.mpKeys.first))}'];
+    if (local != null) return local;
+    return p.typeNotRequired(srn, category, sec) != null;
+  }
+
   Future<String> setNotRequired(String srn, List<Map<String, String>> items) => _write(() => api.callMsg('setNotRequired', [srn, jsonEncode(items)]));
 
   Future<String> saveUser(Map<String, dynamic> u) => _write(() => api.callMsg('saveAccessUser', [jsonEncode(u)]));
@@ -606,7 +629,7 @@ class EntryDraft extends ChangeNotifier {
   bool get isEmpty => srn.isEmpty && ops.isEmpty;
 
   Map<String, dynamic> save() => {
-        'category': category, 'srn': srn, 'mp': mp, 'mc': mc, 'date': date.toIso8601String(),
+        'category': category, 'srn': srn, 'sec': sec, 'mp': mp, 'mc': mc, 'date': date.toIso8601String(),
         'mode': mode.index, 'pendingId': pendingId, 'bulletinFor': bulletinFor,
         'ops': ops.map((o) => o.save()).toList(),
       };
@@ -631,17 +654,22 @@ class EntryDraft extends ChangeNotifier {
         if (d.machine.isEmpty && d.manpower == mp) d.machine = mc;
         d.fromHeader = false;
       }
+      if (d.sec.isEmpty) d.sec = sectionOf(category, d.manpower, d.machine);
       ops.add(d);
     }
+    sec = s(j['sec']);
+    if (sec.isEmpty && mp.isNotEmpty) sec = sectionOf(category, mp, mc);
     super.notifyListeners();
   }
 
   String category = 'Making';
   final String type = 'R&D';
   String srn = '';
-  /// Operation type = manpower for the whole submission ('' = not chosen yet).
+  /// Operation type chosen at the top ('' = not chosen yet), a key of [makingSections] / [packingSections].
+  String sec = '';
+  /// Manpower given to new rows of the chosen type.
   String mp = '';
-  /// Machine for the whole submission (stitching only).
+  /// Machine of the chosen type (stitching only).
   String mc = '';
   DateTime date = DateTime.now();
   EntryMode mode = EntryMode.fresh;
@@ -653,21 +681,45 @@ class EntryDraft extends ChangeNotifier {
   bool get locked => false;
   bool get editing => mode == EntryMode.editPending;
   bool get editingAny => mode != EntryMode.fresh;
-  /// Old name used by the quick-add box.
-  String get role => mp;
-  bool get needsMachine => needsMachineFor(mp);
-  bool needsMachineFor(String manpower) => category != 'Packing' && manpower.toLowerCase() == 'operator';
+  bool get needsMachine => needsMachineFor(sec);
+  bool needsMachineFor(String section) => category != 'Packing' && (sectionByKey(category, section)?.machine ?? false);
 
   /// Rows on screen: only the rows of the type chosen at the top.
-  List<OpDraft> get visibleOps => mp.isEmpty ? <OpDraft>[] : ops.where((o) => o.manpower == mp).toList();
+  List<OpDraft> get visibleOps => sec.isEmpty ? <OpDraft>[] : ops.where((o) => o.sec == sec).toList();
 
   /// Filled rows per type, in the order the types were first used.
   Map<String, int> get typeCounts {
     final out = <String, int>{};
     for (final o in ops) {
-      if (_filled(o)) out.update(o.manpower, (v) => v + 1, ifAbsent: () => 1);
+      if (_filled(o)) out.update(o.sec, (v) => v + 1, ifAbsent: () => 1);
     }
     return out;
+  }
+
+  /// Label of a type key in this form.
+  String labelOf(String key) {
+    final o = ops.where((x) => x.sec == key).firstOrNull;
+    return sectionLabel(category, key, o?.manpower ?? '');
+  }
+
+  OpDraft _row(Op op) => OpDraft(
+        name: op.opName, manpower: op.manpower, machine: op.machine, op1pc: op.op1pc,
+        time: op.rndAt100 > 0 ? _fmt(op.rndAt100) : '', v1: op.v1, v2: op.v2, v3: op.v3, img: op.img,
+        sec: sectionOf(category, op.manpower, op.machine),
+      );
+
+  OpDraft _pendingRow(PendingOp op) => OpDraft(
+        name: op.operationName, manpower: op.manpowerType, machine: op.machineType, op1pc: op.operation1pc,
+        time: op.time, v1: op.video1, v2: op.video2, v3: op.video3, img: op.image,
+        sec: sectionOf(category, op.manpowerType, op.machineType),
+      );
+
+  /// Machine already used by the rows of the chosen type.
+  String _machineOfSec() {
+    for (final o in ops) {
+      if (o.sec == sec && o.machine.isNotEmpty) return o.machine;
+    }
+    return '';
   }
 
   int get totalFilled => ops.where(_filled).length;
@@ -690,6 +742,7 @@ class EntryDraft extends ChangeNotifier {
 
   void _fresh() {
     _clearOps();
+    sec = '';
     mp = '';
     mc = '';
     mode = EntryMode.fresh;
@@ -710,18 +763,18 @@ class EntryDraft extends ChangeNotifier {
     _fresh();
   }
 
-  /// Shows the rows of [manpower]; rows of the other types stay in the form.
-  void setType(String manpower) {
+  /// Shows the rows of operation type [section]; rows of the other types stay in the form.
+  /// [manpower] is given to new rows (the first manpower allowed in the type).
+  void setType(String section, String manpower) {
+    sec = section;
     mp = manpower;
-    mc = '';
-    if (needsMachine) {
-      for (final o in ops) {
-        if (o.manpower == mp && o.machine.isNotEmpty) {
-          mc = o.machine;
-          break;
-        }
-      }
-    }
+    mc = needsMachine ? _machineOfSec() : '';
+    notifyListeners();
+  }
+
+  /// Manpower for the next rows of the chosen type.
+  void setManpower(String v) {
+    mp = v;
     notifyListeners();
   }
 
@@ -729,14 +782,14 @@ class EntryDraft extends ChangeNotifier {
   void setMachine(String v) {
     mc = v;
     for (final o in ops) {
-      if (o.manpower == mp) o.machine = v;
+      if (o.sec == sec) o.machine = v;
     }
     notifyListeners();
   }
 
   /// Removes the rows of the chosen type only.
   void clearType() {
-    for (final o in ops.where((o) => o.manpower == mp).toList()) {
+    for (final o in ops.where((o) => o.sec == sec).toList()) {
       ops.remove(o);
       o.dispose();
     }
@@ -755,24 +808,29 @@ class EntryDraft extends ChangeNotifier {
     ops.clear();
   }
 
-  /// Edit the approved bulletin of [srn]; rows of [manpower] are shown, the rest is kept as it is.
-  void startEdit(Payload p, String manpower) {
+  /// Edit the approved bulletin of [srn]; rows of [section] are shown, the rest is kept as it is.
+  void startEdit(Payload p, String section) {
     final bltn = p.bulletin(category, srn);
     if (bltn == null) return;
     _clearOps();
     mode = EntryMode.editRnd;
     pendingId = '';
     bulletinFor = category == 'Packing' ? '' : bltn.bulletinFor;
-    mp = manpower;
-    mc = '';
     for (final op in bltn.ops) {
-      ops.add(OpDraft(
-        name: op.opName, manpower: op.manpower, machine: op.machine, op1pc: op.op1pc,
-        time: op.rndAt100 > 0 ? _fmt(op.rndAt100) : '', v1: op.v1, v2: op.v2, v3: op.v3, img: op.img,
-      ));
-      if (mc.isEmpty && op.manpower == manpower) mc = op.machine;
+      ops.add(_row(op));
     }
+    _showSec(p, section);
     notifyListeners();
+  }
+
+  /// Chooses [section] after rows were loaded: manpower of its first row (or the type's first manpower) and its machine.
+  void _showSec(Payload p, String section) {
+    sec = section;
+    final first = ops.where((o) => o.sec == section).firstOrNull;
+    final allowed = p.sectionManpower(category, section);
+    mp = first?.manpower ?? (allowed.isNotEmpty ? allowed.first : '');
+    if (allowed.isNotEmpty && !allowed.contains(mp)) mp = allowed.first;
+    mc = needsMachine ? _machineOfSec() : '';
   }
 
   /// Put a rejected request back in the form so it can be fixed and sent again.
@@ -785,15 +843,10 @@ class EntryDraft extends ChangeNotifier {
     mode = (r.isEditMode && hasNow) ? EntryMode.editRnd : EntryMode.fresh;
     pendingId = '';
     bulletinFor = mode == EntryMode.editRnd ? (p.bulletin(category, srn)?.bulletinFor ?? '') : '';
-    mp = r.operations.isNotEmpty ? r.operations.first.manpowerType : '';
-    mc = '';
     for (final op in r.operations) {
-      ops.add(OpDraft(
-        name: op.operationName, manpower: op.manpowerType, machine: op.machineType, op1pc: op.operation1pc,
-        time: op.time, v1: op.video1, img: op.image,
-      ));
-      if (mc.isEmpty && op.manpowerType == mp) mc = op.machineType;
+      ops.add(_pendingRow(op));
     }
+    _showSec(p, ops.isNotEmpty ? ops.first.sec : '');
     notifyListeners();
   }
 
@@ -811,29 +864,24 @@ class EntryDraft extends ChangeNotifier {
   }
 
   /// Edit my request before the Production Manager review.
-  void loadPending(MyPending a, Payload? p, {String? manpower}) {
+  void loadPending(MyPending a, Payload p, {String? section}) {
     _clearOps();
     category = a.category == 'Packing' ? 'Packing' : 'Making';
     srn = a.srn;
     date = DateTime.tryParse(a.date) ?? DateTime.now();
     mode = EntryMode.editPending;
     pendingId = a.id;
-    mp = manpower ?? (a.operations.isNotEmpty ? a.operations.first.manpowerType : '');
-    mc = '';
     for (final op in a.operations) {
-      ops.add(OpDraft(
-        name: op.operationName, manpower: op.manpowerType, machine: op.machineType, op1pc: op.operation1pc,
-        time: op.time, v1: op.video1, v2: op.video2, v3: op.video3, img: op.image,
-      ));
-      if (mc.isEmpty && op.manpowerType == mp) mc = op.machineType;
+      ops.add(_pendingRow(op));
     }
+    _showSec(p, section ?? (ops.isNotEmpty ? ops.first.sec : ''));
     notifyListeners();
   }
 
   static String _fmt(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
   OpDraft add({String name = '', String op1pc = '', String time = '', bool suggested = false, String manpower = '', String machine = '', bool expanded = false}) {
-    final d = OpDraft(name: name, manpower: mp, machine: needsMachine ? mc : '', op1pc: op1pc.isEmpty ? '1' : op1pc, time: time, suggested: suggested);
+    final d = OpDraft(name: name, manpower: manpower.isEmpty ? mp : manpower, machine: needsMachine ? mc : '', op1pc: op1pc.isEmpty ? '1' : op1pc, time: time, suggested: suggested, sec: sec);
     ops.add(d);
     notifyListeners();
     return d;
@@ -845,10 +893,13 @@ class EntryDraft extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Copy the rows of one type from another SRN (times at 100%).
-  void copyFrom(List<Op> src) {
+  /// Copy the rows of one type from another SRN (times at 100%); [allowed] manpower is kept, other rows get [mp].
+  void copyFrom(List<Op> src, List<String> allowed) {
     for (final op in src) {
-      ops.add(OpDraft(name: op.opName, manpower: mp, machine: needsMachine ? mc : '', op1pc: op.op1pc, time: op.rndAt100 > 0 ? _fmt(op.rndAt100) : '', suggested: op.rndTime > 0, img: op.img));
+      ops.add(OpDraft(
+        name: op.opName, manpower: allowed.contains(op.manpower) ? op.manpower : mp, machine: needsMachine ? mc : '', op1pc: op.op1pc,
+        time: op.rndAt100 > 0 ? _fmt(op.rndAt100) : '', suggested: op.rndTime > 0, img: op.img, sec: sec,
+      ));
     }
     notifyListeners();
   }
@@ -871,7 +922,7 @@ class EntryDraft extends ChangeNotifier {
   /// First type with rows that needs a machine and has none, or null.
   String? typeWithoutMachine() {
     for (final t in typeCounts.keys) {
-      if (needsMachineFor(t) && ops.any((o) => o.manpower == t && _filled(o) && o.machine.isEmpty)) return t;
+      if (needsMachineFor(t) && ops.any((o) => o.sec == t && _filled(o) && o.machine.isEmpty)) return t;
     }
     return null;
   }
@@ -883,7 +934,8 @@ class EntryDraft extends ChangeNotifier {
     final out = <Map<String, dynamic>>[];
     for (final o in ops) {
       if (!_filled(o)) continue;
-      if (category == 'Packing') o.machine = '';
+      // a Making helper row with a machine is read back as Stitching, so only Stitching helpers keep one
+      if (category == 'Packing' || (o.sec != 'stitching' && mpKeyOf(o.manpower) == 'helper')) o.machine = '';
       out.add(o.toJson(p, prod: false, mediaEdited: media));
     }
     return out;
