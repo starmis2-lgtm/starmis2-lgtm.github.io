@@ -205,6 +205,14 @@ class AppState extends ChangeNotifier {
       } catch (_) {}
     }
     seenRejected.addAll(prefs.getStringList(kRejSeenKey) ?? const []);
+    // Not logged in: show the PIN screen at once instead of waiting for the server.
+    if (api.token.isEmpty) {
+      needLogin = true;
+      booted = true;
+      notifyListeners();
+      startRejectedPolling();
+      return;
+    }
     await load(silent: true);
     await _restoreDraft(prefs);
     booted = true;
