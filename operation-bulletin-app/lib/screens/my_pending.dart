@@ -75,7 +75,14 @@ class _RejectedCard extends StatelessWidget {
                 style: FilledButton.styleFrom(visualDensity: VisualDensity.compact, backgroundColor: const Color(0xFFFFE4E6), foregroundColor: red),
                 child: const Text('Fix & resend'),
               ),
-            TextButton(onPressed: () => st.dismissRejected(r.id), child: const Text('OK')),
+            TextButton(
+              onPressed: () async {
+                if (await confirm(context, 'Remove from list', 'Remove this rejected ${r.srn} request from the list? It cannot be fixed and resent after that.', yes: 'Remove', danger: true)) {
+                  st.dismissRejected(r.id);
+                }
+              },
+              child: const Text('Remove'),
+            ),
           ]),
         ]),
       ),
@@ -143,10 +150,12 @@ class _MyCard extends StatelessWidget {
             const SizedBox(width: 6),
             if (mine)
               IconButton.outlined(
-                tooltip: 'Withdraw (take back)', visualDensity: VisualDensity.compact,
+                tooltip: 'Delete this request', visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(foregroundColor: cs.error, side: BorderSide(color: cs.error.withValues(alpha: 0.5))),
                 onPressed: () async {
-                  final ok = await confirm(context, 'Withdraw request',
-                      'Take back this ${a.isDeleteRequest ? 'delete request' : (a.isEditMode ? 'edit' : 'bulletin')} for ${a.srn}? It will not go for approval.', yes: 'Withdraw', danger: true);
+                  final what = a.isDeleteRequest ? 'delete request' : (a.isEditMode ? 'pending edit' : 'pending bulletin');
+                  final ok = await confirm(context, 'Delete $what?',
+                      'This $what of ${a.srn} (${a.operations.length} ops) will be removed and will not go for approval.${a.isEditMode && !a.isDeleteRequest ? ' The approved bulletin stays as it is.' : ''}', yes: 'Delete', danger: true);
                   if (!ok || !context.mounted) return;
                   try {
                     final msg = await st.withdraw(a.id);
@@ -155,7 +164,7 @@ class _MyCard extends StatelessWidget {
                     if (context.mounted) toast(context, err.toString(), error: true);
                   }
                 },
-                icon: const Icon(Icons.undo_rounded, size: 18),
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
               ),
             const SizedBox(width: 6),
             if (!a.pmReviewed && !a.isDeleteRequest && mine)

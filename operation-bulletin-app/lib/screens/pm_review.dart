@@ -461,10 +461,13 @@ class _PmReviewPageState extends State<PmReviewPage> {
           ),
           IconButton(
             tooltip: 'Remove',
-            onPressed: () => setState(() {
-              added.remove(x);
-              _trash.add(x.pm);
-            }),
+            onPressed: () async {
+              if (!await confirm(context, 'Remove operation', 'Remove "${x.name}" that you added?', yes: 'Remove', danger: true)) return;
+              setState(() {
+                added.remove(x);
+                _trash.add(x.pm);
+              });
+            },
             icon: Icon(Icons.close_rounded, size: 20, color: cs.outline),
           ),
         ]),

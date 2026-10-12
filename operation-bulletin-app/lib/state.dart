@@ -624,7 +624,14 @@ class EntryDraft extends ChangeNotifier {
     pendingId = s(j['pendingId']);
     bulletinFor = s(j['bulletinFor']);
     for (final o in l(j['ops'])) {
-      ops.add(OpDraft.restore(m(o)));
+      final d = OpDraft.restore(m(o));
+      // drafts saved by 1.10 and older: header rows took the type chosen at the top
+      if (d.fromHeader) {
+        if (d.manpower.isEmpty) d.manpower = mp;
+        if (d.machine.isEmpty && d.manpower == mp) d.machine = mc;
+        d.fromHeader = false;
+      }
+      ops.add(d);
     }
     super.notifyListeners();
   }
@@ -648,10 +655,25 @@ class EntryDraft extends ChangeNotifier {
   bool get editingAny => mode != EntryMode.fresh;
   /// Old name used by the quick-add box.
   String get role => mp;
-  bool get needsMachine => category != 'Packing' && mp.toLowerCase() == 'operator';
+  bool get needsMachine => needsMachineFor(mp);
+  bool needsMachineFor(String manpower) => category != 'Packing' && manpower.toLowerCase() == 'operator';
 
-  /// Rows on screen: everything for a new type; only the chosen type when editing a whole bulletin.
-  List<OpDraft> get visibleOps => (mode == EntryMode.fresh || mp.isEmpty) ? ops : ops.where((o) => o.fromHeader || o.manpower == mp).toList();
+  /// Rows on screen: only the rows of the type chosen at the top.
+  List<OpDraft> get visibleOps => mp.isEmpty ? <OpDraft>[] : ops.where((o) => o.manpower == mp).toList();
+
+  /// Filled rows per type, in the order the types were first used.
+  Map<String, int> get typeCounts {
+    final out = <String, int>{};
+    for (final o in ops) {
+      if (_filled(o)) out.update(o.manpower, (v) => v + 1, ifAbsent: () => 1);
+    }
+    return out;
+  }
+
+  int get totalFilled => ops.where(_filled).length;
+
+  /// Rows that will be sent: every filled row of every type.
+  List<OpDraft> get filledOps => ops.where(_filled).toList();
 
   void reset(Payload? p) {
     category = 'Making';
@@ -688,14 +710,36 @@ class EntryDraft extends ChangeNotifier {
     _fresh();
   }
 
+  /// Shows the rows of [manpower]; rows of the other types stay in the form.
   void setType(String manpower) {
     mp = manpower;
-    if (!needsMachine) mc = '';
+    mc = '';
+    if (needsMachine) {
+      for (final o in ops) {
+        if (o.manpower == mp && o.machine.isNotEmpty) {
+          mc = o.machine;
+          break;
+        }
+      }
+    }
     notifyListeners();
   }
 
+  /// The machine applies to every row of the chosen type.
   void setMachine(String v) {
     mc = v;
+    for (final o in ops) {
+      if (o.manpower == mp) o.machine = v;
+    }
+    notifyListeners();
+  }
+
+  /// Removes the rows of the chosen type only.
+  void clearType() {
+    for (final o in ops.where((o) => o.manpower == mp).toList()) {
+      ops.remove(o);
+      o.dispose();
+    }
     notifyListeners();
   }
 
@@ -746,7 +790,7 @@ class EntryDraft extends ChangeNotifier {
     for (final op in r.operations) {
       ops.add(OpDraft(
         name: op.operationName, manpower: op.manpowerType, machine: op.machineType, op1pc: op.operation1pc,
-        time: op.time, v1: op.video1, img: op.image, fromHeader: mode == EntryMode.fresh && op.manpowerType == mp,
+        time: op.time, v1: op.video1, img: op.image,
       ));
       if (mc.isEmpty && op.manpowerType == mp) mc = op.machineType;
     }
@@ -789,7 +833,7 @@ class EntryDraft extends ChangeNotifier {
   static String _fmt(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
   OpDraft add({String name = '', String op1pc = '', String time = '', bool suggested = false, String manpower = '', String machine = '', bool expanded = false}) {
-    final d = OpDraft(name: name, manpower: mp, machine: mc, op1pc: op1pc.isEmpty ? '1' : op1pc, time: time, suggested: suggested, fromHeader: true);
+    final d = OpDraft(name: name, manpower: mp, machine: needsMachine ? mc : '', op1pc: op1pc.isEmpty ? '1' : op1pc, time: time, suggested: suggested);
     ops.add(d);
     notifyListeners();
     return d;
@@ -804,7 +848,7 @@ class EntryDraft extends ChangeNotifier {
   /// Copy the rows of one type from another SRN (times at 100%).
   void copyFrom(List<Op> src) {
     for (final op in src) {
-      ops.add(OpDraft(name: op.opName, manpower: mp, machine: mc, op1pc: op.op1pc, time: op.rndAt100 > 0 ? _fmt(op.rndAt100) : '', suggested: op.rndTime > 0, img: op.img, fromHeader: true));
+      ops.add(OpDraft(name: op.opName, manpower: mp, machine: needsMachine ? mc : '', op1pc: op.op1pc, time: op.rndAt100 > 0 ? _fmt(op.rndAt100) : '', suggested: op.rndTime > 0, img: op.img));
     }
     notifyListeners();
   }
@@ -815,15 +859,21 @@ class EntryDraft extends ChangeNotifier {
 
   bool _filled(OpDraft o) => o.name.isNotEmpty || o.time.isNotEmpty;
 
-  /// Index (in [visibleOps]) of the first row without name or time, or -1.
-  int firstInvalid() {
-    final v = visibleOps;
-    for (var i = 0; i < v.length; i++) {
-      final o = v[i];
-      if (!_filled(o)) continue;
-      if (o.name.isEmpty || o.timeNum <= 0) return i;
+  /// First filled row (any type) without name or time, or null.
+  /// A new entry checks every type; an edit checks only the type on screen, like before.
+  OpDraft? firstInvalid() {
+    for (final o in mode == EntryMode.fresh ? ops : visibleOps) {
+      if (_filled(o) && (o.name.isEmpty || o.timeNum <= 0)) return o;
     }
-    return -1;
+    return null;
+  }
+
+  /// First type with rows that needs a machine and has none, or null.
+  String? typeWithoutMachine() {
+    for (final t in typeCounts.keys) {
+      if (needsMachineFor(t) && ops.any((o) => o.manpower == t && _filled(o) && o.machine.isEmpty)) return t;
+    }
+    return null;
   }
 
   int get filledCount => visibleOps.where(_filled).length;
@@ -833,12 +883,7 @@ class EntryDraft extends ChangeNotifier {
     final out = <Map<String, dynamic>>[];
     for (final o in ops) {
       if (!_filled(o)) continue;
-      if (o.fromHeader) {
-        o.manpower = mp;
-        o.machine = needsMachine ? mc : (category == 'Packing' ? '' : o.machine);
-      } else if (needsMachine && mc.isNotEmpty && o.manpower == mp) {
-        o.machine = mc;
-      }
+      if (category == 'Packing') o.machine = '';
       out.add(o.toJson(p, prod: false, mediaEdited: media));
     }
     return out;
