@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -28,13 +29,11 @@ class EntryScreen extends StatefulWidget {
 }
 
 class _EntryScreenState extends State<EntryScreen> {
-  final _search = TextEditingController();
   final _scroll = ScrollController();
   bool _busy = false;
 
   @override
   void dispose() {
-    _search.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -138,20 +137,30 @@ class _EntryScreenState extends State<EntryScreen> {
                           ? TextButton.icon(onPressed: () => _copyFrom(context, st), icon: const Icon(Icons.copy_all_rounded, size: 16), label: const Text('Copy from SRN'), style: TextButton.styleFrom(visualDensity: VisualDensity.compact))
                           : null,
                     ),
-                    Card(
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(children: [
-                        const _RowHead(),
-                        if (rows.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 18),
-                            child: Text('No rows yet. Type an operation name below.', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                          ),
-                        for (var i = 0; i < rows.length; i++) _OpRow(key: rows[i].key, index: i, op: rows[i], draft: e),
-                      ]),
+                    if (rows.isNotEmpty)
+                      Card(
+                        clipBehavior: Clip.antiAlias,
+                        child: Column(children: [
+                          for (var i = 0; i < rows.length; i++) ...[
+                            if (i > 0) const Divider(height: 1),
+                            _OpTile(key: rows[i].key, index: i, op: rows[i], onTap: () => _openOpSheet(context, st, op: rows[i]), onDelete: () => e.remove(rows[i])),
+                          ],
+                        ]),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: Text('No operations yet. Tap "Add operation".', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+                      ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: 48,
+                      child: FilledButton.tonalIcon(
+                        onPressed: () => _openOpSheet(context, st),
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                        label: Text('Add ${roleLabel(e.mp)} operation', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    _QuickAdd(search: _search, st: st),
                   ],
                 ],
               ),
@@ -161,6 +170,47 @@ class _EntryScreenState extends State<EntryScreen> {
         );
       },
     );
+  }
+
+  /// Add (op == null) or edit one operation in a popup: photo, name, number of operations, time.
+  Future<void> _openOpSheet(BuildContext context, AppState st, {OpDraft? op}) async {
+    final e = st.entry;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) => _OpSheet(
+        st: st,
+        op: op,
+        onSave: (name, pc, time, bytes, fileName, removePhoto) {
+          final target = op ?? e.add(name: name, op1pc: pc, time: time);
+          if (op != null) {
+            op.nameCtl.text = name;
+            op.op1pcCtl.text = pc;
+            op.timeCtl.text = time;
+            op.suggested = false;
+          }
+          if (removePhoto) target.img = '';
+          e.touch();
+          if (bytes != null) _upload(st, target, bytes, fileName);
+        },
+      ),
+    );
+  }
+
+  Future<void> _upload(AppState st, OpDraft op, Uint8List bytes, String fileName) async {
+    op.uploading = true;
+    st.entry.touch();
+    try {
+      op.img = await st.uploadImage(bytes, 'image/jpeg', fileName, st.entry.srn, op.name);
+      if (mounted && op.img.startsWith('local:')) toast(context, 'Photo saved on phone, uploads with the bulletin.');
+    } catch (err) {
+      if (mounted) toast(context, 'Photo upload failed: $err', error: true);
+    } finally {
+      op.uploading = false;
+      st.entry.touch();
+    }
   }
 
   Future<void> _copyFrom(BuildContext context, AppState st) async {
@@ -195,6 +245,10 @@ class _EntryScreenState extends State<EntryScreen> {
     }
     if (e.filledCount == 0) {
       toast(context, 'Please add at least one operation.', error: true);
+      return;
+    }
+    if (e.visibleOps.any((o) => o.uploading)) {
+      toast(context, 'A photo is still uploading. Please wait a moment.', error: true);
       return;
     }
     final bad = e.firstInvalid();
@@ -457,259 +511,311 @@ class _Note extends StatelessWidget {
   }
 }
 
-class _RowHead extends StatelessWidget {
-  const _RowHead();
+/// One operation in the list: tap to edit, swipe left to delete.
+class _OpTile extends StatelessWidget {
+  const _OpTile({super.key, required this.index, required this.op, required this.onTap, required this.onDelete});
+  final int index;
+  final OpDraft op;
+  final VoidCallback onTap, onDelete;
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final st = TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.4, color: cs.onSurfaceVariant);
-    return Container(
-      color: cs.surfaceContainerHigh.withValues(alpha: 0.6),
-      padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
-      child: Row(children: [
-        SizedBox(width: 20, child: Text('#', style: st)),
-        Expanded(child: Text('OPERATION NAME', style: st)),
-        SizedBox(width: 42, child: Text('OPS', textAlign: TextAlign.center, style: st)),
-        const SizedBox(width: 4),
-        SizedBox(width: 60, child: Text('TIME (S)', textAlign: TextAlign.center, style: st)),
-        SizedBox(width: 36, child: Text('PHOTO', textAlign: TextAlign.center, style: st.copyWith(fontSize: 8))),
-        const SizedBox(width: 28),
-      ]),
+    final pc = op.op1pcCtl.text.trim().isEmpty ? '1' : op.op1pcCtl.text.trim();
+    final bad = op.name.isEmpty || op.timeNum <= 0;
+    return Dismissible(
+      key: ValueKey('d${op.key}'),
+      direction: DismissDirection.endToStart,
+      background: Container(color: const Color(0xFFFFE4E6), alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 18), child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFBE123C))),
+      onDismissed: (_) => onDelete(),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+          child: Row(children: [
+            SizedBox(width: 22, child: Text('${index + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cs.outline))),
+            SizedBox(
+              width: 40, height: 40,
+              child: op.uploading
+                  ? const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+                  : op.img.isNotEmpty
+                      ? SrnThumb(op.img, size: 40, radius: 8)
+                      : Container(decoration: BoxDecoration(color: cs.surfaceContainerHigh, borderRadius: BorderRadius.circular(8)), child: Icon(Icons.photo_camera_outlined, size: 18, color: cs.outline)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(op.name.isEmpty ? 'No name' : op.name, maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: op.name.isEmpty ? cs.error : cs.onSurface)),
+                Text('$pc ops', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+              ]),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(color: bad ? const Color(0xFFFFFBEB) : const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(8)),
+              child: Text(op.timeNum > 0 ? '${op.time}s' : 'time?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: bad ? const Color(0xFFB45309) : const Color(0xFF3730A3))),
+            ),
+            Icon(Icons.chevron_right_rounded, color: cs.outlineVariant),
+          ]),
+        ),
+      ),
     );
   }
 }
 
-/// One compact row: name · ops per piece · time · photo.
-class _OpRow extends StatefulWidget {
-  const _OpRow({super.key, required this.index, required this.op, required this.draft});
-  final int index;
-  final OpDraft op;
-  final EntryDraft draft;
+typedef _SaveOp = void Function(String name, String pc, String time, Uint8List? bytes, String fileName, bool removePhoto);
+
+/// Popup to add / edit one operation. "Add & next" keeps it open for the next operation.
+class _OpSheet extends StatefulWidget {
+  const _OpSheet({required this.st, required this.op, required this.onSave});
+  final AppState st;
+  final OpDraft? op;
+  final _SaveOp onSave;
   @override
-  State<_OpRow> createState() => _OpRowState();
+  State<_OpSheet> createState() => _OpSheetState();
 }
 
-class _OpRowState extends State<_OpRow> {
-  OpDraft get op => widget.op;
-  EntryDraft get d => widget.draft;
+class _OpSheetState extends State<_OpSheet> {
+  late final _name = TextEditingController(text: widget.op?.name ?? '');
+  late final _time = TextEditingController(text: widget.op?.time ?? '');
+  final _nameFocus = FocusNode();
+  final _timeFocus = FocusNode();
+  late int _pc = int.tryParse(widget.op?.op1pcCtl.text.trim() ?? '') ?? 1;
+  Uint8List? _bytes;
+  String _fileName = 'photo.jpg';
+  bool _removePhoto = false;
+  int _added = 0;
 
-  Future<void> _pickImage(BuildContext context) async {
+  bool get _edit => widget.op != null;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _time.dispose();
+    _nameFocus.dispose();
+    _timeFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickPhoto() async {
     final src = await showModalBottomSheet<ImageSource>(
       context: context, showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(leading: const Icon(Icons.photo_camera_rounded), title: const Text('Take photo'), onTap: () => Navigator.pop(ctx, ImageSource.camera)),
           ListTile(leading: const Icon(Icons.photo_library_rounded), title: const Text('Choose from gallery'), onTap: () => Navigator.pop(ctx, ImageSource.gallery)),
-          if (op.img.isNotEmpty)
-            ListTile(leading: Icon(Icons.delete_outline_rounded, color: Theme.of(ctx).colorScheme.error), title: const Text('Remove photo'), onTap: () {
-              Navigator.pop(ctx);
-              setState(() => op.img = '');
-              d.touch();
-            }),
           const SizedBox(height: 8),
         ]),
       ),
     );
-    if (src == null || !context.mounted) return;
-    final st = context.read<AppState>();
+    if (src == null) return;
     final x = await ImagePicker().pickImage(source: src, maxWidth: 1200, maxHeight: 1200, imageQuality: 85);
     if (x == null) return;
-    final bytes = await x.readAsBytes();
+    final b = await x.readAsBytes();
     if (!mounted) return;
-    setState(() => op.uploading = true);
-    try {
-      final url = await st.uploadImage(bytes, 'image/jpeg', x.name, d.srn, op.name);
-      op.img = url;
-      d.touch();
-      if (context.mounted) toast(context, url.startsWith('local:') ? 'Photo saved on phone, uploads with the bulletin.' : 'Photo uploaded.');
-    } catch (e) {
-      if (context.mounted) toast(context, 'Photo upload failed: $e', error: true);
-    } finally {
-      if (mounted) setState(() => op.uploading = false);
+    setState(() {
+      _bytes = b;
+      _fileName = x.name;
+      _removePhoto = false;
+    });
+  }
+
+  void _useLib(LibOp x) {
+    setState(() {
+      _name.text = x.name;
+      _pc = int.tryParse(x.op1pc) ?? 1;
+      if (x.time > 0 && _time.text.trim().isEmpty) _time.text = _fmtT(x.time);
+    });
+    _timeFocus.requestFocus();
+    _time.selection = TextSelection(baseOffset: 0, extentOffset: _time.text.length);
+  }
+
+  bool _save({required bool next}) {
+    final name = _name.text.trim();
+    final t = num.tryParse(_time.text.trim()) ?? 0;
+    if (name.isEmpty) {
+      toast(context, 'Enter the operation name.', error: true);
+      _nameFocus.requestFocus();
+      return false;
     }
-  }
-
-  InputDecoration _box(String hint, {Color? fill, Color? border}) {
-    final cs = Theme.of(context).colorScheme;
-    return InputDecoration(
-      hintText: hint, isDense: true,
-      contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      fillColor: fill ?? cs.surfaceContainerLow,
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(7), borderSide: BorderSide(color: border ?? cs.outlineVariant.withValues(alpha: 0.5))),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(7), borderSide: BorderSide(color: cs.primary, width: 1.5)),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final odd = widget.index.isOdd;
-    return Container(
-      color: odd ? cs.surfaceContainerLowest : null,
-      padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
-      child: Row(children: [
-        SizedBox(width: 20, child: Text('${widget.index + 1}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: cs.outline))),
-        Expanded(
-          child: TextField(
-            controller: op.nameCtl,
-            textCapitalization: TextCapitalization.sentences,
-            textInputAction: TextInputAction.next,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-            onChanged: (_) => d.touch(),
-            decoration: _box('Operation name', fill: op.name.isEmpty ? const Color(0xFFFFFBEB) : null),
-          ),
-        ),
-        const SizedBox(width: 4),
-        SizedBox(
-          width: 42,
-          child: TextField(
-            controller: op.op1pcCtl,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            textInputAction: TextInputAction.next,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-            onTap: () => op.op1pcCtl.selection = TextSelection(baseOffset: 0, extentOffset: op.op1pcCtl.text.length),
-            onChanged: (_) => d.touch(),
-            decoration: _box('1'),
-          ),
-        ),
-        const SizedBox(width: 4),
-        SizedBox(
-          width: 60,
-          child: TextField(
-            controller: op.timeCtl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-            textAlign: TextAlign.center,
-            textInputAction: TextInputAction.next,
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: op.suggested ? const Color(0xFF92400E) : const Color(0xFF3730A3)),
-            onTap: () => op.timeCtl.selection = TextSelection(baseOffset: 0, extentOffset: op.timeCtl.text.length),
-            onChanged: (_) {
-              op.suggested = false;
-              d.touch();
-            },
-            decoration: _box('sec', fill: op.suggested ? const Color(0xFFFFFBEB) : const Color(0xFFEEF2FF), border: op.suggested ? const Color(0xFFFDE68A) : const Color(0xFFC7D2FE)),
-          ),
-        ),
-        SizedBox(
-          width: 36,
-          child: op.uploading
-              ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
-              : op.img.isNotEmpty
-                  ? Center(child: GestureDetector(onTap: () => _pickImage(context), child: SrnThumb(op.img, size: 28, radius: 6)))
-                  : IconButton(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact, tooltip: 'Photo', onPressed: () => _pickImage(context), icon: Icon(Icons.photo_camera_outlined, size: 19, color: cs.onSurfaceVariant)),
-        ),
-        SizedBox(
-          width: 28,
-          child: IconButton(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact, tooltip: 'Remove row', onPressed: () => d.remove(op), icon: Icon(Icons.close_rounded, size: 17, color: cs.outline)),
-        ),
-      ]),
-    );
-  }
-}
-
-/// Type a name: matching operations of this type from past bulletins, or add as new.
-class _QuickAdd extends StatefulWidget {
-  const _QuickAdd({required this.search, required this.st});
-  final TextEditingController search;
-  final AppState st;
-  @override
-  State<_QuickAdd> createState() => _QuickAddState();
-}
-
-class _QuickAddState extends State<_QuickAdd> {
-  final _focus = FocusNode();
-
-  void _addLib(LibOp x) {
-    widget.st.entry.add(name: x.name, op1pc: x.op1pc, time: x.time > 0 ? _fmtT(x.time) : '', suggested: x.time > 0);
-    widget.search.clear();
-    setState(() {});
-  }
-
-  void _addNew(String q) {
-    widget.st.entry.add(name: q, op1pc: '1');
-    widget.search.clear();
-    setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _focus.dispose();
-    super.dispose();
+    if (t <= 0) {
+      toast(context, 'Enter the time in seconds.', error: true);
+      _timeFocus.requestFocus();
+      return false;
+    }
+    HapticFeedback.lightImpact();
+    widget.onSave(name, '${_pc < 1 ? 1 : _pc}', _time.text.trim(), _bytes, _fileName, _removePhoto);
+    if (next) {
+      setState(() {
+        _added++;
+        _name.clear();
+        _time.clear();
+        _pc = 1;
+        _bytes = null;
+        _removePhoto = false;
+      });
+      _nameFocus.requestFocus();
+    } else {
+      Navigator.of(context).pop();
+    }
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    final st = widget.st;
-    final e = st.entry;
     final cs = Theme.of(context).colorScheme;
-    final q = widget.search.text.trim();
-    final libAll = st.library(e.category);
+    final e = widget.st.entry;
+    final q = _name.text.trim().toLowerCase();
+    final libAll = widget.st.library(e.category);
     final libType = libAll.where((x) => x.manpower.toLowerCase() == e.mp.toLowerCase()).toList();
     final lib = libType.isEmpty ? libAll : libType;
-    final have = e.haveKeys;
-    final terms = q.toLowerCase().split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-    final hits = q.isEmpty ? <LibOp>[] : lib.where((x) => terms.every(x.key.contains)).take(6).toList();
-    final exact = lib.any((x) => x.key == q.toLowerCase().replaceAll(RegExp(r'\s+'), ' '));
+    final terms = q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    final hits = q.length < 2 ? <LibOp>[] : lib.where((x) => terms.every(x.key.contains) && x.key != q.replaceAll(RegExp(r'\s+'), ' ')).take(4).toList();
+    final curImg = widget.op?.img ?? '';
+    final showOld = _bytes == null && !_removePhoto && curImg.isNotEmpty;
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [
-        Expanded(
-          child: TextField(
-            controller: widget.search, focusNode: _focus,
-            textCapitalization: TextCapitalization.sentences, textInputAction: TextInputAction.done,
-            onChanged: (_) => setState(() {}),
-            onSubmitted: (v) {
-              if (v.trim().isEmpty) return;
-              if (hits.isNotEmpty) {
-                _addLib(hits.first);
-              } else {
-                _addNew(v.trim());
-              }
-              _focus.requestFocus();
-            },
-            decoration: InputDecoration(
-              hintText: 'Add ${roleLabel(e.mp)} operation…', prefixIcon: const Icon(Icons.add_rounded, size: 20), fillColor: cs.surface,
-              suffixIcon: q.isEmpty ? null : IconButton(icon: const Icon(Icons.close_rounded, size: 18), onPressed: () => setState(() => widget.search.clear())),
+    Widget photo = InkWell(
+      onTap: _pickPhoto,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 86, height: 86,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(12), border: Border.all(color: cs.outlineVariant)),
+        child: _bytes != null
+            ? Image.memory(_bytes!, fit: BoxFit.cover)
+            : showOld
+                ? SrnThumb(curImg, size: 86, radius: 12)
+                : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.add_a_photo_outlined, color: cs.primary),
+                    const SizedBox(height: 4),
+                    Text('Photo', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: cs.primary)),
+                  ]),
+      ),
+    );
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Expanded(child: Text(_edit ? 'Edit operation' : 'Add ${roleLabel(e.mp)} operation', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+            if (_added > 0) Pill('$_added added', color: const Color(0xFF047857)),
+          ]),
+          const SizedBox(height: 12),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Column(children: [
+              photo,
+              if (_bytes != null || showOld)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _bytes = null;
+                    _removePhoto = true;
+                  }),
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  child: const Text('Remove', style: TextStyle(fontSize: 11.5)),
+                ),
+            ]),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                TextField(
+                  controller: _name,
+                  focusNode: _nameFocus,
+                  autofocus: !_edit,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.next,
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) => _timeFocus.requestFocus(),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  decoration: const InputDecoration(labelText: 'Operation name'),
+                ),
+                const SizedBox(height: 10),
+                Row(children: [
+                  // number of operations
+                  Container(
+                    height: 46,
+                    decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(12), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.6))),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(visualDensity: VisualDensity.compact, onPressed: _pc <= 1 ? null : () => setState(() => _pc--), icon: const Icon(Icons.remove_rounded, size: 18)),
+                      Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Text('$_pc', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                        Text('ops', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
+                      ]),
+                      IconButton(visualDensity: VisualDensity.compact, onPressed: () => setState(() => _pc++), icon: const Icon(Icons.add_rounded, size: 18)),
+                    ]),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _time,
+                      focusNode: _timeFocus,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _save(next: !_edit),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF3730A3)),
+                      decoration: const InputDecoration(labelText: 'Time', suffixText: 'sec', fillColor: Color(0xFFEEF2FF)),
+                    ),
+                  ),
+                ]),
+              ]),
             ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        FilledButton.tonal(
-          onPressed: () {
-            if (q.isNotEmpty) {
-              _addNew(q);
-            } else {
-              e.add(op1pc: '1');
-            }
-          },
-          style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12), minimumSize: const Size(44, 44)),
-          child: const Icon(Icons.add_rounded),
-        ),
-      ]),
-      if (q.isNotEmpty) ...[
-        const SizedBox(height: 6),
-        for (final x in hits)
-          _SugRow(title: x.name, added: have.contains(x.key), sub: '${x.op1pc} ops · ${x.time > 0 ? '${_fmtT(x.time)}s' : '—'} · used ${x.count}×', onTap: () => _addLib(x)),
-        if (!exact) _SugRow(title: 'Add “$q” as new operation', sub: 'you enter the time', highlight: true, onTap: () => _addNew(q)),
-      ],
-    ]);
+          ]),
+          if (hits.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text('FROM PAST BULLETINS', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: cs.onSurfaceVariant)),
+            const SizedBox(height: 4),
+            for (final x in hits)
+              _SugRow(title: x.name, sub: '${x.op1pc} ops · ${x.time > 0 ? '${_fmtT(x.time)}s' : '—'} · used ${x.count}×', onTap: () => _useLib(x)),
+          ],
+          const SizedBox(height: 14),
+          if (_edit)
+            Row(children: [
+              OutlinedButton.icon(
+                onPressed: () {
+                  widget.st.entry.remove(widget.op!);
+                  Navigator.of(context).pop();
+                },
+                style: OutlinedButton.styleFrom(foregroundColor: cs.error, minimumSize: const Size(0, 48)),
+                icon: const Icon(Icons.delete_outline_rounded, size: 19),
+                label: const Text('Delete'),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: SizedBox(height: 48, child: FilledButton(onPressed: () => _save(next: false), child: const Text('Save')))),
+            ])
+          else
+            Row(children: [
+              OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                child: Text(_added > 0 ? 'Done' : 'Close'),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: FilledButton.icon(onPressed: () => _save(next: true), icon: const Icon(Icons.add_rounded), label: const Text('Add & next')),
+                ),
+              ),
+            ]),
+        ]),
+      ),
+    );
   }
 }
 
 class _SugRow extends StatelessWidget {
-  const _SugRow({required this.title, required this.sub, required this.onTap, this.added = false, this.highlight = false});
+  const _SugRow({required this.title, required this.sub, required this.onTap});
   final String title, sub;
   final VoidCallback onTap;
-  final bool added, highlight;
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
-        color: highlight ? cs.primaryContainer.withValues(alpha: 0.5) : cs.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
@@ -720,14 +826,11 @@ class _SugRow extends StatelessWidget {
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: highlight ? cs.primary : cs.onSurface))),
-                    if (added) const Padding(padding: EdgeInsets.only(left: 6), child: Pill('added', color: Color(0xFF065F46))),
-                  ]),
+                  Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
                   Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
                 ]),
               ),
-              Icon(Icons.add_circle_rounded, color: cs.primary, size: 20),
+              Icon(Icons.north_west_rounded, color: cs.primary, size: 18),
             ]),
           ),
         ),
