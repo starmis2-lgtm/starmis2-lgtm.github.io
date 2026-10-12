@@ -115,7 +115,9 @@ class _EntryScreenState extends State<EntryScreen> {
         final e = st.entry;
         final cs = Theme.of(context).colorScheme;
         final sent = e.srn.isEmpty ? <_Sent>[] : _sent(st, e);
+        final sentTypes = {for (final x in sent) if (x.approved || x.pending) x.mp};
         final dup = e.mode == EntryMode.fresh && e.mp.isNotEmpty ? sent.where((x) => x.mp == e.mp && (x.approved || x.pending)).firstOrNull : null;
+        final blockedTypes = e.mode == EntryMode.fresh ? e.typeCounts.keys.where(sentTypes.contains).toList() : <String>[];
         final rows = e.visibleOps;
         return Scaffold(
           appBar: AppBar(
@@ -123,9 +125,9 @@ class _EntryScreenState extends State<EntryScreen> {
             actions: [
               if (e.editingAny)
                 TextButton(onPressed: () => e.nextType(), child: const Text('Cancel edit'))
-              else if (e.ops.isNotEmpty)
-                IconButton(tooltip: 'Clear rows', onPressed: () async {
-                  if (await confirm(context, 'Clear rows', 'Remove all rows entered for this type?', yes: 'Clear', danger: true)) e.nextType();
+              else if (e.mp.isNotEmpty && rows.isNotEmpty)
+                IconButton(tooltip: 'Clear ${roleLabel(e.mp)} rows', onPressed: () async {
+                  if (await confirm(context, 'Clear rows', 'Remove all ${rows.length} ${roleLabel(e.mp)} operation(s) entered? Other types stay.', yes: 'Clear', danger: true)) e.clearType();
                 }, icon: const Icon(Icons.restart_alt_rounded)),
               const UserMenu(),
             ],
@@ -145,7 +147,7 @@ class _EntryScreenState extends State<EntryScreen> {
                     onUndo: () => _undoLastEdit(context, st),
                     onDelete: () => _requestDelete(context, st),
                   ),
-                  if (e.srn.isNotEmpty && e.mp.isNotEmpty) ...[
+                  if (e.srn.isNotEmpty && e.mp.isNotEmpty && (dup == null || rows.isNotEmpty)) ...[
                     const SizedBox(height: 8),
                     SectionLabel(
                       '${roleLabel(e.mp)} operations · ${rows.where((o) => o.name.isNotEmpty || o.time.isNotEmpty).length}',
@@ -159,7 +161,12 @@ class _EntryScreenState extends State<EntryScreen> {
                         child: Column(children: [
                           for (var i = 0; i < rows.length; i++) ...[
                             if (i > 0) const Divider(height: 1),
-                            _OpTile(key: rows[i].key, index: i, op: rows[i], onTap: () => _openOpSheet(context, st, op: rows[i]), onDelete: () => _removeWithUndo(context, e, rows[i])),
+                            _OpTile(
+                              key: rows[i].key, index: i, op: rows[i],
+                              onTap: () => _openOpSheet(context, st, op: rows[i]),
+                              confirmDelete: () => _confirmRemoveOp(context, rows[i]),
+                              onDelete: () => _removeWithUndo(context, e, rows[i]),
+                            ),
                           ],
                         ]),
                       )
@@ -182,12 +189,15 @@ class _EntryScreenState extends State<EntryScreen> {
               ),
               ),
             ),
-            if (e.srn.isNotEmpty && e.mp.isNotEmpty) _BottomBar(busy: _busy, blocked: dup != null, onSubmit: () => _submit(context, st)),
+            if (e.srn.isNotEmpty && (e.mp.isNotEmpty || e.totalFilled > 0)) _BottomBar(busy: _busy, blocked: blockedTypes, onSubmit: () => _submit(context, st)),
           ]),
         );
       },
     );
   }
+
+  Future<bool> _confirmRemoveOp(BuildContext context, OpDraft op) => confirm(
+      context, 'Delete operation', 'Delete "${op.name.isEmpty ? 'this row' : op.name}" from ${roleLabel(op.manpower)}?', yes: 'Delete', danger: true);
 
   void _removeWithUndo(BuildContext context, EntryDraft e, OpDraft op) {
     final i = e.detach(op);
@@ -324,28 +334,37 @@ class _EntryScreenState extends State<EntryScreen> {
   Future<void> _submit(BuildContext context, AppState st) async {
     final e = st.entry;
     final p = st.data!;
-    if (e.needsMachine && e.mc.isEmpty) {
-      toast(context, 'Please select the machine.', error: true);
-      return;
-    }
-    if (e.filledCount == 0) {
+    if (e.totalFilled == 0) {
       toast(context, 'Please add at least one operation.', error: true);
       return;
     }
-    if (e.visibleOps.any((o) => o.uploading)) {
+    final noMc = e.mode == EntryMode.fresh ? e.typeWithoutMachine() : (e.needsMachine && e.mc.isEmpty ? e.mp : null);
+    if (noMc != null) {
+      e.setType(noMc);
+      toast(context, 'Please select the machine for ${roleLabel(noMc)}.', error: true);
+      return;
+    }
+    if (e.ops.any((o) => o.uploading)) {
       toast(context, 'A photo is still uploading. Please wait a moment.', error: true);
       return;
     }
     final bad = e.firstInvalid();
-    if (bad >= 0) {
-      final o = e.visibleOps[bad];
-      toast(context, 'Row ${bad + 1}${o.name.isEmpty ? '' : ' "${o.name}"'} needs a name and a time.', error: true);
+    if (bad != null) {
+      e.setType(bad.manpower);
+      final i = e.visibleOps.indexOf(bad);
+      toast(context, '${roleLabel(bad.manpower)} row ${i + 1}${bad.name.isEmpty ? '' : ' "${bad.name}"'} needs a name and a time.', error: true);
       return;
+    }
+    final counts = e.typeCounts;
+    if (counts.length > 1 && e.mode == EntryMode.fresh) {
+      final list = counts.entries.map((x) => '• ${roleLabel(x.key)}: ${x.value} operation(s)').join('\n');
+      if (!await confirm(context, 'Submit ${e.srn}', '$list\n\nSubmit all ${e.totalFilled} operations together?', yes: 'Submit')) return;
+      if (!context.mounted) return;
     }
     setState(() => _busy = true);
     HapticFeedback.mediumImpact();
     try {
-      final label = '${e.category} · ${roleLabel(e.mp)}';
+      final label = '${e.category} · ${counts.keys.map(roleLabel).join(', ')}';
       final String msg;
       if (e.editing) {
         msg = await st.updatePending(e.pendingId, e.collect(p), srn: e.srn, label: label);
@@ -353,7 +372,7 @@ class _EntryScreenState extends State<EntryScreen> {
         msg = await st.submitBulletin(e.payload(p), srn: e.srn, label: label);
       }
       if (!context.mounted) return;
-      toast(context, '$msg  You can fill the next type now.');
+      toast(context, msg);
       e.nextType();
       _scroll.jumpTo(0);
     } catch (err) {
@@ -406,7 +425,7 @@ class _Header extends StatelessWidget {
                   ];
                   final v = await pickSrn(context, options: opts);
                   if (v == null || v == e.srn || !context.mounted) return;
-                  if (e.filledCount > 0 && !await confirm(context, 'Change SRN', 'The ${e.filledCount} operation(s) entered for ${e.srn} will be cleared. Continue?', yes: 'Change', danger: true)) return;
+                  if (e.totalFilled > 0 && !await confirm(context, 'Change SRN', 'The ${e.totalFilled} operation(s) entered for ${e.srn} will be cleared. Continue?', yes: 'Change', danger: true)) return;
                   e.setSrn(v, p);
                 },
                 child: Container(
@@ -430,7 +449,11 @@ class _Header extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 6),
-            _CatToggle(value: e.category, onChanged: lockTop ? null : (v) => e.setCategory(v, p)),
+            _CatToggle(value: e.category, onChanged: lockTop ? null : (v) async {
+              if (v == e.category) return;
+              if (e.totalFilled > 0 && !await confirm(context, 'Change to $v', 'The ${e.totalFilled} operation(s) entered for ${e.category} will be cleared. Continue?', yes: 'Change', danger: true)) return;
+              e.setCategory(v, p);
+            }),
           ]),
           if (e.srn.isNotEmpty) ...[
             // 2. What is already sent for this SRN
@@ -486,7 +509,7 @@ class _Header extends StatelessWidget {
             Wrap(spacing: 6, runSpacing: 6, children: [
               for (final t in types)
                 ChoiceChip(
-                  label: Text(roleLabel(t)),
+                  label: Text((e.typeCounts[t] ?? 0) > 0 ? '${roleLabel(t)} · ${e.typeCounts[t]}' : roleLabel(t)),
                   selected: e.mp == t,
                   visualDensity: VisualDensity.compact,
                   showCheckmark: false,
@@ -619,7 +642,8 @@ class _Note extends StatelessWidget {
 
 /// One operation in the list: tap to edit, swipe left to delete.
 class _OpTile extends StatelessWidget {
-  const _OpTile({super.key, required this.index, required this.op, required this.onTap, required this.onDelete});
+  const _OpTile({super.key, required this.index, required this.op, required this.onTap, required this.onDelete, required this.confirmDelete});
+  final Future<bool> Function() confirmDelete;
   final int index;
   final OpDraft op;
   final VoidCallback onTap, onDelete;
@@ -633,6 +657,7 @@ class _OpTile extends StatelessWidget {
       key: ValueKey('d${op.key}'),
       direction: DismissDirection.endToStart,
       background: Container(color: const Color(0xFFFFE4E6), alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 18), child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFBE123C))),
+      confirmDismiss: (_) => confirmDelete(),
       onDismissed: (_) => onDelete(),
       child: InkWell(
         onTap: onTap,
@@ -814,10 +839,13 @@ class _OpSheetState extends State<_OpSheet> {
               photo,
               if (_bytes != null || showOld)
                 TextButton(
-                  onPressed: () => setState(() {
-                    _bytes = null;
-                    _removePhoto = true;
-                  }),
+                  onPressed: () async {
+                    if (!await confirm(context, 'Remove photo', 'Remove the photo of this operation?', yes: 'Remove', danger: true)) return;
+                    setState(() {
+                      _bytes = null;
+                      _removePhoto = true;
+                    });
+                  },
                   style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
                   child: const Text('Remove', style: TextStyle(fontSize: 11.5)),
                 ),
@@ -880,8 +908,11 @@ class _OpSheetState extends State<_OpSheet> {
           if (_edit)
             Row(children: [
               OutlinedButton.icon(
-                onPressed: () {
-                  widget.st.entry.remove(widget.op!);
+                onPressed: () async {
+                  final op = widget.op!;
+                  if (!await confirm(context, 'Delete operation', 'Delete "${op.name.isEmpty ? 'this row' : op.name}"?', yes: 'Delete', danger: true)) return;
+                  if (!context.mounted) return;
+                  widget.st.entry.remove(op);
                   Navigator.of(context).pop();
                 },
                 style: OutlinedButton.styleFrom(foregroundColor: cs.error, minimumSize: const Size(0, 48)),
@@ -960,7 +991,9 @@ class _SugRow extends StatelessWidget {
 
 class _BottomBar extends StatelessWidget {
   const _BottomBar({required this.busy, required this.blocked, required this.onSubmit});
-  final bool busy, blocked;
+  final bool busy;
+  /// Types in the form that are already submitted for this SRN.
+  final List<String> blocked;
   final VoidCallback onSubmit;
   @override
   Widget build(BuildContext context) {
@@ -970,12 +1003,13 @@ class _BottomBar extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     var ops = 0;
     num time = 0, cost = 0;
-    for (final o in e.visibleOps) {
+    for (final o in e.filledOps) {
       if (o.timeNum <= 0) continue;
       ops++;
       time += o.timeNum;
-      cost += p.cost(e.mp, o.timeNum);
+      cost += p.cost(o.manpower, o.timeNum);
     }
+    final types = e.typeCounts.keys.toList();
     final label = e.editing ? 'Save' : (e.mode == EntryMode.editRnd ? 'Send edit' : 'Submit');
     return Material(
       color: cs.surface, elevation: 8,
@@ -986,12 +1020,15 @@ class _BottomBar extends StatelessWidget {
           child: Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Text('${e.srn} · ${roleLabel(e.mp)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: cs.primary)),
-                Text('$ops ops · ${(time / 60).toStringAsFixed(2)} min · ₹${cost.toStringAsFixed(2)}/pc', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
+                Text('${e.srn} · ${types.isEmpty ? roleLabel(e.mp) : types.length == 1 ? roleLabel(types.first) : '${types.length} types'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: cs.primary)),
+                if (blocked.isNotEmpty)
+                  Text('${blocked.map(roleLabel).join(', ')} already submitted · remove those rows', maxLines: 2, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: cs.error))
+                else
+                  Text('$ops ops · ${(time / 60).toStringAsFixed(2)} min · ₹${cost.toStringAsFixed(2)}/pc', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
               ]),
             ),
             FilledButton.icon(
-              onPressed: busy || blocked ? null : onSubmit,
+              onPressed: busy || blocked.isNotEmpty ? null : onSubmit,
               style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12)),
               icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.cloud_upload_rounded, size: 20),
               label: Text(busy ? 'Saving…' : label),
