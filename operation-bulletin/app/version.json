@@ -1,6 +1,6 @@
 {
-  "versionCode": 8,
-  "versionName": "1.7.0",
+  "versionCode": 9,
+  "versionName": "1.8.0",
   "apk": "https://starmis2-lgtm.github.io/operation-bulletin/app/operation-bulletin.apk",
-  "notes": "Rejected bulletins now pop up right away with the reason, and My Pending shows a red count."
+  "notes": "New flow: DEO data entry and Production Manager review only. Production Manager adds his time next to the DEO time, can add or remove operations (DEO confirms removals), then GM approves."
 }
