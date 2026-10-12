@@ -4,10 +4,9 @@ import 'package:provider/provider.dart';
 
 import 'api.dart';
 import 'screens/entry.dart';
-import 'screens/home.dart';
 import 'screens/login.dart';
 import 'screens/my_pending.dart';
-import 'screens/production.dart';
+import 'screens/pm_review.dart';
 import 'screens/settings.dart';
 import 'state.dart';
 import 'widgets/common.dart';
@@ -228,11 +227,11 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     });
   }
 
+  /// Only two jobs on the phone: DEO data entry and Production Manager review.
   List<_Dest> _dests(AppState st) => [
-        if (st.showHome) const _Dest('Home', Icons.home_outlined, Icons.home_rounded, HomeScreen()),
-        if (st.showProduction) const _Dest('Production', Icons.factory_outlined, Icons.factory_rounded, ProductionScreen()),
-        if (st.showEntry) const _Dest('Entry', Icons.edit_note_outlined, Icons.edit_note_rounded, EntryScreen()),
-        const _Dest('My Pending', Icons.pending_actions_outlined, Icons.pending_actions_rounded, MyPendingScreen()),
+        if (st.showPmReview) const _Dest('Review', Icons.fact_check_outlined, Icons.fact_check_rounded, PmReviewScreen()),
+        if (st.showEntry && !st.isPM) const _Dest('Entry', Icons.edit_note_outlined, Icons.edit_note_rounded, EntryScreen()),
+        if (!st.isPM) const _Dest('My Pending', Icons.pending_actions_outlined, Icons.pending_actions_rounded, MyPendingScreen()),
         if (st.showSettings) const _Dest('Settings', Icons.settings_outlined, Icons.settings_rounded, SettingsScreen()),
       ];
 
@@ -245,7 +244,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     final req = st.requestedTab;
     if (req != null) {
       st.requestedTab = null;
-      final i = dests.indexWhere((d) => d.label == ['Home', 'Production', 'Entry', 'My Pending', 'Settings'][req]);
+      final i = dests.indexWhere((d) => d.label == ['Review', 'Review', 'Entry', 'My Pending', 'Settings'][req]);
       if (i >= 0) WidgetsBinding.instance.addPostFrameCallback((_) => setState(() => _index = i));
     }
     if (_index >= dests.length) _index = 0;
@@ -270,11 +269,11 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
           ),
         Expanded(child: IndexedStack(index: _index, children: dests.map((d) => d.page).toList())),
       ]),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: dests.length < 2 ? null : NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: dests.map((d) {
-          final n = d.label == 'My Pending' ? st.visibleRejected.length : 0;
+          final n = d.label == 'My Pending' ? st.visibleRejected.length + st.toConfirm.length : (d.label == 'Review' ? (st.data?.pmQueue.length ?? 0) : 0);
           Widget ic(IconData i) => n > 0 ? Badge(label: Text('$n'), backgroundColor: const Color(0xFFE11D48), child: Icon(i)) : Icon(i);
           return NavigationDestination(icon: ic(d.icon), selectedIcon: ic(d.selectedIcon), label: d.label);
         }).toList(),

@@ -311,6 +311,11 @@ class AppState extends ChangeNotifier {
   bool get showProduction => _tabAllowed('Production Pending');
   bool get showEntry => _tabAllowed('Data Entry');
   bool get showSettings => _tabAllowed('Settings');
+  /// Production Manager review tab (management can open it too).
+  bool get showPmReview => (data?.access.isPM ?? false) || (data?.access.isManagement ?? false);
+  bool get isPM => data?.access.isPM ?? false;
+  /// My requests where the Production Manager asked to remove operations.
+  List<MyPending> get toConfirm => (data?.myPending ?? const <MyPending>[]).where((a) => a.stage == 'DEO' && a.submittedEmail.toLowerCase() == (data?.access.email ?? '').toLowerCase()).toList();
 
   // ---------------- actions ----------------
   /// Queues a bulletin submission; it is sent right away when online, otherwise when the connection returns.
@@ -327,6 +332,14 @@ class AppState extends ChangeNotifier {
     syncOutbox();
     return 'Saved. Syncing to server…';
   }
+
+  /// Production Manager review: PM times, added operations, operations to remove.
+  Future<String> pmReview(String id, Map<String, dynamic> review) => _write(() => api.callMsg('pmReviewSubmit', [id, jsonEncode(review)]));
+
+  /// DEO answer to the Production Manager's removal requests: op index -> true (remove) / false (keep).
+  Future<String> deoConfirm(String id, Map<String, bool> decisions) => _write(() => api.callMsg('deoConfirmRemoval', [id, jsonEncode(decisions)]));
+
+  Future<String> rejectRequest(String id, String reason) => _write(() => api.callMsg('rejectBulletin', [id, reason]));
 
   Future<String> setNotRequired(String srn, List<Map<String, String>> items) => _write(() => api.callMsg('setNotRequired', [srn, jsonEncode(items)]));
 
@@ -417,7 +430,7 @@ class AppState extends ChangeNotifier {
         if (op.manpower.isNotEmpty) e.mp.update(op.manpower, (v) => v + 1, ifAbsent: () => 1);
         if (op.machine.isNotEmpty) e.mc.update(op.machine, (v) => v + 1, ifAbsent: () => 1);
         if (op.op1pc.isNotEmpty) e.pc.update(op.op1pc, (v) => v + 1, ifAbsent: () => 1);
-        if (op.rndTime > 0) e.times.add(op.rndTime);
+        if (op.rndAt100 > 0) e.times.add(op.rndAt100);
       }
     }
     final list = map.values.map((e) {
@@ -513,12 +526,14 @@ class EntryDraft extends ChangeNotifier {
   void restoreFrom(Map<String, dynamic> j) {
     _clearOps();
     category = s(j['category']).isEmpty ? 'Making' : s(j['category']);
-    type = s(j['type']).isEmpty ? 'R&D' : s(j['type']);
+    type = 'R&D';
     srn = s(j['srn']);
     role = s(j['role']);
     date = DateTime.tryParse(s(j['date'])) ?? DateTime.now();
     final mi = n(j['mode']).toInt();
     mode = (mi >= 0 && mi < EntryMode.values.length) ? EntryMode.values[mi] : EntryMode.fresh;
+    if (mode == EntryMode.prod) mode = EntryMode.fresh;
+    if (role.isEmpty) role = 'All';
     pendingId = s(j['pendingId']);
     bulletinFor = s(j['bulletinFor']);
     for (final o in l(j['ops'])) {
@@ -554,7 +569,7 @@ class EntryDraft extends ChangeNotifier {
     category = 'Making';
     type = 'R&D';
     srn = '';
-    role = '';
+    role = 'All';
     date = DateTime.now();
     pendingId = '';
     _reload(p);
@@ -575,7 +590,7 @@ class EntryDraft extends ChangeNotifier {
   void setSrn(String v, Payload? p) {
     if (editing) return;
     srn = v;
-    role = '';
+    role = 'All';
     _reload(p);
   }
 
@@ -588,9 +603,9 @@ class EntryDraft extends ChangeNotifier {
   void start(String srnV, String cat, String typ, Payload? p, {String role = ''}) {
     pendingId = '';
     category = cat == 'Packing' ? 'Packing' : 'Making';
-    type = typ == 'Production' ? 'Production' : 'R&D';
+    type = 'R&D';
     srn = srnV;
-    this.role = role;
+    this.role = role.isEmpty ? 'All' : role;
     date = DateTime.now();
     _reload(p);
   }
@@ -623,7 +638,7 @@ class EntryDraft extends ChangeNotifier {
       for (final op in bltn.ops) {
         ops.add(OpDraft(
           name: op.opName, manpower: op.manpower, machine: op.machine, op1pc: op.op1pc,
-          time: op.rndTime > 0 ? _fmt(op.rndTime) : '', v1: op.v1, v2: op.v2, v3: op.v3, img: op.img,
+          time: op.rndAt100 > 0 ? _fmt(op.rndAt100) : '', v1: op.v1, v2: op.v2, v3: op.v3, img: op.img,
         ));
       }
     } else {
@@ -672,7 +687,7 @@ class EntryDraft extends ChangeNotifier {
   void replaceWith(List<Op> src) {
     _clearOps();
     for (final op in src) {
-      ops.add(OpDraft(name: op.opName, manpower: op.manpower, machine: op.machine, op1pc: op.op1pc, time: op.rndTime > 0 ? _fmt(op.rndTime) : '', suggested: op.rndTime > 0));
+      ops.add(OpDraft(name: op.opName, manpower: op.manpower, machine: op.machine, op1pc: op.op1pc, time: op.rndAt100 > 0 ? _fmt(op.rndAt100) : '', suggested: op.rndTime > 0));
     }
     notifyListeners();
   }
@@ -713,6 +728,7 @@ class EntryDraft extends ChangeNotifier {
         ],
         'isEditMode': isEdit,
         'editSrn': isEdit ? srn : null,
+        'timesAt100': isEdit,
       },
       'operations': collect(p),
     };

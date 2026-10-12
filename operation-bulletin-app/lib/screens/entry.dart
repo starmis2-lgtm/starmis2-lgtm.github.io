@@ -158,7 +158,7 @@ class _EntryScreenState extends State<EntryScreen> {
       if (!context.mounted) return;
       toast(context, msg);
       e.reset(st.data);
-      st.goToTab(wasEditing ? Tabs.myPending : Tabs.home);
+      st.goToTab(Tabs.myPending);
     } catch (err) {
       if (context.mounted) toast(context, err.toString(), error: true);
     } finally {
@@ -198,7 +198,7 @@ class _SetupCard extends StatelessWidget {
           noteIcon = Icons.lock_outline_rounded;
         }
       case EntryMode.editRnd:
-        noteText = 'Editing existing R&D · photo/video save directly, operation changes go for approval';
+        noteText = 'Editing existing R&D · times shown at 100% efficiency · photo/video save directly, other changes go for review';
         noteColor = const Color(0xFF9A3412);
         noteIcon = Icons.edit_outlined;
       case EntryMode.editPending:
@@ -222,21 +222,19 @@ class _SetupCard extends StatelessWidget {
                 onSelectionChanged: e.editing ? null : (v) => e.setCategory(v.first, p),
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: SegmentedButton<String>(
-                style: segStyle, showSelectedIcon: false,
-                segments: const [ButtonSegment(value: 'R&D', label: Text('R&D')), ButtonSegment(value: 'Production', label: Text('Prod'))],
-                selected: {e.type},
-                onSelectionChanged: e.editing ? null : (v) => e.setType(v.first, p),
-              ),
-            ),
           ]),
           const SizedBox(height: 8),
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: e.editing ? null : () async {
-              final v = await pickSrn(context, options: p.srns);
+              // SRNs whose R&D bulletin is still pending come first.
+              final key = e.category == 'Packing' ? 'pkRnd' : 'mkRnd';
+              final due = {for (final it in p.pending) if (it.tasks.any((t) => t.key == key)) it.srn};
+              final opts = [
+                ...p.srns.where((o) => due.contains(o.srn)).map((o) => SrnInfo(srn: o.srn, styleName: 'R&D pending · ${o.styleName}', shippingQty: o.shippingQty, imageLink: o.imageLink, orderDate: o.orderDate)),
+                ...p.srns.where((o) => !due.contains(o.srn)),
+              ];
+              final v = await pickSrn(context, options: opts);
               if (v != null) e.setSrn(v, p);
             },
             child: Container(
@@ -263,8 +261,8 @@ class _SetupCard extends StatelessWidget {
             DropdownButtonFormField<String>(
               initialValue: e.role.isEmpty ? null : e.role,
               isExpanded: true,
-              decoration: InputDecoration(labelText: 'Bulletin type', prefixIcon: const Icon(Icons.category_outlined, size: 20), fillColor: e.role.isEmpty ? const Color(0xFFFFFBEB) : null),
-              hint: const Text('Select bulletin type'),
+              decoration: const InputDecoration(labelText: 'Show operations of', prefixIcon: Icon(Icons.filter_list_rounded, size: 20)),
+              hint: const Text('All types'),
               items: [
                 for (final r in _roles(p, e))
                   DropdownMenuItem(value: r, child: Row(children: [Expanded(child: Text(roleLabel(r), overflow: TextOverflow.ellipsis)), if (e.countFor(r) > 0) Pill('${e.countFor(r)} ops', color: cs.primary)])),
@@ -286,8 +284,6 @@ class _SetupCard extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             catPill(e.category),
-            const SizedBox(width: 6),
-            typePill(e.type),
           ]),
           if (noteText.isNotEmpty) ...[
             const SizedBox(height: 8),
