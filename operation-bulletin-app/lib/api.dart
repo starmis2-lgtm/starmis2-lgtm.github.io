@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// The Cloudflare Worker URL when the app uses it; operation photos are loaded through it (see thumbUrl).
+String imageProxyBase = '';
+
 class ApiException implements Exception {
   ApiException(this.message);
   final String message;
@@ -23,7 +26,12 @@ class Api {
 
   final http.Client _client = http.Client();
   String token = '';
-  String baseUrl = execUrl;
+  String _base = execUrl;
+  String get baseUrl => _base;
+  set baseUrl(String v) {
+    _base = v;
+    imageProxyBase = v == execUrl ? '' : v;
+  }
 
   /// X-Cache header of the last call from the Worker: HIT, STALE (old copy, a fresh one is coming), MISS, BYPASS.
   String lastCache = '';

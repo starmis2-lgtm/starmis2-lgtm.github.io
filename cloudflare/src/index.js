@@ -133,6 +133,25 @@ async function afterWrite(env, token) {
   if (await takeLock(db, key)) await refresh(env, key, args, await currentVersion(db));
 }
 
+/**
+ * Operation photos: GET /?img=<Drive file id>&w=<width> returns the Drive thumbnail with CORS, so the app can show it
+ * (Drive itself sends no CORS headers). Only files shared "anyone with the link" can be read. Cached at the edge for a week.
+ */
+async function imageReply(request, ctx, id, w) {
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(id)) return new Response('Bad image id', { status: 400, headers: CORS });
+  const width = Math.min(Math.max(parseInt(w, 10) || 400, 64), 2000);
+  const cache = caches.default;
+  const key = new Request(`https://img.cache/${id}/${width}`);
+  const hit = await cache.match(key);
+  if (hit) return hit;
+  const r = await fetch(`https://drive.google.com/thumbnail?id=${id}&sz=w${width}`, { redirect: 'follow' });
+  const type = r.headers.get('Content-Type') || '';
+  if (!r.ok || !type.startsWith('image/')) return new Response('Image not found', { status: 404, headers: { ...CORS, 'Cache-Control': 'no-store' } });
+  const res = new Response(r.body, { headers: { ...CORS, 'Content-Type': type, 'Cache-Control': 'public, max-age=604800' } });
+  ctx.waitUntil(cache.put(key, res.clone()));
+  return res;
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -140,6 +159,7 @@ export default {
     let bodyText = '';
     if (request.method === 'GET') {
       const u = new URL(request.url);
+      if (u.searchParams.has('img')) return imageReply(request, ctx, u.searchParams.get('img') || '', u.searchParams.get('w'));
       const fn = u.searchParams.get('fn');
       if (!fn) return reply(JSON.stringify({ ok: true, service: 'operation-bulletin', time: new Date().toISOString() }));
       let args = [];

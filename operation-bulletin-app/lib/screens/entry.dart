@@ -448,6 +448,10 @@ class _EntryScreenState extends State<EntryScreen> {
                               padding: const EdgeInsets.fromLTRB(12, 7, 12, 7),
                               child: Row(children: [
                                 SizedBox(width: 22, child: Text('${i + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant))),
+                                if (g.value[i].img.isNotEmpty) ...[
+                                  SrnThumb(g.value[i].img, size: 34, radius: 6, title: g.value[i].name),
+                                  const SizedBox(width: 8),
+                                ],
                                 Expanded(
                                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                     Text(g.value[i].name, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
@@ -863,7 +867,7 @@ class _OpTile extends StatelessWidget {
               child: op.uploading
                   ? const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
                   : op.img.isNotEmpty
-                      ? SrnThumb(op.img, size: 40, radius: 8)
+                      ? SrnThumb(op.img, size: 40, radius: 8, title: op.name)
                       : Container(decoration: BoxDecoration(color: cs.surfaceContainerHigh, borderRadius: BorderRadius.circular(8)), child: Icon(Icons.photo_camera_outlined, size: 18, color: cs.outline)),
             ),
             const SizedBox(width: 10),
@@ -1012,7 +1016,7 @@ class _OpSheetState extends State<_OpSheet> {
         child: _bytes != null
             ? Image.memory(_bytes!, fit: BoxFit.cover)
             : showOld
-                ? SrnThumb(curImg, size: 86, radius: 12)
+                ? SrnThumb(curImg, size: 86, radius: 12, tappable: false)
                 : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.add_a_photo_outlined, color: cs.primary),
                     const SizedBox(height: 4),
@@ -1041,6 +1045,12 @@ class _OpSheetState extends State<_OpSheet> {
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Column(children: [
               photo,
+              if (_bytes != null || showOld)
+                TextButton(
+                  onPressed: () => showPhoto(context, curImg, bytes: _bytes, title: _name.text.trim()),
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  child: const Text('View', style: TextStyle(fontSize: 11.5)),
+                ),
               if (_bytes != null || showOld)
                 TextButton(
                   onPressed: () async {
