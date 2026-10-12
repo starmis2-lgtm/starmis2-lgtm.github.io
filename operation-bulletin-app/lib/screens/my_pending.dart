@@ -210,6 +210,10 @@ void _showDetails(BuildContext context, MyPending a) {
               decoration: BoxDecoration(border: Border(bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.4)))),
               child: Row(children: [
                 SizedBox(width: 24, child: Text('${i + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cs.outline))),
+                if (a.operations[i].image.isNotEmpty) ...[
+                  SrnThumb(a.operations[i].image, size: 36, radius: 7, title: a.operations[i].operationName),
+                  const SizedBox(width: 8),
+                ],
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(a.operations[i].operationName, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, decoration: a.operations[i].pmRemove ? TextDecoration.lineThrough : null)),

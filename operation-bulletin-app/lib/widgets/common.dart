@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../api.dart';
 import '../models.dart';
 import '../state.dart';
 
@@ -19,9 +21,77 @@ String driveFileId(String link) {
   return '';
 }
 
+/// Drive photo of [px] width: through the Cloudflare Worker when the app uses it (adds CORS for the web app), else from Drive.
 String thumbUrl(String link, int px) {
   final id = driveFileId(link);
-  return id.isEmpty ? link : 'https://drive.google.com/thumbnail?id=$id&sz=w$px';
+  if (id.isEmpty) return link;
+  if (imageProxyBase.isNotEmpty) {
+    final u = Uri.parse(imageProxyBase);
+    return u.replace(queryParameters: {'img': id, 'w': '$px'}).toString();
+  }
+  return 'https://drive.google.com/thumbnail?id=$id&sz=w$px';
+}
+
+/// A network photo; on the web it falls back to a plain <img> element if the image cannot be read directly.
+Widget netImage(String url, {BoxFit fit = BoxFit.cover, Widget? loading, Widget? error}) {
+  if (kIsWeb) {
+    return Image.network(
+      url, fit: fit,
+      webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+      loadingBuilder: loading == null ? null : (_, child, p) => p == null ? child : loading,
+      errorBuilder: (_, __, ___) => error ?? const SizedBox.shrink(),
+    );
+  }
+  return CachedNetworkImage(imageUrl: url, fit: fit, placeholder: (_, __) => loading ?? const SizedBox.shrink(), errorWidget: (_, __, ___) => error ?? const SizedBox.shrink());
+}
+
+/// Shows a photo full screen inside the app (pinch to zoom). [bytes] is a photo just taken, not uploaded yet.
+Future<void> showPhoto(BuildContext context, String link, {String title = '', Uint8List? bytes}) {
+  final local = link.startsWith('local:');
+  Widget img;
+  if (bytes != null) {
+    img = Image.memory(bytes, fit: BoxFit.contain);
+  } else if (local) {
+    img = kIsWeb ? const SizedBox.shrink() : Image.file(File(link.substring(6)), fit: BoxFit.contain);
+  } else {
+    img = netImage(
+      thumbUrl(link, 1600), fit: BoxFit.contain,
+      loading: const Center(child: CircularProgressIndicator(color: Colors.white)),
+      error: const Center(child: Text('Photo could not be loaded', style: TextStyle(color: Colors.white70))),
+    );
+  }
+  return showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Photo',
+    barrierColor: Colors.black.withValues(alpha: 0.92),
+    pageBuilder: (ctx, _, __) => SafeArea(
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(children: [
+          Positioned.fill(child: InteractiveViewer(minScale: 1, maxScale: 5, child: Center(child: img))),
+          Positioned(
+            left: 4, right: 4, top: 4,
+            child: Row(children: [
+              Expanded(child: Padding(padding: const EdgeInsets.only(left: 12), child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)))),
+              IconButton(onPressed: () => Navigator.of(ctx).pop(), icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28), tooltip: 'Close'),
+            ]),
+          ),
+          if (bytes == null && !local && driveFileId(link).isNotEmpty)
+            Positioned(
+              bottom: 8, left: 0, right: 0,
+              child: Center(
+                child: TextButton.icon(
+                  onPressed: () => openLink(viewUrl(link)),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16, color: Colors.white70),
+                  label: const Text('Open in Google Drive', style: TextStyle(color: Colors.white70)),
+                ),
+              ),
+            ),
+        ]),
+      ),
+    ),
+  );
 }
 
 String viewUrl(String link) {
@@ -38,9 +108,13 @@ Future<void> openLink(String url) async {
 }
 
 class SrnThumb extends StatelessWidget {
-  const SrnThumb(this.link, {super.key, this.size = 56, this.radius = 14});
+  const SrnThumb(this.link, {super.key, this.size = 56, this.radius = 14, this.title = '', this.tappable = true});
   final String link;
   final double size, radius;
+  /// Shown on top of the full-screen photo.
+  final String title;
+  /// Tap opens the photo full screen.
+  final bool tappable;
 
   @override
   Widget build(BuildContext context) {
@@ -50,26 +124,27 @@ class SrnThumb extends StatelessWidget {
       return Container(width: size, height: size, decoration: box, child: Icon(Icons.image_outlined, color: cs.outline, size: size * 0.42));
     }
     if (link.startsWith('local:')) {
-      return Container(
+      final local = Container(
         width: size, height: size, decoration: box, clipBehavior: Clip.antiAlias,
         child: Stack(fit: StackFit.expand, children: [
-          Image.file(File(link.substring(6)), fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.broken_image_outlined, color: cs.outline, size: size * 0.4)),
+          if (kIsWeb)
+            Icon(Icons.image_outlined, color: cs.outline, size: size * 0.4)
+          else
+            Image.file(File(link.substring(6)), fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.broken_image_outlined, color: cs.outline, size: size * 0.4)),
           Positioned(right: 2, bottom: 2, child: Icon(Icons.cloud_upload_outlined, size: size * 0.3, color: Colors.white, shadows: const [Shadow(blurRadius: 4, color: Colors.black54)])),
         ]),
       );
+      return tappable ? GestureDetector(onTap: () => showPhoto(context, link, title: title), child: local) : local;
     }
-    return GestureDetector(
-      onTap: () => openLink(viewUrl(link)),
-      child: Container(
-        width: size, height: size, decoration: box, clipBehavior: Clip.antiAlias,
-        child: CachedNetworkImage(
-          imageUrl: thumbUrl(link, (size * 3).round()),
-          fit: BoxFit.cover,
-          placeholder: (_, __) => Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: cs.outline))),
-          errorWidget: (_, __, ___) => Icon(Icons.broken_image_outlined, color: cs.outline, size: size * 0.4),
-        ),
+    final img = Container(
+      width: size, height: size, decoration: box, clipBehavior: Clip.antiAlias,
+      child: netImage(
+        thumbUrl(link, (size * 3).round().clamp(120, 600)),
+        loading: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: cs.outline))),
+        error: Icon(Icons.broken_image_outlined, color: cs.outline, size: size * 0.4),
       ),
     );
+    return tappable ? GestureDetector(onTap: () => showPhoto(context, link, title: title), child: img) : img;
   }
 }
 

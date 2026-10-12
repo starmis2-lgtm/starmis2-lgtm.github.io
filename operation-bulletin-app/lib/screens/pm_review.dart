@@ -411,6 +411,10 @@ class _PmReviewPageState extends State<PmReviewPage> {
             child: Text('${i + 1}', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)),
           ),
           const SizedBox(width: 8),
+          if (o.image.isNotEmpty) ...[
+            SrnThumb(o.image, size: 38, radius: 7, title: o.operationName),
+            const SizedBox(width: 8),
+          ],
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(o.operationName, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700).merge(strike)),
