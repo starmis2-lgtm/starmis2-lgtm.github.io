@@ -1,5 +1,5 @@
 {
-  "id": "/operation-bulletin/",
+  "id": "/operation-bulletin/?app=bulletin-v2",
   "name": "Operation Bulletin",
   "short_name": "Op Bulletin",
   "description": "Star Global - Operation Bulletin: DEO data entry and Production Manager review",
