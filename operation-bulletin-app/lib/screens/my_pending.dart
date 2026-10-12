@@ -64,7 +64,19 @@ class _RejectedCard extends StatelessWidget {
               Text('By ${r.rejectedBy} · ${r.rejectedAt}', style: const TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
             ]),
           ),
-          TextButton(onPressed: () => st.dismissRejected(r.id), child: const Text('OK')),
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            if (r.operations.isNotEmpty && !r.isDeleteRequest)
+              FilledButton.tonal(
+                onPressed: () {
+                  st.entry.loadRejected(r, st.data!);
+                  st.dismissRejected(r.id);
+                  st.goToTab(Tabs.entry);
+                },
+                style: FilledButton.styleFrom(visualDensity: VisualDensity.compact, backgroundColor: const Color(0xFFFFE4E6), foregroundColor: red),
+                child: const Text('Fix & resend'),
+              ),
+            TextButton(onPressed: () => st.dismissRejected(r.id), child: const Text('OK')),
+          ]),
         ]),
       ),
     );
@@ -87,7 +99,11 @@ class _MyCard extends StatelessWidget {
       final c = n(o.cost);
       cost += c > 0 ? c : p.cost(o.manpowerType, t);
     }
+    final mine = a.submittedEmail.toLowerCase() == p.access.email.toLowerCase();
     return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+      onTap: () => _showDetails(context, a),
       child: Padding(
         padding: const EdgeInsets.all(11),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -100,7 +116,7 @@ class _MyCard extends StatelessWidget {
                 Wrap(spacing: 6, runSpacing: 4, children: [
                   catPill(a.category),
                   if (a.type != 'R&D') typePill(a.type),
-                  if (a.isEditMode) const Pill('EDIT', color: Color(0xFF92400E)),
+                  if (a.isDeleteRequest) const Pill('DELETE', color: Color(0xFFBE123C)) else if (a.isEditMode) const Pill('EDIT', color: Color(0xFF92400E)),
                   Pill(stageLabel(a.stage), color: stageColor(a.stage), filled: true),
                 ]),
               ]),
@@ -125,7 +141,24 @@ class _MyCard extends StatelessWidget {
             ),
             IconButton.outlined(tooltip: 'Not required', visualDensity: VisualDensity.compact, onPressed: () => showNotRequired(context, a.srn), icon: const Icon(Icons.block_rounded, size: 18)),
             const SizedBox(width: 6),
-            if (!a.pmReviewed)
+            if (mine)
+              IconButton.outlined(
+                tooltip: 'Withdraw (take back)', visualDensity: VisualDensity.compact,
+                onPressed: () async {
+                  final ok = await confirm(context, 'Withdraw request',
+                      'Take back this ${a.isDeleteRequest ? 'delete request' : (a.isEditMode ? 'edit' : 'bulletin')} for ${a.srn}? It will not go for approval.', yes: 'Withdraw', danger: true);
+                  if (!ok || !context.mounted) return;
+                  try {
+                    final msg = await st.withdraw(a.id);
+                    if (context.mounted) toast(context, msg);
+                  } catch (err) {
+                    if (context.mounted) toast(context, err.toString(), error: true);
+                  }
+                },
+                icon: const Icon(Icons.undo_rounded, size: 18),
+              ),
+            const SizedBox(width: 6),
+            if (!a.pmReviewed && !a.isDeleteRequest && mine)
               FilledButton.tonalIcon(
                 onPressed: () {
                   st.entry.loadPending(a, p);
@@ -137,8 +170,55 @@ class _MyCard extends StatelessWidget {
           ]),
         ]),
       ),
+      ),
     );
   }
+}
+
+/// Read-only list of the operations in a request (tap on a card).
+void _showDetails(BuildContext context, MyPending a) {
+  final cs = Theme.of(context).colorScheme;
+  showModalBottomSheet<void>(
+    context: context, isScrollControlled: true, useSafeArea: true, showDragHandle: true,
+    builder: (ctx) => DraggableScrollableSheet(
+      expand: false, initialChildSize: 0.75, minChildSize: 0.4, maxChildSize: 0.95,
+      builder: (ctx, sc) => ListView(
+        controller: sc,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        children: [
+          Text('${a.srn} · ${a.category}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Wrap(spacing: 6, runSpacing: 4, children: [
+            Pill(stageLabel(a.stage), color: stageColor(a.stage), filled: true),
+            if (a.isDeleteRequest) const Pill('DELETE', color: Color(0xFFBE123C)) else if (a.isEditMode) const Pill('EDIT', color: Color(0xFF92400E)),
+          ]),
+          if (a.isDeleteRequest) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Reason: ${a.deleteReason}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFFBE123C)))),
+          if (a.pmReviewed) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Reviewed by ${a.pmBy} · ${a.pmAt}${a.pmNote.isNotEmpty ? '\nNote: ${a.pmNote}' : ''}', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant))),
+          const SizedBox(height: 10),
+          for (var i = 0; i < a.operations.length; i++)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.4)))),
+              child: Row(children: [
+                SizedBox(width: 24, child: Text('${i + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cs.outline))),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(a.operations[i].operationName, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, decoration: a.operations[i].pmRemove ? TextDecoration.lineThrough : null)),
+                    Text([a.operations[i].manpowerType, if (a.operations[i].machineType.isNotEmpty) a.operations[i].machineType, '${a.operations[i].operation1pc.isEmpty ? '1' : a.operations[i].operation1pc} ops',
+                          if (a.operations[i].pmAdded) 'added by PM', if (a.operations[i].pmRemove) 'PM: remove?'].join(' · '),
+                        style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                  ]),
+                ),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text('${a.operations[i].time}s', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF3730A3))),
+                  if (a.operations[i].pmTime.isNotEmpty) Text('PM ${a.operations[i].pmTime}s', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF6D28D9))),
+                ]),
+              ]),
+            ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// The Production Manager asked to remove operations: the DEO removes or keeps each one.

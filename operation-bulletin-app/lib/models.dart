@@ -149,7 +149,11 @@ class MyPending {
     required this.id, required this.srn, this.styleName = '', this.category = 'Making', this.type = 'R&D', this.bulletinFor = '',
     this.date = '', this.isEditMode = false, this.submittedBy = '', this.submittedEmail = '', this.submittedAt = '',
     this.operations = const [], this.mis, this.stage = 'GM', this.pmBy = '', this.pmAt = '', this.pmNote = '',
+    this.isDeleteRequest = false, this.deleteReason = '',
   });
+  /// Request to delete the whole approved bulletin (GM approves it in the web app).
+  final bool isDeleteRequest;
+  final String deleteReason;
   final String id, srn, styleName, category, type, bulletinFor, date, submittedBy, submittedEmail, submittedAt;
   /// PM = with Production Manager, DEO = DEO to confirm removals, GM = waiting for GM approval.
   final String stage, pmBy, pmAt, pmNote;
@@ -164,17 +168,26 @@ class MyPending {
         operations: l(j['operations']).map((e) => PendingOp.fromJson(m(e))).toList(),
         mis: j['mis'] == null ? null : TaskDelay.fromJson(m(j['mis'])),
         stage: const ['PM', 'DEO'].contains(s(j['stage']).toUpperCase()) ? s(j['stage']).toUpperCase() : 'GM',
-        pmBy: s(m(j['pm'])['by']), pmAt: s(m(j['pm'])['at']), pmNote: s(m(j['pm'])['note']));
+        pmBy: s(m(j['pm'])['by']), pmAt: s(m(j['pm'])['at']), pmNote: s(m(j['pm'])['note']),
+        isDeleteRequest: b(j['isDeleteRequest']), deleteReason: s(j['deleteReason']));
   num get totalTime => operations.fold<num>(0, (a, o) => a + (n(o.time) > 0 ? n(o.time) : 0));
 }
 
 class Rejected {
-  Rejected({required this.id, required this.srn, this.styleName = '', this.category = '', this.type = '', this.reason = '', this.rejectedBy = '', this.rejectedAt = '', this.submittedAt = '', this.ops = 0});
+  Rejected({
+    required this.id, required this.srn, this.styleName = '', this.category = '', this.type = '', this.reason = '', this.rejectedBy = '',
+    this.rejectedAt = '', this.submittedAt = '', this.ops = 0, this.isEditMode = false, this.isDeleteRequest = false, this.operations = const [],
+  });
   final String id, srn, styleName, category, type, reason, rejectedBy, rejectedAt, submittedAt;
   final int ops;
+  final bool isEditMode, isDeleteRequest;
+  /// The rejected operations, so the DEO can fix and send them again.
+  final List<PendingOp> operations;
   factory Rejected.fromJson(Map<String, dynamic> j) => Rejected(
         id: s(j['id']), srn: s(j['srn']), styleName: s(j['styleName']), category: s(j['category']), type: s(j['type']),
-        reason: s(j['reason']), rejectedBy: s(j['rejectedBy']), rejectedAt: s(j['rejectedAt']), submittedAt: s(j['submittedAt']), ops: n(j['ops']).toInt());
+        reason: s(j['reason']), rejectedBy: s(j['rejectedBy']), rejectedAt: s(j['rejectedAt']), submittedAt: s(j['submittedAt']), ops: n(j['ops']).toInt(),
+        isEditMode: b(j['isEditMode']), isDeleteRequest: b(j['isDeleteRequest']),
+        operations: l(j['operations']).map((e) => PendingOp.fromJson(m(e))).toList());
 }
 
 class AccessUser {

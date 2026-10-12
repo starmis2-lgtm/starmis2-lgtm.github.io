@@ -60,6 +60,14 @@ class _EntryScreenState extends State<EntryScreen> {
     }
     final me = p.access.email.toLowerCase();
     for (final a in pend) {
+      if (a.isDeleteRequest) {
+        for (final x in out.values) {
+          x.status = 'Delete requested';
+          x.color = const Color(0xFFBE123C);
+          x.onEdit = null;
+        }
+        continue;
+      }
       final mine = a.submittedEmail.toLowerCase() == me;
       final seen = <String>{};
       for (final op in a.operations) {
@@ -124,11 +132,19 @@ class _EntryScreenState extends State<EntryScreen> {
           ),
           body: Column(children: [
             Expanded(
+              child: RefreshIndicator(
+              onRefresh: () => st.load(silent: true),
               child: ListView(
                 controller: _scroll,
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
                 children: [
-                  _Header(e: e, p: p, sent: sent, dup: dup),
+                  _Header(
+                    e: e, p: p, sent: sent, dup: dup,
+                    canManage: !e.editingAny && p.bulletin(e.category, e.srn) != null && !p.myPending.any((a) => a.srn == e.srn && a.category == e.category && a.type == 'R&D'),
+                    onUndo: () => _undoLastEdit(context, st),
+                    onDelete: () => _requestDelete(context, st),
+                  ),
                   if (e.srn.isNotEmpty && e.mp.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     SectionLabel(
@@ -143,7 +159,7 @@ class _EntryScreenState extends State<EntryScreen> {
                         child: Column(children: [
                           for (var i = 0; i < rows.length; i++) ...[
                             if (i > 0) const Divider(height: 1),
-                            _OpTile(key: rows[i].key, index: i, op: rows[i], onTap: () => _openOpSheet(context, st, op: rows[i]), onDelete: () => e.remove(rows[i])),
+                            _OpTile(key: rows[i].key, index: i, op: rows[i], onTap: () => _openOpSheet(context, st, op: rows[i]), onDelete: () => _removeWithUndo(context, e, rows[i])),
                           ],
                         ]),
                       )
@@ -164,12 +180,76 @@ class _EntryScreenState extends State<EntryScreen> {
                   ],
                 ],
               ),
+              ),
             ),
             if (e.srn.isNotEmpty && e.mp.isNotEmpty) _BottomBar(busy: _busy, blocked: dup != null, onSubmit: () => _submit(context, st)),
           ]),
         );
       },
     );
+  }
+
+  void _removeWithUndo(BuildContext context, EntryDraft e, OpDraft op) {
+    final i = e.detach(op);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text('"${op.name.isEmpty ? 'Row' : op.name}" removed'),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(label: 'UNDO', onPressed: () => e.insertAt(i, op)),
+      ));
+  }
+
+  Future<void> _undoLastEdit(BuildContext context, AppState st) async {
+    final e = st.entry;
+    final ok = await confirm(context, 'Undo last approved edit',
+        'The version of ${e.srn} (${e.category}) that was approved before the last edit will be sent for approval again. The current bulletin stays until it is approved.',
+        yes: 'Send');
+    if (!ok || !context.mounted) return;
+    try {
+      final msg = await st.restorePrevious(e.srn, e.category);
+      if (context.mounted) toast(context, msg);
+    } catch (err) {
+      if (context.mounted) toast(context, err.toString(), error: true);
+    }
+  }
+
+  Future<void> _requestDelete(BuildContext context, AppState st) async {
+    final e = st.entry;
+    final ctl = TextEditingController();
+    final why = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.delete_forever_outlined, color: Color(0xFFBE123C)),
+        title: Text('Delete ${e.srn} bulletin?'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('The whole ${e.category} R&D bulletin of ${e.srn} (all types) is removed once GM approves. It stays in the raw data sheet.',
+              style: const TextStyle(fontSize: 13)),
+          const SizedBox(height: 12),
+          TextField(controller: ctl, autofocus: true, maxLines: 2, decoration: const InputDecoration(labelText: 'Reason')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFBE123C)),
+            onPressed: () => Navigator.pop(ctx, ctl.text.trim()),
+            child: const Text('Send delete request'),
+          ),
+        ],
+      ),
+    );
+    ctl.dispose();
+    if (why == null || !context.mounted) return;
+    if (why.isEmpty) {
+      toast(context, 'Please write the reason.', error: true);
+      return;
+    }
+    try {
+      final msg = await st.requestDelete(e.srn, e.category, why);
+      if (context.mounted) toast(context, msg);
+    } catch (err) {
+      if (context.mounted) toast(context, err.toString(), error: true);
+    }
   }
 
   /// Add (op == null) or edit one operation in a popup: photo, name, number of operations, time.
@@ -183,6 +263,11 @@ class _EntryScreenState extends State<EntryScreen> {
       builder: (ctx) => _OpSheet(
         st: st,
         op: op,
+        onCopy: op == null ? null : () {
+          final i = e.ops.indexOf(op);
+          final c = OpDraft(name: op.name, manpower: op.manpower, machine: op.machine, op1pc: op.op1pcCtl.text, time: op.time, img: op.img, fromHeader: op.fromHeader);
+          e.insertAt(i + 1, c);
+        },
         onSave: (name, pc, time, bytes, fileName, removePhoto) {
           final target = op ?? e.add(name: name, op1pc: pc, time: time);
           if (op != null) {
@@ -281,11 +366,14 @@ class _EntryScreenState extends State<EntryScreen> {
 
 /// SRN, category, what is already sent, and the type / manpower / machine for the whole submission.
 class _Header extends StatelessWidget {
-  const _Header({required this.e, required this.p, required this.sent, required this.dup});
+  const _Header({required this.e, required this.p, required this.sent, required this.dup, this.canManage = false, this.onUndo, this.onDelete});
   final EntryDraft e;
   final Payload p;
   final List<_Sent> sent;
   final _Sent? dup;
+  /// An approved bulletin exists and nothing is waiting: undo-edit and delete are offered.
+  final bool canManage;
+  final VoidCallback? onUndo, onDelete;
 
   List<String> _types() {
     final list = p.manpowerTypes.map((x) => x.name).where((x) => mpAllowed(x, e.category)).toList();
@@ -317,7 +405,9 @@ class _Header extends StatelessWidget {
                     ...p.srns.where((o) => !due.contains(o.srn)),
                   ];
                   final v = await pickSrn(context, options: opts);
-                  if (v != null) e.setSrn(v, p);
+                  if (v == null || v == e.srn || !context.mounted) return;
+                  if (e.filledCount > 0 && !await confirm(context, 'Change SRN', 'The ${e.filledCount} operation(s) entered for ${e.srn} will be cleared. Continue?', yes: 'Change', danger: true)) return;
+                  e.setSrn(v, p);
                 },
                 child: Container(
                   height: 50,
@@ -350,7 +440,23 @@ class _Header extends StatelessWidget {
                 decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5))),
                 padding: const EdgeInsets.fromLTRB(8, 6, 4, 4),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Text('ALREADY SUBMITTED · ${e.srn}', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: cs.onSurfaceVariant)),
+                  Row(children: [
+                    Expanded(child: Text('ALREADY SUBMITTED · ${e.srn}', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: cs.onSurfaceVariant))),
+                    if (canManage)
+                      SizedBox(
+                        height: 26, width: 30,
+                        child: PopupMenuButton<String>(
+                          padding: EdgeInsets.zero,
+                          tooltip: 'More',
+                          icon: Icon(Icons.more_horiz_rounded, size: 20, color: cs.onSurfaceVariant),
+                          onSelected: (v) => v == 'undo' ? onUndo?.call() : onDelete?.call(),
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(value: 'undo', child: ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: Icon(Icons.undo_rounded), title: Text('Undo last approved edit'))),
+                            PopupMenuItem(value: 'delete', child: ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: Icon(Icons.delete_forever_outlined, color: Color(0xFFBE123C)), title: Text('Delete this bulletin'))),
+                          ],
+                        ),
+                      ),
+                  ]),
                   const SizedBox(height: 2),
                   for (final x in sent)
                     SizedBox(
@@ -567,10 +673,11 @@ typedef _SaveOp = void Function(String name, String pc, String time, Uint8List? 
 
 /// Popup to add / edit one operation. "Add & next" keeps it open for the next operation.
 class _OpSheet extends StatefulWidget {
-  const _OpSheet({required this.st, required this.op, required this.onSave});
+  const _OpSheet({required this.st, required this.op, required this.onSave, this.onCopy});
   final AppState st;
   final OpDraft? op;
   final _SaveOp onSave;
+  final VoidCallback? onCopy;
   @override
   State<_OpSheet> createState() => _OpSheetState();
 }
@@ -781,7 +888,19 @@ class _OpSheetState extends State<_OpSheet> {
                 icon: const Icon(Icons.delete_outline_rounded, size: 19),
                 label: const Text('Delete'),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
+              if (widget.onCopy != null)
+                OutlinedButton.icon(
+                  onPressed: () {
+                    widget.onCopy!();
+                    toast(context, 'Copy added below.');
+                    Navigator.of(context).pop();
+                  },
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+                  icon: const Icon(Icons.copy_rounded, size: 18),
+                  label: const Text('Copy'),
+                ),
+              const SizedBox(width: 8),
               Expanded(child: SizedBox(height: 48, child: FilledButton(onPressed: () => _save(next: false), child: const Text('Save')))),
             ])
           else

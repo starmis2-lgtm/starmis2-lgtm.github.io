@@ -413,6 +413,15 @@ class AppState extends ChangeNotifier {
   /// DEO answer to the Production Manager's removal requests: op index -> true (remove) / false (keep).
   Future<String> deoConfirm(String id, Map<String, bool> decisions) => _write(() => api.callMsg('deoConfirmRemoval', [id, jsonEncode(decisions)]));
 
+  /// Take back my request before it is approved (any stage).
+  Future<String> withdraw(String id) => _write(() => api.callMsg('withdrawRequest', [id]));
+
+  /// Ask GM to delete the whole approved R&D bulletin of an SRN (one category).
+  Future<String> requestDelete(String srn, String category, String reason) => _write(() => api.callMsg('requestDeleteBulletin', [srn, category, reason]));
+
+  /// Undo the last approved edit: the previous version goes for approval again.
+  Future<String> restorePrevious(String srn, String category) => _write(() => api.callMsg('restorePreviousVersion', [srn, category]));
+
   Future<String> rejectRequest(String id, String reason) => _write(() => api.callMsg('rejectBulletin', [id, reason]));
 
   Future<String> setNotRequired(String srn, List<Map<String, String>> items) => _write(() => api.callMsg('setNotRequired', [srn, jsonEncode(items)]));
@@ -720,6 +729,41 @@ class EntryDraft extends ChangeNotifier {
       if (mc.isEmpty && op.manpower == manpower) mc = op.machine;
     }
     notifyListeners();
+  }
+
+  /// Put a rejected request back in the form so it can be fixed and sent again.
+  void loadRejected(Rejected r, Payload p) {
+    _clearOps();
+    category = r.category == 'Packing' ? 'Packing' : 'Making';
+    srn = r.srn;
+    date = DateTime.now();
+    final hasNow = p.bulletin(category, srn) != null;
+    mode = (r.isEditMode && hasNow) ? EntryMode.editRnd : EntryMode.fresh;
+    pendingId = '';
+    bulletinFor = mode == EntryMode.editRnd ? (p.bulletin(category, srn)?.bulletinFor ?? '') : '';
+    mp = r.operations.isNotEmpty ? r.operations.first.manpowerType : '';
+    mc = '';
+    for (final op in r.operations) {
+      ops.add(OpDraft(
+        name: op.operationName, manpower: op.manpowerType, machine: op.machineType, op1pc: op.operation1pc,
+        time: op.time, v1: op.video1, img: op.image, fromHeader: mode == EntryMode.fresh && op.manpowerType == mp,
+      ));
+      if (mc.isEmpty && op.manpowerType == mp) mc = op.machineType;
+    }
+    notifyListeners();
+  }
+
+  void insertAt(int index, OpDraft d) {
+    ops.insert(index.clamp(0, ops.length), d);
+    notifyListeners();
+  }
+
+  /// Takes a row out without disposing it, so it can be put back (undo).
+  int detach(OpDraft d) {
+    final i = ops.indexOf(d);
+    if (i >= 0) ops.removeAt(i);
+    notifyListeners();
+    return i;
   }
 
   /// Edit my request before the Production Manager review.
