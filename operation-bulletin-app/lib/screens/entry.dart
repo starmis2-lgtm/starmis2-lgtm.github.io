@@ -12,8 +12,12 @@ String _fmtT(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStrin
 
 /// One operation type already sent for the selected SRN (approved, pending or still on the phone).
 class _Sent {
-  _Sent(this.mp);
+  _Sent(this.mp, this.label);
+  /// Operation type key (see [sectionOf]).
   final String mp;
+  final String label;
+  /// Marked not required in the NOT REQUIRED sheet; [onEdit] then makes it required again.
+  bool notReq = false;
   int ops = 0;
   num sec = 0;
   String status = '';
@@ -42,20 +46,21 @@ class _EntryScreenState extends State<EntryScreen> {
   List<_Sent> _sent(AppState st, EntryDraft e) {
     final p = st.data!;
     final out = <String, _Sent>{};
-    _Sent get(String mp) => out.putIfAbsent(mp, () => _Sent(mp));
+    _Sent get(String key, String manpower) => out.putIfAbsent(key, () => _Sent(key, sectionLabel(e.category, key, manpower)));
     final bl = p.bulletin(e.category, e.srn);
     final pend = p.myPending.where((a) => a.srn == e.srn && a.category == e.category && a.type == 'R&D').toList();
     final editPending = pend.any((a) => a.isEditMode);
     if (bl != null) {
       for (final op in bl.ops) {
         if (op.rndTime <= 0) continue;
-        final x = get(op.manpower);
+        final key = sectionOf(e.category, op.manpower, op.machine);
+        final x = get(key, op.manpower);
         x.ops++;
         x.sec += op.rndAt100;
         x.approved = true;
         x.status = 'Approved';
         x.color = const Color(0xFF047857);
-        if (!editPending && !e.editingAny) x.onEdit = () => e.startEdit(p, op.manpower);
+        if (!editPending && !e.editingAny) x.onEdit = () => e.startEdit(p, key);
       }
     }
     final me = p.access.email.toLowerCase();
@@ -71,20 +76,21 @@ class _EntryScreenState extends State<EntryScreen> {
       final mine = a.submittedEmail.toLowerCase() == me;
       final seen = <String>{};
       for (final op in a.operations) {
-        if (seen.add(op.manpowerType) && a.isEditMode && out.containsKey(op.manpowerType)) {
-          out[op.manpowerType]!.status = 'Edit · ${stageLabel(a.stage)}';
-          out[op.manpowerType]!.color = stageColor(a.stage);
-          out[op.manpowerType]!.onEdit = null;
+        final key = sectionOf(e.category, op.manpowerType, op.machineType);
+        if (seen.add(key) && a.isEditMode && out.containsKey(key)) {
+          out[key]!.status = 'Edit · ${stageLabel(a.stage)}';
+          out[key]!.color = stageColor(a.stage);
+          out[key]!.onEdit = null;
           continue;
         }
         if (a.isEditMode) continue;
-        final x = get(op.manpowerType);
+        final x = get(key, op.manpowerType);
         x.ops++;
         x.sec += n(op.time);
         x.pending = true;
         x.status = stageLabel(a.stage);
         x.color = stageColor(a.stage);
-        x.onEdit = (mine && !a.pmReviewed && !e.editingAny) ? () => e.loadPending(a, p, manpower: op.manpowerType) : null;
+        x.onEdit = (mine && !a.pmReviewed && !e.editingAny) ? () => e.loadPending(a, p, section: key) : null;
       }
     }
     for (final it in st.outbox.items) {
@@ -93,7 +99,7 @@ class _EntryScreenState extends State<EntryScreen> {
       final list = l(h['srnList']);
       if (list.isEmpty || s(m(list.first)['srn']) != e.srn || s(h['category']) != e.category) continue;
       for (final o in l(it.data['operations'])) {
-        final x = get(s(m(o)['manpowerType']));
+        final x = get(sectionOf(e.category, s(m(o)['manpowerType']), s(m(o)['machineType'])), s(m(o)['manpowerType']));
         x.ops++;
         x.sec += n(m(o)['time']);
         x.pending = true;
@@ -101,7 +107,20 @@ class _EntryScreenState extends State<EntryScreen> {
         x.color = it.status == 'failed' ? const Color(0xFFBE123C) : const Color(0xFF64748B);
       }
     }
-    final list = out.values.toList()..sort((a, b) => roleRank(a.mp) != roleRank(b.mp) ? roleRank(a.mp).compareTo(roleRank(b.mp)) : a.mp.compareTo(b.mp));
+    final order = sectionsFor(e.category).map((x) => x.key).toList();
+    for (final key in order) {
+      if (out.containsKey(key) || !st.isTypeNotRequired(e.srn, e.category, key)) continue;
+      final x = get(key, '');
+      x.notReq = true;
+      x.status = 'Not required';
+      x.color = const Color(0xFF64748B);
+      if (!e.editingAny) x.onEdit = () => _setNotRequired(context, st, key, false);
+    }
+    int rank(String k) {
+      final i = order.indexOf(k);
+      return i < 0 ? 99 : i;
+    }
+    final list = out.values.toList()..sort((a, b) => rank(a.mp).compareTo(rank(b.mp)));
     return list;
   }
 
@@ -115,8 +134,8 @@ class _EntryScreenState extends State<EntryScreen> {
         final e = st.entry;
         final cs = Theme.of(context).colorScheme;
         final sent = e.srn.isEmpty ? <_Sent>[] : _sent(st, e);
-        final sentTypes = {for (final x in sent) if (x.approved || x.pending) x.mp};
-        final dup = e.mode == EntryMode.fresh && e.mp.isNotEmpty ? sent.where((x) => x.mp == e.mp && (x.approved || x.pending)).firstOrNull : null;
+        final sentTypes = {for (final x in sent) if (x.approved || x.pending || x.notReq) x.mp};
+        final dup = e.mode == EntryMode.fresh && e.sec.isNotEmpty ? sent.where((x) => x.mp == e.sec && (x.approved || x.pending || x.notReq)).firstOrNull : null;
         final blockedTypes = e.mode == EntryMode.fresh ? e.typeCounts.keys.where(sentTypes.contains).toList() : <String>[];
         final rows = e.visibleOps;
         return Scaffold(
@@ -125,9 +144,9 @@ class _EntryScreenState extends State<EntryScreen> {
             actions: [
               if (e.editingAny)
                 TextButton(onPressed: () => e.nextType(), child: const Text('Cancel edit'))
-              else if (e.mp.isNotEmpty && rows.isNotEmpty)
-                IconButton(tooltip: 'Clear ${roleLabel(e.mp)} rows', onPressed: () async {
-                  if (await confirm(context, 'Clear rows', 'Remove all ${rows.length} ${roleLabel(e.mp)} operation(s) entered? Other types stay.', yes: 'Clear', danger: true)) e.clearType();
+              else if (e.sec.isNotEmpty && rows.isNotEmpty)
+                IconButton(tooltip: 'Clear ${e.labelOf(e.sec)} rows', onPressed: () async {
+                  if (await confirm(context, 'Clear rows', 'Remove all ${rows.length} ${e.labelOf(e.sec)} operation(s) entered? Other types stay.', yes: 'Clear', danger: true)) e.clearType();
                 }, icon: const Icon(Icons.restart_alt_rounded)),
               const UserMenu(),
             ],
@@ -146,11 +165,12 @@ class _EntryScreenState extends State<EntryScreen> {
                     canManage: !e.editingAny && p.bulletin(e.category, e.srn) != null && !p.myPending.any((a) => a.srn == e.srn && a.category == e.category && a.type == 'R&D'),
                     onUndo: () => _undoLastEdit(context, st),
                     onDelete: () => _requestDelete(context, st),
+                    onNotRequired: () => _setNotRequired(context, st, e.sec, true),
                   ),
-                  if (e.srn.isNotEmpty && e.mp.isNotEmpty && (dup == null || rows.isNotEmpty)) ...[
+                  if (e.srn.isNotEmpty && e.sec.isNotEmpty && (dup == null || rows.isNotEmpty)) ...[
                     const SizedBox(height: 8),
                     SectionLabel(
-                      '${roleLabel(e.mp)} operations · ${rows.where((o) => o.name.isNotEmpty || o.time.isNotEmpty).length}',
+                      '${e.labelOf(e.sec)} operations · ${rows.where((o) => o.name.isNotEmpty || o.time.isNotEmpty).length}',
                       trailing: e.mode == EntryMode.fresh
                           ? TextButton.icon(onPressed: () => _copyFrom(context, st), icon: const Icon(Icons.copy_all_rounded, size: 16), label: const Text('Copy from SRN'), style: TextButton.styleFrom(visualDensity: VisualDensity.compact))
                           : null,
@@ -164,7 +184,7 @@ class _EntryScreenState extends State<EntryScreen> {
                             _OpTile(
                               key: rows[i].key, index: i, op: rows[i],
                               onTap: () => _openOpSheet(context, st, op: rows[i]),
-                              confirmDelete: () => _confirmRemoveOp(context, rows[i]),
+                              confirmDelete: () => _confirmRemoveOp(context, e, rows[i]),
                               onDelete: () => _removeWithUndo(context, e, rows[i]),
                             ),
                           ],
@@ -181,7 +201,7 @@ class _EntryScreenState extends State<EntryScreen> {
                       child: FilledButton.tonalIcon(
                         onPressed: () => _openOpSheet(context, st),
                         icon: const Icon(Icons.add_circle_outline_rounded),
-                        label: Text('Add ${roleLabel(e.mp)} operation', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
+                        label: Text('Add ${e.labelOf(e.sec)} operation', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
                       ),
                     ),
                   ],
@@ -189,15 +209,15 @@ class _EntryScreenState extends State<EntryScreen> {
               ),
               ),
             ),
-            if (e.srn.isNotEmpty && (e.mp.isNotEmpty || e.totalFilled > 0)) _BottomBar(busy: _busy, blocked: blockedTypes, onSubmit: () => _submit(context, st)),
+            if (e.srn.isNotEmpty && ((e.sec.isNotEmpty && dup == null) || e.totalFilled > 0)) _BottomBar(busy: _busy, blocked: blockedTypes, onSubmit: () => _submit(context, st)),
           ]),
         );
       },
     );
   }
 
-  Future<bool> _confirmRemoveOp(BuildContext context, OpDraft op) => confirm(
-      context, 'Delete operation', 'Delete "${op.name.isEmpty ? 'this row' : op.name}" from ${roleLabel(op.manpower)}?', yes: 'Delete', danger: true);
+  Future<bool> _confirmRemoveOp(BuildContext context, EntryDraft e, OpDraft op) => confirm(
+      context, 'Delete operation', 'Delete "${op.name.isEmpty ? 'this row' : op.name}" from ${e.labelOf(op.sec)}?', yes: 'Delete', danger: true);
 
   void _removeWithUndo(BuildContext context, EntryDraft e, OpDraft op) {
     final i = e.detach(op);
@@ -278,12 +298,13 @@ class _EntryScreenState extends State<EntryScreen> {
           final c = OpDraft(name: op.name, manpower: op.manpower, machine: op.machine, op1pc: op.op1pcCtl.text, time: op.time, img: op.img, fromHeader: op.fromHeader);
           e.insertAt(i + 1, c);
         },
-        onSave: (name, pc, time, bytes, fileName, removePhoto) {
-          final target = op ?? e.add(name: name, op1pc: pc, time: time);
+        onSave: (name, pc, time, manpower, bytes, fileName, removePhoto) {
+          final target = op ?? e.add(name: name, op1pc: pc, time: time, manpower: manpower);
           if (op != null) {
             op.nameCtl.text = name;
             op.op1pcCtl.text = pc;
             op.timeCtl.text = time;
+            if (manpower.isNotEmpty) op.manpower = manpower;
             op.suggested = false;
           }
           if (removePhoto) target.img = '';
@@ -315,20 +336,160 @@ class _EntryScreenState extends State<EntryScreen> {
     final opts = <SrnInfo>[];
     for (final bl in src) {
       if (bl.srn == e.srn) continue;
-      final k = bl.ops.where((o) => o.manpower == e.mp).length;
-      if (k > 0) opts.add(SrnInfo(srn: bl.srn, styleName: '${bl.styleName} · $k ${roleLabel(e.mp)} ops', imageLink: bl.imageLink));
+      final k = bl.ops.where((o) => sectionOf(e.category, o.manpower, o.machine) == e.sec).length;
+      if (k > 0) opts.add(SrnInfo(srn: bl.srn, styleName: '${bl.styleName} · $k ${e.labelOf(e.sec)} ops', imageLink: bl.imageLink));
     }
     if (opts.isEmpty) {
-      toast(context, 'No other SRN has ${roleLabel(e.mp)} operations.', error: true);
+      toast(context, 'No other SRN has ${e.labelOf(e.sec)} operations.', error: true);
       return;
     }
-    final from = await pickSrn(context, options: opts, title: 'Copy ${roleLabel(e.mp)} operations from');
+    final from = await pickSrn(context, options: opts, title: 'Copy ${e.labelOf(e.sec)} operations from');
     if (from == null || !context.mounted) return;
     final bl = p.bulletin(e.category, from);
     if (bl == null) return;
-    final list = bl.ops.where((o) => o.manpower == e.mp).toList();
-    e.copyFrom(list);
+    final list = bl.ops.where((o) => sectionOf(e.category, o.manpower, o.machine) == e.sec).toList();
+    e.copyFrom(list, p.sectionManpower(e.category, e.sec));
     toast(context, 'Copied ${list.length} operations from $from. Check the times.');
+  }
+
+  /// Shows operation type [key] with its first allowed manpower.
+  static void _showType(Payload p, EntryDraft e, String key) {
+    final allowed = p.sectionManpower(e.category, key);
+    final first = e.ops.where((o) => o.sec == key).firstOrNull;
+    e.setType(key, allowed.isNotEmpty ? allowed.first : (first?.manpower ?? ''));
+  }
+
+  /// Marks the operation type [key] of the selected SRN as not required ([on]) or required again.
+  Future<void> _setNotRequired(BuildContext context, AppState st, String key, bool on) async {
+    final e = st.entry;
+    final p = st.data!;
+    final x = sectionByKey(e.category, key);
+    if (x == null) return;
+    final label = x.label;
+    final ok = await confirm(
+      context,
+      on ? '$label not required?' : '$label required again?',
+      on
+          ? '$label operations are not required for ${e.srn} (${e.category}). This is saved in the NOT REQUIRED sheet.'
+          : '$label operations will be required again for ${e.srn} (${e.category}).',
+      yes: on ? 'Not required' : 'Required',
+      danger: on,
+    );
+    if (!ok || !context.mounted) return;
+    try {
+      final msg = await st.markTypeNotRequired(e.srn, e.category, p.mpName(x.mpKeys.first), on);
+      if (context.mounted) toast(context, msg);
+    } catch (err) {
+      if (context.mounted) toast(context, err.toString(), error: true);
+    }
+  }
+
+  /// Review before submit: every type with its operations, times and totals.
+  Future<bool?> _review(BuildContext context, Payload p, EntryDraft e) {
+    final groups = <String, List<OpDraft>>{};
+    for (final o in e.filledOps) {
+      groups.putIfAbsent(o.sec, () => []).add(o);
+    }
+    num all = 0;
+    for (final o in e.filledOps) {
+      all += o.timeNum;
+    }
+    final action = e.editing ? 'Save' : (e.mode == EntryMode.editRnd ? 'Send edit' : 'Submit');
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Review · ${e.srn}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text('${e.category} · ${groups.length} type(s) · ${e.totalFilled} operations · total ${_fmtT(all)} s (${(all / 60).toStringAsFixed(2)} min)',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+              ]),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                children: [
+                  for (final g in groups.entries) ...[
+                    Builder(builder: (_) {
+                      num tt = 0;
+                      for (final o in g.value) {
+                        tt += o.timeNum;
+                      }
+                      final multi = p.sectionManpower(e.category, g.key).length > 1;
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        clipBehavior: Clip.antiAlias,
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          Container(
+                            color: cs.primary.withValues(alpha: 0.08),
+                            padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+                            child: Row(children: [
+                              Expanded(child: Text(e.labelOf(g.key), style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: cs.primary))),
+                              Text('${g.value.length} ops · ${_fmtT(tt)} s · ${(tt / 60).toStringAsFixed(2)} min', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                            ]),
+                          ),
+                          if (g.value.first.machine.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                              child: Text('Machine: ${g.value.first.machine}', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+                            ),
+                          for (var i = 0; i < g.value.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 7, 12, 7),
+                              child: Row(children: [
+                                SizedBox(width: 22, child: Text('${i + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant))),
+                                Expanded(
+                                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Text(g.value[i].name, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                                    Text(
+                                      [
+                                        '${g.value[i].op1pcCtl.text.trim().isEmpty ? '1' : g.value[i].op1pcCtl.text.trim()} ops',
+                                        if (multi) g.value[i].manpower,
+                                      ].join(' · '),
+                                      style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                                    ),
+                                  ]),
+                                ),
+                                Text('${_fmtT(g.value[i].timeNum)} s', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF3730A3))),
+                              ]),
+                            ),
+                        ]),
+                      );
+                    }),
+                  ],
+                ],
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: Row(children: [
+                  OutlinedButton(onPressed: () => Navigator.pop(ctx, false), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)), child: const Text('Back to edit')),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: FilledButton.icon(onPressed: () => Navigator.pop(ctx, true), icon: const Icon(Icons.cloud_upload_rounded), label: Text('$action ${e.totalFilled} operations')),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ]),
+        );
+      },
+    );
   }
 
   Future<void> _submit(BuildContext context, AppState st) async {
@@ -338,10 +499,10 @@ class _EntryScreenState extends State<EntryScreen> {
       toast(context, 'Please add at least one operation.', error: true);
       return;
     }
-    final noMc = e.mode == EntryMode.fresh ? e.typeWithoutMachine() : (e.needsMachine && e.mc.isEmpty ? e.mp : null);
+    final noMc = e.mode == EntryMode.fresh ? e.typeWithoutMachine() : (e.needsMachine && e.mc.isEmpty ? e.sec : null);
     if (noMc != null) {
-      e.setType(noMc);
-      toast(context, 'Please select the machine for ${roleLabel(noMc)}.', error: true);
+      _showType(p, e, noMc);
+      toast(context, 'Please select the machine for ${e.labelOf(noMc)}.', error: true);
       return;
     }
     if (e.ops.any((o) => o.uploading)) {
@@ -350,21 +511,17 @@ class _EntryScreenState extends State<EntryScreen> {
     }
     final bad = e.firstInvalid();
     if (bad != null) {
-      e.setType(bad.manpower);
+      _showType(p, e, bad.sec);
       final i = e.visibleOps.indexOf(bad);
-      toast(context, '${roleLabel(bad.manpower)} row ${i + 1}${bad.name.isEmpty ? '' : ' "${bad.name}"'} needs a name and a time.', error: true);
+      toast(context, '${e.labelOf(bad.sec)} row ${i + 1}${bad.name.isEmpty ? '' : ' "${bad.name}"'} needs a name and a time.', error: true);
       return;
     }
     final counts = e.typeCounts;
-    if (counts.length > 1 && e.mode == EntryMode.fresh) {
-      final list = counts.entries.map((x) => '• ${roleLabel(x.key)}: ${x.value} operation(s)').join('\n');
-      if (!await confirm(context, 'Submit ${e.srn}', '$list\n\nSubmit all ${e.totalFilled} operations together?', yes: 'Submit')) return;
-      if (!context.mounted) return;
-    }
+    if (await _review(context, p, e) != true || !context.mounted) return;
     setState(() => _busy = true);
     HapticFeedback.mediumImpact();
     try {
-      final label = '${e.category} · ${counts.keys.map(roleLabel).join(', ')}';
+      final label = '${e.category} · ${counts.keys.map(e.labelOf).join(', ')}';
       final String msg;
       if (e.editing) {
         msg = await st.updatePending(e.pendingId, e.collect(p), srn: e.srn, label: label);
@@ -385,7 +542,7 @@ class _EntryScreenState extends State<EntryScreen> {
 
 /// SRN, category, what is already sent, and the type / manpower / machine for the whole submission.
 class _Header extends StatelessWidget {
-  const _Header({required this.e, required this.p, required this.sent, required this.dup, this.canManage = false, this.onUndo, this.onDelete});
+  const _Header({required this.e, required this.p, required this.sent, required this.dup, this.canManage = false, this.onUndo, this.onDelete, this.onNotRequired});
   final EntryDraft e;
   final Payload p;
   final List<_Sent> sent;
@@ -393,12 +550,23 @@ class _Header extends StatelessWidget {
   /// An approved bulletin exists and nothing is waiting: undo-edit and delete are offered.
   final bool canManage;
   final VoidCallback? onUndo, onDelete;
+  /// Marks the chosen operation type as not required for this SRN.
+  final VoidCallback? onNotRequired;
 
+  /// Operation type keys: the fixed list of the category, then any other type found in the rows (old data).
   List<String> _types() {
-    final list = p.manpowerTypes.map((x) => x.name).where((x) => mpAllowed(x, e.category)).toList();
-    if (e.mp.isNotEmpty && !list.contains(e.mp)) list.add(e.mp);
-    list.sort((a, b) => roleRank(a) != roleRank(b) ? roleRank(a).compareTo(roleRank(b)) : a.compareTo(b));
+    final list = sectionsFor(e.category).map((x) => x.key).toList();
+    for (final o in e.ops) {
+      if (!list.contains(o.sec)) list.add(o.sec);
+    }
     return list;
+  }
+
+  /// Manpower allowed in the chosen type; an old unknown type keeps the manpower of its rows.
+  List<String> _manpower() {
+    final list = p.sectionManpower(e.category, e.sec);
+    if (list.isNotEmpty) return list;
+    return {for (final o in e.ops) if (o.sec == e.sec) o.manpower, if (e.mp.isNotEmpty) e.mp}.toList();
   }
 
   @override
@@ -485,17 +653,20 @@ class _Header extends StatelessWidget {
                     SizedBox(
                       height: 30,
                       child: Row(children: [
-                        Icon(x.approved && !x.pending ? Icons.check_circle_rounded : Icons.schedule_rounded, size: 15, color: x.color),
+                        Icon(x.notReq ? Icons.block_rounded : (x.approved && !x.pending ? Icons.check_circle_rounded : Icons.schedule_rounded), size: 15, color: x.color),
                         const SizedBox(width: 6),
-                        Expanded(child: Text(roleLabel(x.mp), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700))),
-                        Text('${x.ops} ops · ${(x.sec / 60).toStringAsFixed(2)} m', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+                        Expanded(child: Text(x.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700))),
+                        if (!x.notReq) Text('${x.ops} ops · ${(x.sec / 60).toStringAsFixed(2)} m', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
                         const SizedBox(width: 6),
                         Text(x.status, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: x.color)),
                         SizedBox(
                           width: 34,
                           child: x.onEdit == null
                               ? null
-                              : IconButton(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact, tooltip: 'Edit', onPressed: x.onEdit, icon: Icon(Icons.edit_outlined, size: 16, color: cs.primary)),
+                              : IconButton(
+                                  padding: EdgeInsets.zero, visualDensity: VisualDensity.compact, tooltip: x.notReq ? 'Make required again' : 'Edit', onPressed: x.onEdit,
+                                  icon: Icon(x.notReq ? Icons.undo_rounded : Icons.edit_outlined, size: 16, color: cs.primary),
+                                ),
                         ),
                       ]),
                     ),
@@ -507,24 +678,33 @@ class _Header extends StatelessWidget {
             Text(e.mode == EntryMode.fresh ? 'OPERATION TYPE' : 'EDITING TYPE', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: cs.onSurfaceVariant)),
             const SizedBox(height: 4),
             Wrap(spacing: 6, runSpacing: 6, children: [
-              for (final t in types)
-                ChoiceChip(
-                  label: Text((e.typeCounts[t] ?? 0) > 0 ? '${roleLabel(t)} · ${e.typeCounts[t]}' : roleLabel(t)),
-                  selected: e.mp == t,
-                  visualDensity: VisualDensity.compact,
-                  showCheckmark: false,
-                  avatar: sent.any((x) => x.mp == t) ? Icon(Icons.check_rounded, size: 14, color: sent.firstWhere((x) => x.mp == t).color) : null,
-                  onSelected: (_) => e.setType(t),
-                ),
+              for (final k in types)
+                Builder(builder: (_) {
+                  final n = e.typeCounts[k] ?? 0;
+                  final done = sent.where((x) => x.mp == k).firstOrNull;
+                  final label = e.labelOf(k);
+                  return ChoiceChip(
+                    label: Text(n > 0 ? '$label · $n' : label),
+                    selected: e.sec == k,
+                    visualDensity: VisualDensity.compact,
+                    showCheckmark: false,
+                    avatar: done == null ? null : Icon(done.notReq ? Icons.block_rounded : Icons.check_rounded, size: 14, color: done.color),
+                    onSelected: (_) {
+                      final allowed = p.sectionManpower(e.category, k);
+                      final first = e.ops.where((o) => o.sec == k).firstOrNull;
+                      e.setType(k, allowed.isNotEmpty ? allowed.first : (first?.manpower ?? ''));
+                    },
+                  );
+                }),
             ]),
-            if (e.mp.isNotEmpty) ...[
+            if (e.sec.isNotEmpty && dup == null) ...[
               const SizedBox(height: 8),
               Row(children: [
                 Expanded(
                   child: _Drop(
                     label: 'Manpower', value: e.mp, icon: Icons.person_outline_rounded,
-                    items: {...types, e.mp}.toList(),
-                    onChanged: (v) => e.setType(v),
+                    items: _manpower(),
+                    onChanged: (v) => e.setManpower(v),
                   ),
                 ),
                 if (e.needsMachine) ...[
@@ -538,13 +718,26 @@ class _Header extends StatelessWidget {
                   ),
                 ],
               ]),
+              if (e.mode == EntryMode.fresh && onNotRequired != null && sectionByKey(e.category, e.sec) != null && !e.ops.any((o) => o.sec == e.sec))
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: onNotRequired,
+                    style: TextButton.styleFrom(foregroundColor: cs.error, visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 4)),
+                    icon: const Icon(Icons.block_rounded, size: 17),
+                    label: Text('${e.labelOf(e.sec)} not required for this SRN'),
+                  ),
+                ),
             ],
             if (dup != null) ...[
               const SizedBox(height: 8),
               _Note(
-                color: const Color(0xFFB45309), icon: Icons.info_outline_rounded,
-                text: '${roleLabel(dup!.mp)} is already submitted (${dup!.status}). Pick another type${dup!.onEdit != null ? ' or edit it' : ''}.',
-                action: dup!.onEdit == null ? null : TextButton(onPressed: dup!.onEdit, child: const Text('Edit')),
+                color: dup!.notReq ? const Color(0xFF475569) : const Color(0xFFB45309),
+                icon: dup!.notReq ? Icons.block_rounded : Icons.info_outline_rounded,
+                text: dup!.notReq
+                    ? '${dup!.label} is marked not required for this SRN.'
+                    : '${dup!.label} is already submitted (${dup!.status}). Pick another type${dup!.onEdit != null ? ' or edit it' : ''}.',
+                action: dup!.onEdit == null ? null : TextButton(onPressed: dup!.onEdit, child: Text(dup!.notReq ? 'Undo' : 'Edit')),
               ),
             ],
             if (e.mode == EntryMode.editRnd)
@@ -678,7 +871,7 @@ class _OpTile extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(op.name.isEmpty ? 'No name' : op.name, maxLines: 2, overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: op.name.isEmpty ? cs.error : cs.onSurface)),
-                Text('$pc ops', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+                Text(op.sec == 'stitching' && op.manpower.isNotEmpty ? '$pc ops · ${op.manpower}' : '$pc ops', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
               ]),
             ),
             Container(
@@ -694,7 +887,7 @@ class _OpTile extends StatelessWidget {
   }
 }
 
-typedef _SaveOp = void Function(String name, String pc, String time, Uint8List? bytes, String fileName, bool removePhoto);
+typedef _SaveOp = void Function(String name, String pc, String time, String manpower, Uint8List? bytes, String fileName, bool removePhoto);
 
 /// Popup to add / edit one operation. "Add & next" keeps it open for the next operation.
 class _OpSheet extends StatefulWidget {
@@ -713,6 +906,8 @@ class _OpSheetState extends State<_OpSheet> {
   final _nameFocus = FocusNode();
   final _timeFocus = FocusNode();
   late int _pc = int.tryParse(widget.op?.op1pcCtl.text.trim() ?? '') ?? 1;
+  /// Manpower of this row (Stitching offers Operator and Helper).
+  late String _mp = widget.op?.manpower ?? widget.st.entry.mp;
   Uint8List? _bytes;
   String _fileName = 'photo.jpg';
   bool _removePhoto = false;
@@ -771,12 +966,12 @@ class _OpSheetState extends State<_OpSheet> {
       return false;
     }
     if (t <= 0) {
-      toast(context, 'Enter the time in seconds.', error: true);
+      toast(context, 'Enter the total time in seconds.', error: true);
       _timeFocus.requestFocus();
       return false;
     }
     HapticFeedback.lightImpact();
-    widget.onSave(name, '${_pc < 1 ? 1 : _pc}', _time.text.trim(), _bytes, _fileName, _removePhoto);
+    widget.onSave(name, '${_pc < 1 ? 1 : _pc}', _time.text.trim(), _mp, _bytes, _fileName, _removePhoto);
     if (next) {
       setState(() {
         _added++;
@@ -799,7 +994,8 @@ class _OpSheetState extends State<_OpSheet> {
     final e = widget.st.entry;
     final q = _name.text.trim().toLowerCase();
     final libAll = widget.st.library(e.category);
-    final libType = libAll.where((x) => x.manpower.toLowerCase() == e.mp.toLowerCase()).toList();
+    final libType = libAll.where((x) => sectionOf(e.category, x.manpower, x.machine) == e.sec).toList();
+    final mps = widget.st.data?.sectionManpower(e.category, e.sec) ?? const <String>[];
     final lib = libType.isEmpty ? libAll : libType;
     final terms = q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
     final hits = q.length < 2 ? <LibOp>[] : lib.where((x) => terms.every(x.key.contains) && x.key != q.replaceAll(RegExp(r'\s+'), ' ')).take(4).toList();
@@ -830,9 +1026,17 @@ class _OpSheetState extends State<_OpSheet> {
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            Expanded(child: Text(_edit ? 'Edit operation' : 'Add ${roleLabel(e.mp)} operation', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+            Expanded(child: Text(_edit ? 'Edit ${e.labelOf(widget.op!.sec)} operation' : 'Add ${e.labelOf(e.sec)} operation', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
             if (_added > 0) Pill('$_added added', color: const Color(0xFF047857)),
           ]),
+          if (mps.length > 1) ...[
+            const SizedBox(height: 10),
+            Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              Text('Manpower', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
+              for (final x in mps)
+                ChoiceChip(label: Text(x), selected: _mp == x, showCheckmark: false, visualDensity: VisualDensity.compact, onSelected: (_) => setState(() => _mp = x)),
+            ]),
+          ],
           const SizedBox(height: 12),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Column(children: [
@@ -890,7 +1094,7 @@ class _OpSheetState extends State<_OpSheet> {
                       onSubmitted: (_) => _save(next: !_edit),
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF3730A3)),
-                      decoration: const InputDecoration(labelText: 'Time', suffixText: 'sec', fillColor: Color(0xFFEEF2FF)),
+                      decoration: const InputDecoration(labelText: 'Total time', suffixText: 'sec', fillColor: Color(0xFFEEF2FF)),
                     ),
                   ),
                 ]),
@@ -1020,9 +1224,9 @@ class _BottomBar extends StatelessWidget {
           child: Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Text('${e.srn} · ${types.isEmpty ? roleLabel(e.mp) : types.length == 1 ? roleLabel(types.first) : '${types.length} types'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: cs.primary)),
+                Text('${e.srn} · ${types.isEmpty ? e.labelOf(e.sec) : types.length == 1 ? e.labelOf(types.first) : '${types.length} types'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: cs.primary)),
                 if (blocked.isNotEmpty)
-                  Text('${blocked.map(roleLabel).join(', ')} already submitted · remove those rows', maxLines: 2, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: cs.error))
+                  Text('${blocked.map(e.labelOf).join(', ')} already submitted or not required · remove those rows', maxLines: 2, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: cs.error))
                 else
                   Text('$ops ops · ${(time / 60).toStringAsFixed(2)} min · ₹${cost.toStringAsFixed(2)}/pc', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
               ]),
