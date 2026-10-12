@@ -1,6 +1,6 @@
 {
-  "versionCode": 9,
-  "versionName": "1.8.0",
+  "versionCode": 10,
+  "versionName": "1.9.0",
   "apk": "https://starmis2-lgtm.github.io/operation-bulletin/app/operation-bulletin.apk",
-  "notes": "New flow: DEO data entry and Production Manager review only. Production Manager adds his time next to the DEO time, can add or remove operations (DEO confirms removals), then GM approves."
+  "notes": "Simpler data entry: choose SRN, operation type, manpower and machine once at the top, then only name, ops, time and photo per row. Already submitted types of the SRN are shown at the top."
 }
