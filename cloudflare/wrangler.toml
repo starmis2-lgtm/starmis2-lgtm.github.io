@@ -1,6 +1,6 @@
 # Operation Bulletin API on Cloudflare Workers.
 # Deployed from GitHub by Cloudflare (Workers & Pages → Import a repository, root directory: cloudflare).
-name = "operation-bulletin"
+name = "starmis2-lgtm-github-io"
 main = "src/index.js"
 compatibility_date = "2025-06-01"
 
