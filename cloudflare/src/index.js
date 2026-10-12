@@ -9,7 +9,7 @@
 
 const CACHED_FN = 'getInitialPayload';
 // Calls that only read; any other call may change data, so it bumps the global data version.
-const READ_FNS = new Set(['getInitialPayload', 'getMyRejectedLight', 'getMisPayload', 'apiPing', 'loginWithPin', 'uploadOperationImage']);
+const READ_FNS = new Set(['getInitialPayload', 'getMyRejectedLight', 'getMisPayload', 'apiPing', 'loginWithPin', 'uploadOperationImage', 'imageThumb', 'imageShareInfo']);
 // D1 limits a value to ~2 MB, so a payload is stored in parts.
 const CHUNK = 500000;
 const LOCK_MS = 25000;
@@ -135,9 +135,10 @@ async function afterWrite(env, token) {
 
 /**
  * Operation photos: GET /?img=<Drive file id>&w=<width> returns the Drive thumbnail with CORS, so the app can show it
- * (Drive itself sends no CORS headers). Only files shared "anyone with the link" can be read. Cached at the edge for a week.
+ * (Drive itself sends no CORS headers). A photo Drive does not show publicly (sharing still "ask for access") is read
+ * through Apps Script (imageThumb, operation photo folder only). Cached at the edge for a week.
  */
-async function imageReply(request, ctx, id, w) {
+async function imageReply(request, env, ctx, id, w) {
   if (!/^[A-Za-z0-9_-]{20,}$/.test(id)) return new Response('Bad image id', { status: 400, headers: CORS });
   const width = Math.min(Math.max(parseInt(w, 10) || 400, 64), 2000);
   const cache = caches.default;
@@ -145,9 +146,24 @@ async function imageReply(request, ctx, id, w) {
   const hit = await cache.match(key);
   if (hit) return hit;
   const r = await fetch(`https://drive.google.com/thumbnail?id=${id}&sz=w${width}`, { redirect: 'follow' });
-  const type = r.headers.get('Content-Type') || '';
-  if (!r.ok || !type.startsWith('image/')) return new Response('Image not found', { status: 404, headers: { ...CORS, 'Cache-Control': 'no-store' } });
-  const res = new Response(r.body, { headers: { ...CORS, 'Content-Type': type, 'Cache-Control': 'public, max-age=604800' } });
+  let type = r.headers.get('Content-Type') || '';
+  let body = null;
+  if (r.ok && type.startsWith('image/')) {
+    body = r.body;
+  } else {
+    try {
+      const j = JSON.parse(await upstream(env, JSON.stringify({ fn: 'imageThumb', args: [id, width] })));
+      const x = JSON.parse(j.result || '{}');
+      if (x.data && String(x.type || '').startsWith('image/')) {
+        type = x.type;
+        body = Uint8Array.from(atob(x.data), (c) => c.charCodeAt(0));
+      }
+    } catch (e) {
+      body = null;
+    }
+  }
+  if (!body) return new Response('Image not found', { status: 404, headers: { ...CORS, 'Cache-Control': 'no-store' } });
+  const res = new Response(body, { headers: { ...CORS, 'Content-Type': type, 'Cache-Control': 'public, max-age=604800' } });
   ctx.waitUntil(cache.put(key, res.clone()));
   return res;
 }
@@ -159,7 +175,7 @@ export default {
     let bodyText = '';
     if (request.method === 'GET') {
       const u = new URL(request.url);
-      if (u.searchParams.has('img')) return imageReply(request, ctx, u.searchParams.get('img') || '', u.searchParams.get('w'));
+      if (u.searchParams.has('img')) return imageReply(request, env, ctx, u.searchParams.get('img') || '', u.searchParams.get('w'));
       const fn = u.searchParams.get('fn');
       if (!fn) return reply(JSON.stringify({ ok: true, service: 'operation-bulletin', time: new Date().toISOString() }));
       let args = [];
