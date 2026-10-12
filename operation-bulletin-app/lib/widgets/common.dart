@@ -228,6 +228,7 @@ class UserMenu extends StatelessWidget {
       onSelected: (v) async {
         if (v == 'refresh') await st.load();
         if (v == 'update') {
+          if (st.update == null) await st.checkUpdate(force: true);
           final u = st.update;
           if (u != null) {
             openLink(u.apkUrl);

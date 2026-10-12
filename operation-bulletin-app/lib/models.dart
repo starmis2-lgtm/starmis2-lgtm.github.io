@@ -278,7 +278,18 @@ String roleLabel(String role) {
   if (r == 'thread cutter' || r == 'thread cutting') return 'Thread Cutting';
   if (r == 'endline qc' || r == 'end line checker') return 'Endline QC';
   if (r.contains('niddle') || r.contains('needle')) return 'Hand Needle';
+  if (r == 'final qc' || r == 'finalqc') return 'Final QC';
+  if (r == 'press man' || r == 'pressman') return 'Pressing';
   return role;
+}
+
+String _mpKey(String v) => v.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+/// Same rule as the web app: Packing uses only Final QC, Press Man and Helper; Making uses the rest.
+bool mpAllowed(String name, String category) {
+  final k = _mpKey(name);
+  if (category == 'Packing') return k == 'finalqc' || k == 'pressman' || k == 'helper';
+  return k != 'finalqc' && k != 'pressman';
 }
 
 const roleOrder = ['Operator', 'Paster', 'Helper', 'Hand Niddle Operator', 'Thread cutter', 'Endline QC'];

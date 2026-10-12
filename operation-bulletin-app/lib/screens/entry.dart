@@ -3,10 +3,23 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../main.dart';
 import '../models.dart';
 import '../state.dart';
 import '../widgets/common.dart';
+
+String _fmtT(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(2).replaceFirst(RegExp(r'0$'), '');
+
+/// One operation type already sent for the selected SRN (approved, pending or still on the phone).
+class _Sent {
+  _Sent(this.mp);
+  final String mp;
+  int ops = 0;
+  num sec = 0;
+  String status = '';
+  Color color = const Color(0xFF047857);
+  bool approved = false, pending = false;
+  VoidCallback? onEdit;
+}
 
 class EntryScreen extends StatefulWidget {
   const EntryScreen({super.key});
@@ -26,6 +39,65 @@ class _EntryScreenState extends State<EntryScreen> {
     super.dispose();
   }
 
+  /// Types already sent for this SRN / category.
+  List<_Sent> _sent(AppState st, EntryDraft e) {
+    final p = st.data!;
+    final out = <String, _Sent>{};
+    _Sent get(String mp) => out.putIfAbsent(mp, () => _Sent(mp));
+    final bl = p.bulletin(e.category, e.srn);
+    final pend = p.myPending.where((a) => a.srn == e.srn && a.category == e.category && a.type == 'R&D').toList();
+    final editPending = pend.any((a) => a.isEditMode);
+    if (bl != null) {
+      for (final op in bl.ops) {
+        if (op.rndTime <= 0) continue;
+        final x = get(op.manpower);
+        x.ops++;
+        x.sec += op.rndAt100;
+        x.approved = true;
+        x.status = 'Approved';
+        x.color = const Color(0xFF047857);
+        if (!editPending && !e.editingAny) x.onEdit = () => e.startEdit(p, op.manpower);
+      }
+    }
+    final me = p.access.email.toLowerCase();
+    for (final a in pend) {
+      final mine = a.submittedEmail.toLowerCase() == me;
+      final seen = <String>{};
+      for (final op in a.operations) {
+        if (seen.add(op.manpowerType) && a.isEditMode && out.containsKey(op.manpowerType)) {
+          out[op.manpowerType]!.status = 'Edit · ${stageLabel(a.stage)}';
+          out[op.manpowerType]!.color = stageColor(a.stage);
+          out[op.manpowerType]!.onEdit = null;
+          continue;
+        }
+        if (a.isEditMode) continue;
+        final x = get(op.manpowerType);
+        x.ops++;
+        x.sec += n(op.time);
+        x.pending = true;
+        x.status = stageLabel(a.stage);
+        x.color = stageColor(a.stage);
+        x.onEdit = (mine && !a.pmReviewed && !e.editingAny) ? () => e.loadPending(a, p, manpower: op.manpowerType) : null;
+      }
+    }
+    for (final it in st.outbox.items) {
+      if (it.kind != 'submit') continue;
+      final h = m(it.data['header']);
+      final list = l(h['srnList']);
+      if (list.isEmpty || s(m(list.first)['srn']) != e.srn || s(h['category']) != e.category) continue;
+      for (final o in l(it.data['operations'])) {
+        final x = get(s(m(o)['manpowerType']));
+        x.ops++;
+        x.sec += n(m(o)['time']);
+        x.pending = true;
+        x.status = it.status == 'failed' ? 'Not sent' : 'Sending…';
+        x.color = it.status == 'failed' ? const Color(0xFFBE123C) : const Color(0xFF64748B);
+      }
+    }
+    final list = out.values.toList()..sort((a, b) => roleRank(a.mp) != roleRank(b.mp) ? roleRank(a.mp).compareTo(roleRank(b.mp)) : a.mp.compareTo(b.mp));
+    return list;
+  }
+
   @override
   Widget build(BuildContext context) {
     final st = context.watch<AppState>();
@@ -35,13 +107,18 @@ class _EntryScreenState extends State<EntryScreen> {
       builder: (context, _) {
         final e = st.entry;
         final cs = Theme.of(context).colorScheme;
+        final sent = e.srn.isEmpty ? <_Sent>[] : _sent(st, e);
+        final dup = e.mode == EntryMode.fresh && e.mp.isNotEmpty ? sent.where((x) => x.mp == e.mp && (x.approved || x.pending)).firstOrNull : null;
+        final rows = e.visibleOps;
         return Scaffold(
           appBar: AppBar(
-            title: Text(e.editing ? 'Edit Pending Submission' : 'Data Entry'),
+            title: Text(e.mode == EntryMode.editRnd ? 'Edit bulletin' : (e.editing ? 'Edit pending' : 'Data Entry')),
             actions: [
-              if (e.ops.isNotEmpty || e.srn.isNotEmpty)
-                IconButton(tooltip: 'Clear form', onPressed: () async {
-                  if (await confirm(context, 'Clear form', 'Discard everything entered in this form?', yes: 'Clear', danger: true)) e.reset(p);
+              if (e.editingAny)
+                TextButton(onPressed: () => e.nextType(), child: const Text('Cancel edit'))
+              else if (e.ops.isNotEmpty)
+                IconButton(tooltip: 'Clear rows', onPressed: () async {
+                  if (await confirm(context, 'Clear rows', 'Remove all rows entered for this type?', yes: 'Clear', danger: true)) e.nextType();
                 }, icon: const Icon(Icons.restart_alt_rounded)),
               const UserMenu(),
             ],
@@ -50,50 +127,36 @@ class _EntryScreenState extends State<EntryScreen> {
             Expanded(
               child: ListView(
                 controller: _scroll,
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+                padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
                 children: [
-                  _SetupCard(e: e, p: p),
-                  const SizedBox(height: 10),
-                  if (e.srn.isNotEmpty && !e.roleChosen)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-                        child: Column(children: [
-                          Icon(Icons.category_outlined, color: cs.primary, size: 30),
-                          const SizedBox(height: 6),
-                          Text('Select a bulletin type above to start.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-                        ]),
-                      ),
-                    )
-                  else ...[
-                  SectionLabel(
-                    e.role == 'All' || e.role.isEmpty ? 'Operations · ${e.ops.length}' : '${roleLabel(e.role)} · ${e.visibleOps.length} ops  (total ${e.ops.length})',
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      if (!e.locked && !e.editing)
-                        TextButton.icon(onPressed: () => _copyFrom(context, st), icon: const Icon(Icons.copy_all_rounded, size: 18), label: const Text('Copy from SRN'), style: TextButton.styleFrom(visualDensity: VisualDensity.compact)),
-                    ]),
-                  ),
-                  if (e.visibleOps.isEmpty)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-                        child: Column(children: [
-                          Icon(Icons.playlist_add_rounded, color: cs.outline, size: 30),
-                          const SizedBox(height: 6),
-                          Text(e.locked ? (e.srn.isEmpty ? 'Select an SRN.' : (e.ops.isEmpty ? 'No R&D bulletin for this SRN.' : 'No ${roleLabel(e.role)} operations.')) : 'No operations yet. Type a name below.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-                        ]),
-                      ),
+                  _Header(e: e, p: p, sent: sent, dup: dup),
+                  if (e.srn.isNotEmpty && e.mp.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    SectionLabel(
+                      '${roleLabel(e.mp)} operations · ${rows.where((o) => o.name.isNotEmpty || o.time.isNotEmpty).length}',
+                      trailing: e.mode == EntryMode.fresh
+                          ? TextButton.icon(onPressed: () => _copyFrom(context, st), icon: const Icon(Icons.copy_all_rounded, size: 16), label: const Text('Copy from SRN'), style: TextButton.styleFrom(visualDensity: VisualDensity.compact))
+                          : null,
                     ),
-                  for (var i = 0; i < e.visibleOps.length; i++) ...[
-                    _OpRow(key: e.visibleOps[i].key, index: i, op: e.visibleOps[i], draft: e, payload: p),
-                    const SizedBox(height: 6),
-                  ],
-                  if (!e.locked) ...[const SizedBox(height: 6), _QuickAdd(search: _search, st: st)],
+                    Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(children: [
+                        const _RowHead(),
+                        if (rows.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            child: Text('No rows yet. Type an operation name below.', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                          ),
+                        for (var i = 0; i < rows.length; i++) _OpRow(key: rows[i].key, index: i, op: rows[i], draft: e),
+                      ]),
+                    ),
+                    const SizedBox(height: 8),
+                    _QuickAdd(search: _search, st: st),
                   ],
                 ],
               ),
             ),
-            _BottomBar(busy: _busy, onSubmit: () => _submit(context, st)),
+            if (e.srn.isNotEmpty && e.mp.isNotEmpty) _BottomBar(busy: _busy, blocked: dup != null, onSubmit: () => _submit(context, st)),
           ]),
         );
       },
@@ -104,61 +167,56 @@ class _EntryScreenState extends State<EntryScreen> {
     final e = st.entry;
     final p = st.data!;
     final src = e.category == 'Packing' ? p.packing : p.submitted;
-    final opts = src.where((bl) => bl.srn != e.srn && bl.ops.isNotEmpty).map((bl) => SrnInfo(srn: bl.srn, styleName: '${bl.styleName} · ${bl.ops.length} ops', imageLink: bl.imageLink)).toList();
-    final from = await pickSrn(context, options: opts, title: 'Copy operations from');
+    final opts = <SrnInfo>[];
+    for (final bl in src) {
+      if (bl.srn == e.srn) continue;
+      final k = bl.ops.where((o) => o.manpower == e.mp).length;
+      if (k > 0) opts.add(SrnInfo(srn: bl.srn, styleName: '${bl.styleName} · $k ${roleLabel(e.mp)} ops', imageLink: bl.imageLink));
+    }
+    if (opts.isEmpty) {
+      toast(context, 'No other SRN has ${roleLabel(e.mp)} operations.', error: true);
+      return;
+    }
+    final from = await pickSrn(context, options: opts, title: 'Copy ${roleLabel(e.mp)} operations from');
     if (from == null || !context.mounted) return;
     final bl = p.bulletin(e.category, from);
     if (bl == null) return;
-    if (e.ops.isNotEmpty) {
-      final ok = await confirm(context, 'Copy operations', 'Replace the ${e.ops.length} operation(s) already added with ${bl.ops.length} from $from?', yes: 'Replace');
-      if (!ok) return;
-    }
-    e.replaceWith(bl.ops);
-    if (context.mounted) toast(context, 'Copied ${bl.ops.length} operations from $from. Check the times.');
+    final list = bl.ops.where((o) => o.manpower == e.mp).toList();
+    e.copyFrom(list);
+    toast(context, 'Copied ${list.length} operations from $from. Check the times.');
   }
 
   Future<void> _submit(BuildContext context, AppState st) async {
     final e = st.entry;
     final p = st.data!;
-    if (e.srn.isEmpty) {
-      toast(context, 'Please select an SRN.', error: true);
+    if (e.needsMachine && e.mc.isEmpty) {
+      toast(context, 'Please select the machine.', error: true);
       return;
     }
-    final ops = e.collect(p);
-    if (ops.isEmpty) {
+    if (e.filledCount == 0) {
       toast(context, 'Please add at least one operation.', error: true);
       return;
     }
-    if (e.isProd) {
-      if (!ops.any((o) => (num.tryParse(o['time'].toString()) ?? 0) > 0)) {
-        toast(context, 'Enter production time for at least one operation.', error: true);
-        return;
-      }
-    } else {
-      final bad = e.firstInvalid();
-      if (bad >= 0) {
-        final o = e.ops[bad];
-        e.role = (o.manpower.isNotEmpty && e.role != 'All') ? o.manpower : 'All';
-        e.touch();
-        toast(context, '"${o.name.isEmpty ? 'Operation ${bad + 1}' : o.name}" needs a name, type and time greater than 0.', error: true);
-        return;
-      }
+    final bad = e.firstInvalid();
+    if (bad >= 0) {
+      final o = e.visibleOps[bad];
+      toast(context, 'Row ${bad + 1}${o.name.isEmpty ? '' : ' "${o.name}"'} needs a name and a time.', error: true);
+      return;
     }
     setState(() => _busy = true);
     HapticFeedback.mediumImpact();
     try {
+      final label = '${e.category} · ${roleLabel(e.mp)}';
       final String msg;
-      final wasEditing = e.editing;
-      final label = '${e.category} ${e.type}${e.role.isNotEmpty && e.role != 'All' ? ' · ${roleLabel(e.role)}' : ''}';
-      if (wasEditing) {
-        msg = await st.updatePending(e.pendingId, ops, srn: e.srn, label: label);
+      if (e.editing) {
+        msg = await st.updatePending(e.pendingId, e.collect(p), srn: e.srn, label: label);
       } else {
         msg = await st.submitBulletin(e.payload(p), srn: e.srn, label: label);
       }
       if (!context.mounted) return;
-      toast(context, msg);
-      e.reset(st.data);
-      st.goToTab(Tabs.myPending);
+      toast(context, '$msg  You can fill the next type now.');
+      e.nextType();
+      _scroll.jumpTo(0);
     } catch (err) {
       if (context.mounted) toast(context, err.toString(), error: true);
     } finally {
@@ -167,15 +225,18 @@ class _EntryScreenState extends State<EntryScreen> {
   }
 }
 
-class _SetupCard extends StatelessWidget {
-  const _SetupCard({required this.e, required this.p});
+/// SRN, category, what is already sent, and the type / manpower / machine for the whole submission.
+class _Header extends StatelessWidget {
+  const _Header({required this.e, required this.p, required this.sent, required this.dup});
   final EntryDraft e;
   final Payload p;
+  final List<_Sent> sent;
+  final _Sent? dup;
 
-  /// Roles offered as bulletin types: all manpower types from Validation plus any extra role already in the draft.
-  static List<String> _roles(Payload p, EntryDraft e) {
-    final set = <String>{...p.manpowerTypes.map((x) => x.name), ...e.ops.map((o) => o.manpower).where((x) => x.isNotEmpty)};
-    final list = set.toList()..sort((a, b) => roleRank(a) != roleRank(b) ? roleRank(a).compareTo(roleRank(b)) : a.compareTo(b));
+  List<String> _types() {
+    final list = p.manpowerTypes.map((x) => x.name).where((x) => mpAllowed(x, e.category)).toList();
+    if (e.mp.isNotEmpty && !list.contains(e.mp)) list.add(e.mp);
+    list.sort((a, b) => roleRank(a) != roleRank(b) ? roleRank(a).compareTo(roleRank(b)) : a.compareTo(b));
     return list;
   }
 
@@ -183,119 +244,130 @@ class _SetupCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final info = e.srn.isEmpty ? null : p.srn(e.srn);
-    final segStyle = ButtonStyle(visualDensity: VisualDensity.compact, textStyle: WidgetStateProperty.all(const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)));
-    String noteText = '';
-    Color noteColor = cs.primary;
-    IconData noteIcon = Icons.info_outline_rounded;
-    switch (e.mode) {
-      case EntryMode.prod:
-        if (e.srn.isNotEmpty && e.ops.isEmpty) {
-          noteText = 'No R&D bulletin yet for ${e.srn}. Create R&D first.';
-          noteColor = const Color(0xFFB45309);
-          noteIcon = Icons.warning_amber_rounded;
-        } else if (e.srn.isNotEmpty) {
-          noteText = 'Production time entry · operations locked to R&D';
-          noteIcon = Icons.lock_outline_rounded;
-        }
-      case EntryMode.editRnd:
-        noteText = 'Editing existing R&D · times shown at 100% efficiency · photo/video save directly, other changes go for review';
-        noteColor = const Color(0xFF9A3412);
-        noteIcon = Icons.edit_outlined;
-      case EntryMode.editPending:
-        noteText = 'Editing pending submission';
-        noteColor = const Color(0xFF9A3412);
-        noteIcon = Icons.pending_actions_outlined;
-      case EntryMode.fresh:
-        break;
-    }
-
+    final lockTop = e.editingAny;
+    final types = _types();
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // 1. SRN + category + date
           Row(children: [
             Expanded(
-              child: SegmentedButton<String>(
-                style: segStyle, showSelectedIcon: false,
-                segments: const [ButtonSegment(value: 'Making', label: Text('Making')), ButtonSegment(value: 'Packing', label: Text('Packing'))],
-                selected: {e.category},
-                onSelectionChanged: e.editing ? null : (v) => e.setCategory(v.first, p),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: lockTop ? null : () async {
+                  final key = e.category == 'Packing' ? 'pkRnd' : 'mkRnd';
+                  final due = {for (final it in p.pending) if (it.tasks.any((t) => t.key == key)) it.srn};
+                  final opts = [
+                    ...p.srns.where((o) => due.contains(o.srn)).map((o) => SrnInfo(srn: o.srn, styleName: 'R&D pending · ${o.styleName}', shippingQty: o.shippingQty, imageLink: o.imageLink, orderDate: o.orderDate)),
+                    ...p.srns.where((o) => !due.contains(o.srn)),
+                  ];
+                  final v = await pickSrn(context, options: opts);
+                  if (v != null) e.setSrn(v, p);
+                },
+                child: Container(
+                  height: 50,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(10), border: Border.all(color: e.srn.isEmpty ? cs.primary.withValues(alpha: 0.6) : cs.outlineVariant.withValues(alpha: 0.5))),
+                  child: Row(children: [
+                    if (info != null) SrnThumb(info.imageLink, size: 36, radius: 8) else Icon(Icons.qr_code_2_rounded, color: cs.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: info == null
+                          ? Text(e.srn.isEmpty ? 'Select SRN' : e.srn, style: TextStyle(fontWeight: FontWeight.w800, color: e.srn.isEmpty ? cs.primary : cs.onSurface))
+                          : Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(info.srn, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                              Text('${info.styleName} · Qty ${info.shippingQty}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                            ]),
+                    ),
+                    Icon(lockTop ? Icons.lock_outline_rounded : Icons.expand_more_rounded, size: 18, color: cs.outline),
+                  ]),
+                ),
               ),
             ),
+            const SizedBox(width: 6),
+            _CatToggle(value: e.category, onChanged: lockTop ? null : (v) => e.setCategory(v, p)),
           ]),
-          const SizedBox(height: 8),
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: e.editing ? null : () async {
-              // SRNs whose R&D bulletin is still pending come first.
-              final key = e.category == 'Packing' ? 'pkRnd' : 'mkRnd';
-              final due = {for (final it in p.pending) if (it.tasks.any((t) => t.key == key)) it.srn};
-              final opts = [
-                ...p.srns.where((o) => due.contains(o.srn)).map((o) => SrnInfo(srn: o.srn, styleName: 'R&D pending · ${o.styleName}', shippingQty: o.shippingQty, imageLink: o.imageLink, orderDate: o.orderDate)),
-                ...p.srns.where((o) => !due.contains(o.srn)),
-              ];
-              final v = await pickSrn(context, options: opts);
-              if (v != null) e.setSrn(v, p);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(12), border: Border.all(color: e.srn.isEmpty ? cs.primary.withValues(alpha: 0.5) : cs.outlineVariant.withValues(alpha: 0.5))),
-              child: Row(children: [
-                if (info != null) ...[SrnThumb(info.imageLink, size: 44, radius: 10), const SizedBox(width: 10)] else Icon(Icons.qr_code_2_rounded, color: cs.primary),
-                if (info == null) const SizedBox(width: 10),
-                Expanded(
-                  child: info == null
-                      ? Text(e.srn.isEmpty ? 'Select SRN' : e.srn, style: TextStyle(fontWeight: FontWeight.w700, color: e.srn.isEmpty ? cs.primary : cs.onSurface))
-                      : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(info.srn, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                          Text(info.styleName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                          Text('Qty ${info.shippingQty}${info.orderDate.isNotEmpty ? ' · Order ${info.orderDate}' : ''}', style: TextStyle(fontSize: 10.5, color: cs.outline, fontWeight: FontWeight.w600)),
-                        ]),
-                ),
-                Icon(e.editing ? Icons.lock_outline_rounded : Icons.expand_more_rounded, color: cs.outline),
-              ]),
-            ),
-          ),
           if (e.srn.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: e.role.isEmpty ? null : e.role,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Show operations of', prefixIcon: Icon(Icons.filter_list_rounded, size: 20)),
-              hint: const Text('All types'),
-              items: [
-                for (final r in _roles(p, e))
-                  DropdownMenuItem(value: r, child: Row(children: [Expanded(child: Text(roleLabel(r), overflow: TextOverflow.ellipsis)), if (e.countFor(r) > 0) Pill('${e.countFor(r)} ops', color: cs.primary)])),
-                DropdownMenuItem(value: 'All', child: Row(children: [const Expanded(child: Text('All types')), if (e.ops.isNotEmpty) Pill('${e.ops.length} ops', color: cs.secondary)])),
-              ],
-              onChanged: (v) => e.setRole(v ?? ''),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Row(children: [
-            OutlinedButton.icon(
-              onPressed: () async {
-                final d = await showDatePicker(context: context, initialDate: e.date, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 365)));
-                if (d != null) e.setDate(d);
-              },
-              icon: const Icon(Icons.calendar_month_rounded, size: 17),
-              label: Text('${e.date.day.toString().padLeft(2, '0')}-${e.date.month.toString().padLeft(2, '0')}-${e.date.year}', style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface)),
-              style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 12), foregroundColor: cs.onSurface),
-            ),
-            const SizedBox(width: 8),
-            catPill(e.category),
-          ]),
-          if (noteText.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(color: noteColor.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: noteColor.withValues(alpha: 0.25))),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(noteIcon, size: 16, color: noteColor),
-                const SizedBox(width: 8),
-                Expanded(child: Text(noteText, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: noteColor))),
+            // 2. What is already sent for this SRN
+            if (sent.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5))),
+                padding: const EdgeInsets.fromLTRB(8, 6, 4, 4),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Text('ALREADY SUBMITTED · ${e.srn}', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: cs.onSurfaceVariant)),
+                  const SizedBox(height: 2),
+                  for (final x in sent)
+                    SizedBox(
+                      height: 30,
+                      child: Row(children: [
+                        Icon(x.approved && !x.pending ? Icons.check_circle_rounded : Icons.schedule_rounded, size: 15, color: x.color),
+                        const SizedBox(width: 6),
+                        Expanded(child: Text(roleLabel(x.mp), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700))),
+                        Text('${x.ops} ops · ${(x.sec / 60).toStringAsFixed(2)} m', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+                        const SizedBox(width: 6),
+                        Text(x.status, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: x.color)),
+                        SizedBox(
+                          width: 34,
+                          child: x.onEdit == null
+                              ? null
+                              : IconButton(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact, tooltip: 'Edit', onPressed: x.onEdit, icon: Icon(Icons.edit_outlined, size: 16, color: cs.primary)),
+                        ),
+                      ]),
+                    ),
+                ]),
+              ),
+            ],
+            // 3. Type / manpower / machine for this submission
+            const SizedBox(height: 10),
+            Text(e.mode == EntryMode.fresh ? 'OPERATION TYPE' : 'EDITING TYPE', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: cs.onSurfaceVariant)),
+            const SizedBox(height: 4),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final t in types)
+                ChoiceChip(
+                  label: Text(roleLabel(t)),
+                  selected: e.mp == t,
+                  visualDensity: VisualDensity.compact,
+                  showCheckmark: false,
+                  avatar: sent.any((x) => x.mp == t) ? Icon(Icons.check_rounded, size: 14, color: sent.firstWhere((x) => x.mp == t).color) : null,
+                  onSelected: (_) => e.setType(t),
+                ),
+            ]),
+            if (e.mp.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(
+                  child: _Drop(
+                    label: 'Manpower', value: e.mp, icon: Icons.person_outline_rounded,
+                    items: {...types, e.mp}.toList(),
+                    onChanged: (v) => e.setType(v),
+                  ),
+                ),
+                if (e.needsMachine) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _Drop(
+                      label: 'Machine', value: e.mc, icon: Icons.precision_manufacturing_outlined,
+                      items: {...p.machineTypes, if (e.mc.isNotEmpty) e.mc}.toList(),
+                      onChanged: (v) => e.setMachine(v),
+                    ),
+                  ),
+                ],
               ]),
-            ),
+            ],
+            if (dup != null) ...[
+              const SizedBox(height: 8),
+              _Note(
+                color: const Color(0xFFB45309), icon: Icons.info_outline_rounded,
+                text: '${roleLabel(dup!.mp)} is already submitted (${dup!.status}). Pick another type${dup!.onEdit != null ? ' or edit it' : ''}.',
+                action: dup!.onEdit == null ? null : TextButton(onPressed: dup!.onEdit, child: const Text('Edit')),
+              ),
+            ],
+            if (e.mode == EntryMode.editRnd)
+              const Padding(padding: EdgeInsets.only(top: 8), child: _Note(color: Color(0xFF9A3412), icon: Icons.edit_outlined, text: 'Editing the approved bulletin · times at 100% efficiency · changes go for review')),
+            if (e.editing)
+              const Padding(padding: EdgeInsets.only(top: 8), child: _Note(color: Color(0xFF9A3412), icon: Icons.pending_actions_outlined, text: 'Editing your pending submission')),
           ],
         ]),
       ),
@@ -303,12 +375,116 @@ class _SetupCard extends StatelessWidget {
   }
 }
 
+class _CatToggle extends StatelessWidget {
+  const _CatToggle({required this.value, required this.onChanged});
+  final String value;
+  final ValueChanged<String>? onChanged;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    Widget seg(String v) {
+      final on = value == v;
+      return InkWell(
+        onTap: onChanged == null || on ? null : () => onChanged!(v),
+        child: Container(
+          width: 64, alignment: Alignment.center,
+          color: on ? catColor(v) : Colors.transparent,
+          child: Text(v, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: on ? Colors.white : cs.onSurfaceVariant)),
+        ),
+      );
+    }
+
+    return Container(
+      height: 50,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), border: Border.all(color: cs.outlineVariant)),
+      child: Column(children: [Expanded(child: seg('Making')), Expanded(child: seg('Packing'))]),
+    );
+  }
+}
+
+class _Drop extends StatelessWidget {
+  const _Drop({required this.label, required this.value, required this.items, required this.onChanged, this.icon});
+  final String label, value;
+  final List<String> items;
+  final ValueChanged<String> onChanged;
+  final IconData? icon;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final empty = value.isEmpty;
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.only(left: 8, right: 2),
+      decoration: BoxDecoration(
+        color: empty ? const Color(0xFFFFFBEB) : cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: empty ? const Color(0xFFFDE68A) : cs.outlineVariant.withValues(alpha: 0.6)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: empty ? null : value,
+          isExpanded: true, isDense: true,
+          hint: Row(children: [if (icon != null) Icon(icon, size: 15, color: const Color(0xFFB45309)), const SizedBox(width: 4), Text('Select $label', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFFB45309)))]),
+          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: cs.onSurface, fontFamily: 'Inter'),
+          selectedItemBuilder: (_) => items.map((x) => Row(children: [if (icon != null) Icon(icon, size: 15, color: cs.primary), const SizedBox(width: 4), Flexible(child: Text(x, overflow: TextOverflow.ellipsis))])).toList(),
+          items: items.map((x) => DropdownMenuItem(value: x, child: Text(x, overflow: TextOverflow.ellipsis))).toList(),
+          onChanged: (v) => onChanged(v ?? ''),
+        ),
+      ),
+    );
+  }
+}
+
+class _Note extends StatelessWidget {
+  const _Note({required this.color, required this.icon, required this.text, this.action});
+  final Color color;
+  final IconData icon;
+  final String text;
+  final Widget? action;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withValues(alpha: 0.25))),
+      child: Row(children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: color))),
+        if (action != null) action!,
+      ]),
+    );
+  }
+}
+
+class _RowHead extends StatelessWidget {
+  const _RowHead();
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final st = TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.4, color: cs.onSurfaceVariant);
+    return Container(
+      color: cs.surfaceContainerHigh.withValues(alpha: 0.6),
+      padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
+      child: Row(children: [
+        SizedBox(width: 20, child: Text('#', style: st)),
+        Expanded(child: Text('OPERATION NAME', style: st)),
+        SizedBox(width: 42, child: Text('OPS', textAlign: TextAlign.center, style: st)),
+        const SizedBox(width: 4),
+        SizedBox(width: 60, child: Text('TIME (S)', textAlign: TextAlign.center, style: st)),
+        SizedBox(width: 36, child: Text('PHOTO', textAlign: TextAlign.center, style: st.copyWith(fontSize: 8))),
+        const SizedBox(width: 28),
+      ]),
+    );
+  }
+}
+
+/// One compact row: name · ops per piece · time · photo.
 class _OpRow extends StatefulWidget {
-  const _OpRow({super.key, required this.index, required this.op, required this.draft, required this.payload});
+  const _OpRow({super.key, required this.index, required this.op, required this.draft});
   final int index;
   final OpDraft op;
   final EntryDraft draft;
-  final Payload payload;
   @override
   State<_OpRow> createState() => _OpRowState();
 }
@@ -316,24 +492,6 @@ class _OpRow extends StatefulWidget {
 class _OpRowState extends State<_OpRow> {
   OpDraft get op => widget.op;
   EntryDraft get d => widget.draft;
-  Payload get p => widget.payload;
-
-  /// Auto-select manpower / machine from the operation name (only fills blanks).
-  void _autoFill(BuildContext context, String name) {
-    if (name.trim().length < 3) return;
-    final st = context.read<AppState>();
-    final g = st.guess(name, d.category);
-    var changed = false;
-    if (op.manpower.isEmpty && g.$1.isNotEmpty) {
-      op.manpower = g.$1;
-      changed = true;
-    }
-    if (d.category != 'Packing' && op.machine.isEmpty && op.manpower.toLowerCase() == 'operator' && g.$2.isNotEmpty) {
-      op.machine = g.$2;
-      changed = true;
-    }
-    if (changed) setState(() {});
-  }
 
   Future<void> _pickImage(BuildContext context) async {
     final src = await showModalBottomSheet<ImageSource>(
@@ -343,7 +501,7 @@ class _OpRowState extends State<_OpRow> {
           ListTile(leading: const Icon(Icons.photo_camera_rounded), title: const Text('Take photo'), onTap: () => Navigator.pop(ctx, ImageSource.camera)),
           ListTile(leading: const Icon(Icons.photo_library_rounded), title: const Text('Choose from gallery'), onTap: () => Navigator.pop(ctx, ImageSource.gallery)),
           if (op.img.isNotEmpty)
-            ListTile(leading: Icon(Icons.delete_outline_rounded, color: Theme.of(ctx).colorScheme.error), title: const Text('Remove image'), onTap: () {
+            ListTile(leading: Icon(Icons.delete_outline_rounded, color: Theme.of(ctx).colorScheme.error), title: const Text('Remove photo'), onTap: () {
               Navigator.pop(ctx);
               setState(() => op.img = '');
               d.touch();
@@ -365,235 +523,93 @@ class _OpRowState extends State<_OpRow> {
       d.touch();
       if (context.mounted) toast(context, url.startsWith('local:') ? 'Photo saved on phone, uploads with the bulletin.' : 'Photo uploaded.');
     } catch (e) {
-      if (context.mounted) toast(context, 'Image upload failed: $e', error: true);
+      if (context.mounted) toast(context, 'Photo upload failed: $e', error: true);
     } finally {
       if (mounted) setState(() => op.uploading = false);
     }
   }
 
-  Widget _miniDropdown({required String value, required List<String> items, required String hint, required ValueChanged<String?>? onChanged, IconData? icon, bool flex = true}) {
+  InputDecoration _box(String hint, {Color? fill, Color? border}) {
     final cs = Theme.of(context).colorScheme;
-    final enabled = onChanged != null;
-    final child = Container(
-      height: 32,
-      padding: const EdgeInsets.only(left: 8, right: 4),
-      decoration: BoxDecoration(
-        color: value.isEmpty ? const Color(0xFFFFFBEB) : cs.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: value.isEmpty ? const Color(0xFFFDE68A) : cs.outlineVariant.withValues(alpha: 0.5)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value.isEmpty ? null : value,
-          isDense: true, isExpanded: true,
-          icon: Icon(enabled ? Icons.arrow_drop_down_rounded : Icons.lock_outline_rounded, size: enabled ? 20 : 13, color: cs.outline),
-          hint: Row(children: [if (icon != null) ...[Icon(icon, size: 13, color: const Color(0xFFB45309)), const SizedBox(width: 4)], Flexible(child: Text(hint, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFB45309))))]),
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface, fontFamily: 'Inter'),
-          items: items.map((x) => DropdownMenuItem(value: x, child: Text(x, overflow: TextOverflow.ellipsis))).toList(),
-          selectedItemBuilder: (_) => items.map((x) => Row(children: [if (icon != null) ...[Icon(icon, size: 13, color: cs.primary), const SizedBox(width: 4)], Flexible(child: Text(x, overflow: TextOverflow.ellipsis))])).toList(),
-          onChanged: onChanged,
-        ),
-      ),
+    return InputDecoration(
+      hintText: hint, isDense: true,
+      contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      fillColor: fill ?? cs.surfaceContainerLow,
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(7), borderSide: BorderSide(color: border ?? cs.outlineVariant.withValues(alpha: 0.5))),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(7), borderSide: BorderSide(color: cs.primary, width: 1.5)),
     );
-    return flex ? Expanded(child: child) : child;
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final locked = d.locked;
-    final prod = d.isProd;
-    final isPacking = d.category == 'Packing';
-    final mps = p.manpowerTypes.map((x) => x.name).toList();
-    if (op.manpower.isNotEmpty && !mps.contains(op.manpower)) mps.add(op.manpower);
-    final mcs = ['', ...p.machineTypes];
-    if (op.machine.isNotEmpty && !mcs.contains(op.machine)) mcs.add(op.machine);
-    final cost = op.cost(p);
-
-    final pc = int.tryParse(op.op1pcCtl.text.trim()) ?? 0;
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 6, 6, 8),
-        child: Column(children: [
-          Row(children: [
-            Container(
-              width: 22, height: 22, alignment: Alignment.center,
-              decoration: BoxDecoration(color: cs.surfaceContainerHigh, shape: BoxShape.circle),
-              child: Text('${widget.index + 1}', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: op.nameCtl,
-                readOnly: locked,
-                textCapitalization: TextCapitalization.sentences,
-                textInputAction: TextInputAction.next,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                onChanged: (v) {
-                  _autoFill(context, v);
-                  d.touch();
-                },
-                decoration: InputDecoration(
-                  hintText: 'Operation name', isDense: true, filled: false,
-                  border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: cs.primary)),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-                  hintStyle: TextStyle(color: cs.outline, fontWeight: FontWeight.w500),
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            SizedBox(
-              width: 70,
-              child: TextField(
-                controller: op.timeCtl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: op.suggested ? const Color(0xFF92400E) : const Color(0xFF3730A3)),
-                onChanged: (_) {
-                  op.suggested = false;
-                  d.touch();
-                },
-                onTap: () => op.timeCtl.selection = TextSelection(baseOffset: 0, extentOffset: op.timeCtl.text.length),
-                decoration: InputDecoration(
-                  hintText: 'sec', isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
-                  fillColor: op.suggested ? const Color(0xFFFFFBEB) : const Color(0xFFEEF2FF),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: op.suggested ? const Color(0xFFFDE68A) : const Color(0xFFC7D2FE))),
-                  suffixText: 's', suffixStyle: TextStyle(fontSize: 10, color: cs.outline),
-                ),
-              ),
-            ),
-            if (locked)
-              Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.lock_outline_rounded, size: 15, color: cs.outlineVariant))
-            else
-              IconButton(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), tooltip: 'Remove', onPressed: () => d.remove(op), icon: Icon(Icons.delete_outline_rounded, size: 19, color: cs.outline)),
-          ]),
-          const SizedBox(height: 6),
-          Row(children: [
-            const SizedBox(width: 30),
-            _miniDropdown(
-              value: op.manpower, items: mps, hint: 'Manpower', icon: Icons.person_outline_rounded,
-              onChanged: locked ? null : (v) {
-                op.manpower = v ?? '';
-                if (op.manpower.toLowerCase() == 'operator' && op.machine.isEmpty && !isPacking) {
-                  op.machine = p.machineTypes.firstWhere((x) => x.toLowerCase().contains('stitch'), orElse: () => '');
-                }
-                setState(() {});
-                d.touch();
-              },
-            ),
-            if (!isPacking) ...[
-              const SizedBox(width: 6),
-              _miniDropdown(
-                value: op.machine, items: mcs.where((x) => x.isNotEmpty).toList(), hint: 'Machine', icon: Icons.precision_manufacturing_outlined,
-                onChanged: locked ? null : (v) {
-                  op.machine = v ?? '';
-                  setState(() {});
-                  d.touch();
-                },
-              ),
-            ],
-          ]),
-          const SizedBox(height: 6),
-          Row(children: [
-            const SizedBox(width: 30),
-            // Ops per piece stepper
-            Container(
-              height: 32,
-              decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(8), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5))),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                _stepBtn(Icons.remove_rounded, locked || pc <= 1 ? null : () { op.op1pcCtl.text = '${pc - 1}'; setState(() {}); d.touch(); }),
-                SizedBox(
-                  width: 34,
-                  child: TextField(
-                    controller: op.op1pcCtl, readOnly: locked, textAlign: TextAlign.center, keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
-                    onChanged: (_) { setState(() {}); d.touch(); },
-                    decoration: const InputDecoration(isDense: true, filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, contentPadding: EdgeInsets.zero),
-                  ),
-                ),
-                _stepBtn(Icons.add_rounded, locked ? null : () { op.op1pcCtl.text = '${pc + 1}'; setState(() {}); d.touch(); }),
-                Padding(padding: const EdgeInsets.only(right: 8), child: Text('ops/pc', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant))),
-              ]),
-            ),
-            const SizedBox(width: 6),
-            // Photo
-            if (op.uploading)
-              const SizedBox(width: 32, height: 32, child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5))))
-            else if (op.img.isNotEmpty)
-              GestureDetector(onTap: () => _pickImage(context), child: SrnThumb(op.img, size: 32, radius: 8))
-            else
-              _iconBox(Icons.photo_camera_outlined, 'Photo', () => _pickImage(context), cs),
-            const SizedBox(width: 6),
-            // Video link(s)
-            _iconBox(op.v1Ctl.text.trim().isEmpty ? Icons.link_rounded : Icons.play_circle_fill_rounded, 'Video', () => _editVideo(context), cs, active: op.v1Ctl.text.trim().isNotEmpty, activeColor: const Color(0xFFE11D48)),
-            const Spacer(),
-            if (prod && op.rnd > 0) Padding(padding: const EdgeInsets.only(right: 6), child: Text('R&D ${op.rnd}s', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF7E22CE)))),
-            if (op.timeNum > 0)
-              Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
-                Text('₹${cost.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF047857))),
-                Text('${op.target()} /hr', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: cs.outline)),
-              ]),
-          ]),
-        ]),
-      ),
-    );
-  }
-
-  Widget _stepBtn(IconData icon, VoidCallback? onTap) {
-    final cs = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(width: 30, height: 32, child: Icon(icon, size: 17, color: onTap == null ? cs.outlineVariant : cs.primary)),
-    );
-  }
-
-  Widget _iconBox(IconData icon, String tip, VoidCallback onTap, ColorScheme cs, {bool active = false, Color? activeColor}) {
-    return Tooltip(
-      message: tip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: 36, height: 32,
-          decoration: BoxDecoration(color: active ? (activeColor ?? cs.primary).withValues(alpha: 0.10) : cs.surfaceContainerLow, borderRadius: BorderRadius.circular(8), border: Border.all(color: active ? (activeColor ?? cs.primary).withValues(alpha: 0.4) : cs.outlineVariant.withValues(alpha: 0.5))),
-          child: Icon(icon, size: 18, color: active ? (activeColor ?? cs.primary) : cs.onSurfaceVariant),
+    final odd = widget.index.isOdd;
+    return Container(
+      color: odd ? cs.surfaceContainerLowest : null,
+      padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+      child: Row(children: [
+        SizedBox(width: 20, child: Text('${widget.index + 1}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: cs.outline))),
+        Expanded(
+          child: TextField(
+            controller: op.nameCtl,
+            textCapitalization: TextCapitalization.sentences,
+            textInputAction: TextInputAction.next,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            onChanged: (_) => d.touch(),
+            decoration: _box('Operation name', fill: op.name.isEmpty ? const Color(0xFFFFFBEB) : null),
+          ),
         ),
-      ),
+        const SizedBox(width: 4),
+        SizedBox(
+          width: 42,
+          child: TextField(
+            controller: op.op1pcCtl,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            textInputAction: TextInputAction.next,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            onTap: () => op.op1pcCtl.selection = TextSelection(baseOffset: 0, extentOffset: op.op1pcCtl.text.length),
+            onChanged: (_) => d.touch(),
+            decoration: _box('1'),
+          ),
+        ),
+        const SizedBox(width: 4),
+        SizedBox(
+          width: 60,
+          child: TextField(
+            controller: op.timeCtl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+            textAlign: TextAlign.center,
+            textInputAction: TextInputAction.next,
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: op.suggested ? const Color(0xFF92400E) : const Color(0xFF3730A3)),
+            onTap: () => op.timeCtl.selection = TextSelection(baseOffset: 0, extentOffset: op.timeCtl.text.length),
+            onChanged: (_) {
+              op.suggested = false;
+              d.touch();
+            },
+            decoration: _box('sec', fill: op.suggested ? const Color(0xFFFFFBEB) : const Color(0xFFEEF2FF), border: op.suggested ? const Color(0xFFFDE68A) : const Color(0xFFC7D2FE)),
+          ),
+        ),
+        SizedBox(
+          width: 36,
+          child: op.uploading
+              ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+              : op.img.isNotEmpty
+                  ? Center(child: GestureDetector(onTap: () => _pickImage(context), child: SrnThumb(op.img, size: 28, radius: 6)))
+                  : IconButton(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact, tooltip: 'Photo', onPressed: () => _pickImage(context), icon: Icon(Icons.photo_camera_outlined, size: 19, color: cs.onSurfaceVariant)),
+        ),
+        SizedBox(
+          width: 28,
+          child: IconButton(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact, tooltip: 'Remove row', onPressed: () => d.remove(op), icon: Icon(Icons.close_rounded, size: 17, color: cs.outline)),
+        ),
+      ]),
     );
-  }
-
-  Future<void> _editVideo(BuildContext context) async {
-    final prod = d.isProd;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Video link'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: op.v1Ctl, keyboardType: TextInputType.url, autofocus: true, decoration: const InputDecoration(labelText: 'Video link', hintText: 'https://...')),
-          if (prod) ...[
-            const SizedBox(height: 8),
-            TextField(controller: op.v2Ctl, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Video link 2')),
-            const SizedBox(height: 8),
-            TextField(controller: op.v3Ctl, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'Video link 3')),
-          ],
-        ]),
-        actions: [
-          if (op.v1Ctl.text.trim().isNotEmpty) TextButton.icon(onPressed: () => openLink(op.v1Ctl.text), icon: const Icon(Icons.open_in_new_rounded, size: 16), label: const Text('Open')),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done')),
-        ],
-      ),
-    );
-    setState(() {});
-    d.touch();
   }
 }
 
+/// Type a name: matching operations of this type from past bulletins, or add as new.
 class _QuickAdd extends StatefulWidget {
   const _QuickAdd({required this.search, required this.st});
   final TextEditingController search;
@@ -605,18 +621,14 @@ class _QuickAdd extends StatefulWidget {
 class _QuickAddState extends State<_QuickAdd> {
   final _focus = FocusNode();
 
-  void _addLib(LibOp e) {
-    widget.st.entry.add(name: e.name, manpower: e.manpower, machine: e.machine, op1pc: e.op1pc, time: e.time > 0 ? (e.time == e.time.roundToDouble() ? e.time.toInt().toString() : e.time.toString()) : '', suggested: e.time > 0);
+  void _addLib(LibOp x) {
+    widget.st.entry.add(name: x.name, op1pc: x.op1pc, time: x.time > 0 ? _fmtT(x.time) : '', suggested: x.time > 0);
     widget.search.clear();
     setState(() {});
   }
 
   void _addNew(String q) {
-    if (q.isEmpty) return;
-    final e = widget.st.entry;
-    final g = widget.st.guess(q, e.category);
-    final mp = (e.role.isEmpty || e.role == 'All') ? g.$1 : e.role;
-    widget.st.entry.add(name: q, manpower: mp, machine: mp.toLowerCase() == 'operator' ? g.$2 : '', op1pc: '1', expanded: false);
+    widget.st.entry.add(name: q, op1pc: '1');
     widget.search.clear();
     setState(() {});
   }
@@ -633,72 +645,56 @@ class _QuickAddState extends State<_QuickAdd> {
     final e = st.entry;
     final cs = Theme.of(context).colorScheme;
     final q = widget.search.text.trim();
-    final roleSel = e.role == 'All' ? '' : e.role;
     final libAll = st.library(e.category);
-    final libRole = roleSel.isEmpty ? libAll : libAll.where((x) => x.manpower.toLowerCase() == roleSel.toLowerCase()).toList();
-    final lib = libRole.isEmpty ? libAll : libRole;
+    final libType = libAll.where((x) => x.manpower.toLowerCase() == e.mp.toLowerCase()).toList();
+    final lib = libType.isEmpty ? libAll : libType;
     final have = e.haveKeys;
     final terms = q.toLowerCase().split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-    final hits = q.isEmpty ? <LibOp>[] : lib.where((x) => terms.every(x.key.contains)).take(8).toList();
+    final hits = q.isEmpty ? <LibOp>[] : lib.where((x) => terms.every(x.key.contains)).take(6).toList();
     final exact = lib.any((x) => x.key == q.toLowerCase().replaceAll(RegExp(r'\s+'), ' '));
 
-    return Card(
-      color: cs.primary.withValues(alpha: 0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: cs.primary.withValues(alpha: 0.25))),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: widget.search, focusNode: _focus,
-                textCapitalization: TextCapitalization.sentences, textInputAction: TextInputAction.done,
-                onChanged: (_) => setState(() {}),
-                onSubmitted: (v) {
-                  if (hits.isNotEmpty && q.isNotEmpty) {
-                    _addLib(hits.first);
-                  } else {
-                    _addNew(v.trim());
-                  }
-                  _focus.requestFocus();
-                },
-                decoration: InputDecoration(
-                  hintText: roleSel.isEmpty ? 'Type operation name to add…' : 'Add ${roleLabel(roleSel)} operation…', prefixIcon: const Icon(Icons.add_rounded), fillColor: cs.surface,
-                  suffixIcon: q.isEmpty ? null : IconButton(icon: const Icon(Icons.close_rounded, size: 18), onPressed: () => setState(() => widget.search.clear())),
-                ),
-              ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Expanded(
+          child: TextField(
+            controller: widget.search, focusNode: _focus,
+            textCapitalization: TextCapitalization.sentences, textInputAction: TextInputAction.done,
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (v) {
+              if (v.trim().isEmpty) return;
+              if (hits.isNotEmpty) {
+                _addLib(hits.first);
+              } else {
+                _addNew(v.trim());
+              }
+              _focus.requestFocus();
+            },
+            decoration: InputDecoration(
+              hintText: 'Add ${roleLabel(e.mp)} operation…', prefixIcon: const Icon(Icons.add_rounded, size: 20), fillColor: cs.surface,
+              suffixIcon: q.isEmpty ? null : IconButton(icon: const Icon(Icons.close_rounded, size: 18), onPressed: () => setState(() => widget.search.clear())),
             ),
-            const SizedBox(width: 8),
-            FilledButton.tonal(
-              onPressed: () {
-                if (q.isNotEmpty) {
-                  _addNew(q);
-                } else {
-                  e.add(expanded: true);
-                }
-              },
-              style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14)),
-              child: const Icon(Icons.add_rounded),
-            ),
-          ]),
-          if (q.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            for (final x in hits)
-              _SugRow(
-                title: x.name, added: have.contains(x.key),
-                sub: '${x.manpower.isEmpty ? '?' : x.manpower}${x.machine.isNotEmpty ? ' · ${x.machine}' : ''} · ${x.op1pc} pc · ${x.time > 0 ? '${x.time}s' : '—'} · used ${x.count}×',
-                onTap: () => _addLib(x),
-              ),
-            if (!exact)
-              Builder(builder: (_) {
-                final g = st.guess(q, e.category);
-                final mp = roleSel.isEmpty ? g.$1 : roleSel;
-                return _SugRow(title: 'Add “$q” as new operation', sub: '${mp.isEmpty ? 'manpower?' : mp}${g.$2.isNotEmpty && mp.toLowerCase() == 'operator' ? ' · ${g.$2}' : ''} · you enter the time', highlight: true, onTap: () => _addNew(q));
-              }),
-          ],
-        ]),
-      ),
-    );
+          ),
+        ),
+        const SizedBox(width: 6),
+        FilledButton.tonal(
+          onPressed: () {
+            if (q.isNotEmpty) {
+              _addNew(q);
+            } else {
+              e.add(op1pc: '1');
+            }
+          },
+          style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12), minimumSize: const Size(44, 44)),
+          child: const Icon(Icons.add_rounded),
+        ),
+      ]),
+      if (q.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        for (final x in hits)
+          _SugRow(title: x.name, added: have.contains(x.key), sub: '${x.op1pc} ops · ${x.time > 0 ? '${_fmtT(x.time)}s' : '—'} · used ${x.count}×', onTap: () => _addLib(x)),
+        if (!exact) _SugRow(title: 'Add “$q” as new operation', sub: 'you enter the time', highlight: true, onTap: () => _addNew(q)),
+      ],
+    ]);
   }
 }
 
@@ -711,27 +707,27 @@ class _SugRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Material(
         color: highlight ? cs.primaryContainer.withValues(alpha: 0.5) : cs.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5))),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5))),
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: highlight ? cs.primary : cs.onSurface))),
+                    Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: highlight ? cs.primary : cs.onSurface))),
                     if (added) const Padding(padding: EdgeInsets.only(left: 6), child: Pill('added', color: Color(0xFF065F46))),
                   ]),
                   Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
                 ]),
               ),
-              Icon(Icons.add_circle_rounded, color: cs.primary),
+              Icon(Icons.add_circle_rounded, color: cs.primary, size: 20),
             ]),
           ),
         ),
@@ -741,8 +737,8 @@ class _SugRow extends StatelessWidget {
 }
 
 class _BottomBar extends StatelessWidget {
-  const _BottomBar({required this.busy, required this.onSubmit});
-  final bool busy;
+  const _BottomBar({required this.busy, required this.blocked, required this.onSubmit});
+  final bool busy, blocked;
   final VoidCallback onSubmit;
   @override
   Widget build(BuildContext context) {
@@ -750,20 +746,15 @@ class _BottomBar extends StatelessWidget {
     final e = st.entry;
     final p = st.data!;
     final cs = Theme.of(context).colorScheme;
-    var ops = 0, rOps = 0;
-    num time = 0, cost = 0, rTime = 0;
-    final roleSel = e.role == 'All' ? '' : e.role;
-    for (final o in e.ops) {
+    var ops = 0;
+    num time = 0, cost = 0;
+    for (final o in e.visibleOps) {
       if (o.timeNum <= 0) continue;
       ops++;
       time += o.timeNum;
-      cost += o.cost(p);
-      if (roleSel.isNotEmpty && o.manpower == roleSel) {
-        rOps++;
-        rTime += o.timeNum;
-      }
+      cost += p.cost(e.mp, o.timeNum);
     }
-    final label = e.editing ? 'Save changes' : (e.mode == EntryMode.editRnd ? 'Update' : 'Submit');
+    final label = e.editing ? 'Save' : (e.mode == EntryMode.editRnd ? 'Send edit' : 'Submit');
     return Material(
       color: cs.surface, elevation: 8,
       child: SafeArea(
@@ -773,18 +764,14 @@ class _BottomBar extends StatelessWidget {
           child: Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                if (roleSel.isNotEmpty) Text('${roleLabel(roleSel)}: $rOps ops · ${(rTime / 60).toStringAsFixed(2)} min', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: cs.primary)),
-                Text('Total $ops ops · ${(time / 60).toStringAsFixed(2)} min · ₹${cost.toStringAsFixed(2)}/pc', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5, color: roleSel.isNotEmpty ? cs.onSurfaceVariant : cs.onSurface)),
+                Text('${e.srn} · ${roleLabel(e.mp)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: cs.primary)),
+                Text('$ops ops · ${(time / 60).toStringAsFixed(2)} min · ₹${cost.toStringAsFixed(2)}/pc', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
               ]),
             ),
-            if (e.editing) ...[
-              OutlinedButton(onPressed: busy ? null : () => e.reset(p), child: const Text('Cancel')),
-              const SizedBox(width: 8),
-            ],
             FilledButton.icon(
-              onPressed: busy ? null : onSubmit,
+              onPressed: busy || blocked ? null : onSubmit,
               style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12)),
-              icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Icon(e.editing ? Icons.save_rounded : Icons.cloud_upload_rounded, size: 20),
+              icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.cloud_upload_rounded, size: 20),
               label: Text(busy ? 'Saving…' : label),
             ),
           ]),
