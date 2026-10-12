@@ -1,0 +1,23 @@
+# Operation Bulletin API on Cloudflare Workers.
+# Deployed from GitHub by Cloudflare (Workers & Pages → Import a repository, root directory: cloudflare).
+name = "operation-bulletin"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+# The Apps Script web app that keeps all business rules and writes the Google Sheet.
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwz492tw24mYnFwSvAG4pQ9oUU_OsW_g8EYPrTGZM119pwKzRdyQODpoGS5pfp3Z5a4zw/exec"
+# A cached app payload older than this (seconds) is refreshed in the background.
+CACHE_MAX_AGE_SEC = "600"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "operation-bulletin"
+database_id = "ab3fd6c6-33f6-440f-9bb3-dbb097463fca"
+
+# Daily clean-up of cached payloads nobody asked for in a week.
+[triggers]
+crons = ["17 21 * * *"]
+
+[observability]
+enabled = true

@@ -117,6 +117,46 @@ class AppState extends ChangeNotifier {
     return File('${dir.path}/payload.json');
   }
 
+  static const _webPayloadKey = 'pb_payload';
+
+  /// Last app data saved on the device (file on Android, browser storage on the web).
+  Future<String?> _readCache() async {
+    try {
+      if (kIsWeb) return (await SharedPreferences.getInstance()).getString(_webPayloadKey);
+      final f = await _cacheFile();
+      return await f.exists() ? await f.readAsString() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _writeCache(String text) async {
+    try {
+      if (kIsWeb) {
+        final prefs = await SharedPreferences.getInstance();
+        // browser storage holds about 5 MB; skip when the data is too big
+        if (text.length < 2400000) {
+          await prefs.setString(_webPayloadKey, text);
+        } else {
+          await prefs.remove(_webPayloadKey);
+        }
+        return;
+      }
+      await (await _cacheFile()).writeAsString(text, flush: true);
+    } catch (_) {}
+  }
+
+  Future<void> _clearCache() async {
+    try {
+      if (kIsWeb) {
+        await (await SharedPreferences.getInstance()).remove(_webPayloadKey);
+        return;
+      }
+      final f = await _cacheFile();
+      if (await f.exists()) await f.delete();
+    } catch (_) {}
+  }
+
   static Map<String, dynamic> _decode(String text) => jsonDecode(text) as Map<String, dynamic>;
 
   /// Parses payload JSON off the UI thread.
@@ -125,6 +165,7 @@ class AppState extends ChangeNotifier {
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     api.token = prefs.getString(kTokenKey) ?? '';
+    await api.loadEndpoint();
     entry.onChanged = _persistDraft;
     AppUpdate.currentVersion().then((v) {
       appVersion = v;
@@ -150,9 +191,9 @@ class AppState extends ChangeNotifier {
     // Show cached data instantly, then refresh from the server in the background.
     if (api.token.isNotEmpty) {
       try {
-        final f = await _cacheFile();
-        if (await f.exists()) {
-          final j = await _parse(await f.readAsString());
+        final cached = await _readCache();
+        if (cached != null && cached.isNotEmpty) {
+          final j = await _parse(cached);
           if (j['needLogin'] != true && j['error'] == null) {
             data = Payload.fromJson(j);
             rejected = List<Rejected>.from(data!.myRejected);
@@ -229,6 +270,8 @@ class AppState extends ChangeNotifier {
     Future<void>.delayed(const Duration(milliseconds: 50), () => load(silent: true));
   }
 
+  bool _staleRetry = false;
+
   Future<void> load({bool silent = false}) async {
     if (loading) return;
     loading = true;
@@ -241,7 +284,7 @@ class AppState extends ChangeNotifier {
         needLogin = true;
         loginHint = s(j['email']);
         data = null;
-        try { final f = await _cacheFile(); if (await f.exists()) await f.delete(); } catch (_) {}
+        await _clearCache();
       } else {
         if (j['error'] != null) throw ApiException(j['error'].toString());
         data = Payload.fromJson(j);
@@ -249,7 +292,15 @@ class AppState extends ChangeNotifier {
         needLogin = false;
         _lib.clear();
         lastSync = DateTime.now();
-        try { (await _cacheFile()).writeAsString(text, flush: true); } catch (_) {}
+        _writeCache(text);
+        // The Worker answered with an older copy and is fetching a fresh one: ask again shortly.
+        if (api.lastCache == 'STALE' && !_staleRetry) {
+          _staleRetry = true;
+          Future<void>.delayed(const Duration(seconds: 6), () async {
+            await load(silent: true);
+            _staleRetry = false;
+          });
+        }
       }
       error = null;
       offline = false;
@@ -297,7 +348,7 @@ class AppState extends ChangeNotifier {
     api.token = '';
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(kTokenKey);
-    try { final f = await _cacheFile(); if (await f.exists()) await f.delete(); } catch (_) {}
+    await _clearCache();
     data = null;
     needLogin = true;
     loginHint = '';

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiException implements Exception {
   ApiException(this.message);
@@ -11,30 +12,66 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-/// Thin JSON client for the Apps Script web app (doPost dispatcher).
+/// Thin JSON client for the Apps Script web app (doPost dispatcher), or the Cloudflare Worker in front of it.
 class Api {
+  /// Apps Script web app: always works, used when no Worker is configured or the Worker is down.
   static const String execUrl =
       'https://script.google.com/macros/s/AKfycbwz492tw24mYnFwSvAG4pQ9oUU_OsW_g8EYPrTGZM119pwKzRdyQODpoGS5pfp3Z5a4zw/exec';
+  /// {"url": "https://...workers.dev"} — the Cloudflare Worker to use (empty = Apps Script directly).
+  static const String configUrl = 'https://starmis2-lgtm.github.io/operation-bulletin/api.json';
+  static const String _prefKey = 'pb_api_url';
 
   final http.Client _client = http.Client();
   String token = '';
+  String baseUrl = execUrl;
+
+  /// X-Cache header of the last call from the Worker: HIT, STALE (old copy, a fresh one is coming), MISS, BYPASS.
+  String lastCache = '';
+
+  /// Uses the saved Worker URL at once and checks the config file for a new one in the background.
+  Future<void> loadEndpoint() async {
+    try {
+      final saved = (await SharedPreferences.getInstance()).getString(_prefKey) ?? '';
+      if (saved.startsWith('https://')) baseUrl = saved;
+    } catch (_) {}
+    unawaited(_refreshEndpoint());
+  }
+
+  Future<void> _refreshEndpoint() async {
+    try {
+      final r = await _client.get(Uri.parse('$configUrl?t=${DateTime.now().millisecondsSinceEpoch}')).timeout(const Duration(seconds: 8));
+      if (r.statusCode != 200) return;
+      final url = ((jsonDecode(r.body) as Map)['url'] ?? '').toString().trim();
+      final prefs = await SharedPreferences.getInstance();
+      if (url.startsWith('https://')) {
+        baseUrl = url;
+        await prefs.setString(_prefKey, url);
+      } else {
+        baseUrl = execUrl;
+        await prefs.remove(_prefKey);
+      }
+    } catch (_) {}
+  }
 
   Future<dynamic> call(String fn, List<dynamic> args,
       {bool withToken = true, Duration timeout = const Duration(seconds: 45), int retries = 1}) async {
     try {
-      return await _call(fn, args, withToken: withToken, timeout: timeout);
+      return await _call(fn, args, withToken: withToken, timeout: timeout, url: baseUrl);
     } on ApiException catch (e) {
       final transient = e.message.startsWith('Network error') || e.message.startsWith('Server took too long') || e.message.startsWith('Server error 5');
+      // Worker down → go to Apps Script directly.
+      if (transient && baseUrl != execUrl) return _call(fn, args, withToken: withToken, timeout: timeout, url: execUrl);
       if (retries > 0 && transient) return call(fn, args, withToken: withToken, timeout: timeout, retries: retries - 1);
       rethrow;
     }
   }
 
-  Future<dynamic> _call(String fn, List<dynamic> args, {required bool withToken, required Duration timeout}) async {
+  Future<dynamic> _call(String fn, List<dynamic> args, {required bool withToken, required Duration timeout, required String url}) async {
     final a = List<dynamic>.from(args);
     if (withToken) a.add(token);
-    if (kIsWeb) return _decodeResult(await _webPost(fn, a, timeout));
-    final req = http.Request('POST', Uri.parse(execUrl))
+    lastCache = '';
+    if (kIsWeb) return _decodeResult(await _webPost(url, fn, a, timeout));
+    final req = http.Request('POST', Uri.parse(url))
       ..headers['Content-Type'] = 'application/json; charset=utf-8'
       ..followRedirects = false
       ..body = jsonEncode({'fn': fn, 'args': a});
@@ -52,6 +89,7 @@ class Api {
       } else {
         text = await sres.stream.bytesToString();
         if (code >= 400) throw ApiException('Server error $code');
+        lastCache = sres.headers['x-cache'] ?? '';
       }
     } on TimeoutException {
       throw ApiException('Server took too long to respond. Check your internet.');
@@ -63,12 +101,13 @@ class Api {
   }
 
   /// Browser: a plain-text POST (no CORS preflight); the browser follows Google's redirect itself.
-  Future<String> _webPost(String fn, List<dynamic> a, Duration timeout) async {
+  Future<String> _webPost(String url, String fn, List<dynamic> a, Duration timeout) async {
     try {
       final r = await _client
-          .post(Uri.parse(execUrl), headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: jsonEncode({'fn': fn, 'args': a}))
+          .post(Uri.parse(url), headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: jsonEncode({'fn': fn, 'args': a}))
           .timeout(timeout);
       if (r.statusCode >= 400) throw ApiException('Server error ${r.statusCode}');
+      lastCache = r.headers['x-cache'] ?? '';
       return utf8.decode(r.bodyBytes);
     } on TimeoutException {
       throw ApiException('Server took too long to respond. Check your internet.');
