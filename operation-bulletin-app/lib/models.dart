@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 String s(dynamic v) => v == null ? '' : v.toString().trim();
 num n(dynamic v) {
   if (v == null) return 0;
@@ -12,16 +14,18 @@ class Access {
   Access({
     this.email = '', this.name = '', this.designation = '', this.department = '',
     this.isManagement = false, this.canManageAccess = false, this.found = false, this.viaPin = false,
-    this.tabs = const [],
+    this.tabs = const [], this.isPM = false, this.isGM = false,
   });
   final String email, name, designation, department;
-  final bool isManagement, canManageAccess, found, viaPin;
+  final bool isManagement, canManageAccess, found, viaPin, isPM, isGM;
   final List<String> tabs;
 
   factory Access.fromJson(Map<String, dynamic> j) => Access(
         email: s(j['email']), name: s(j['name']), designation: s(j['designation']), department: s(j['department']),
         isManagement: b(j['isManagement']), canManageAccess: b(j['canManageAccess']), found: b(j['found']), viaPin: b(j['viaPin']),
         tabs: l(j['tabs']).map(s).where((t) => t.isNotEmpty).toList(),
+        isPM: b(j['isPM']) || RegExp(r'production\s*manager', caseSensitive: false).hasMatch(s(j['designation'])),
+        isGM: b(j['isGM']),
       );
   String get displayName => name.isNotEmpty ? name : email;
 }
@@ -45,14 +49,18 @@ class Op {
   Op({
     required this.opName, required this.manpower, this.machine = '', this.op1pc = '',
     this.time = 0, this.type = 'R&D', this.rndTime = 0, this.prdTime = 0, this.target = 0, this.cost = 0,
-    this.v1 = '', this.v2 = '', this.v3 = '', this.img = '',
+    this.v1 = '', this.v2 = '', this.v3 = '', this.img = '', this.eff = 100,
   });
   final String opName, manpower, machine, op1pc, type, v1, v2, v3, img;
-  final num time, rndTime, prdTime, target, cost;
+  final num time, rndTime, prdTime, target, cost, eff;
+
+  /// DEO time at 100% efficiency (the sheet keeps the time after efficiency).
+  num get rndAt100 => rndTime > 0 ? (rndTime * (eff > 0 ? eff : 100) / 100 * 100).round() / 100 : 0;
   factory Op.fromJson(Map<String, dynamic> j) => Op(
         opName: s(j['opName']), manpower: s(j['manpower']), machine: s(j['machine']), op1pc: s(j['op1pc']),
         time: n(j['time']), type: s(j['type']), rndTime: n(j['rndTime']), prdTime: n(j['prdTime']),
-        target: n(j['target']), cost: n(j['cost']), v1: s(j['v1']), v2: s(j['v2']), v3: s(j['v3']), img: s(j['img']));
+        target: n(j['target']), cost: n(j['cost']), v1: s(j['v1']), v2: s(j['v2']), v3: s(j['v3']), img: s(j['img']),
+        eff: n(j['eff']) > 0 ? n(j['eff']) : 100);
 }
 
 class Bulletin {
@@ -123,22 +131,30 @@ class PendingOp {
   PendingOp({
     this.operationName = '', this.manpowerType = '', this.machineType = '', this.operation1pc = '',
     this.time = '', this.target = '', this.cost = '', this.video1 = '', this.video2 = '', this.video3 = '', this.image = '',
+    this.deoTime = '', this.pmTime = '', this.pmAdded = false, this.pmRemove = false, this.deoKept = false,
   });
   final String operationName, manpowerType, machineType, operation1pc, time, target, cost, video1, video2, video3, image;
+  /// Production Manager review: DEO time kept aside, PM time, op added by PM, PM asked to remove, DEO kept it.
+  final String deoTime, pmTime;
+  final bool pmAdded, pmRemove, deoKept;
   factory PendingOp.fromJson(Map<String, dynamic> j) => PendingOp(
         operationName: s(j['operationName']), manpowerType: s(j['manpowerType']), machineType: s(j['machineType']),
         operation1pc: s(j['operation1pc']), time: s(j['time']), target: s(j['target']), cost: s(j['cost']),
-        video1: s(j['video1']), video2: s(j['video2']), video3: s(j['video3']), image: s(j['image']));
+        video1: s(j['video1']), video2: s(j['video2']), video3: s(j['video3']), image: s(j['image']),
+        deoTime: s(j['deoTime']), pmTime: s(j['pmTime']), pmAdded: b(j['pmAdded']), pmRemove: b(j['pmRemove']), deoKept: b(j['deoKept']));
 }
 
 class MyPending {
   MyPending({
     required this.id, required this.srn, this.styleName = '', this.category = 'Making', this.type = 'R&D', this.bulletinFor = '',
     this.date = '', this.isEditMode = false, this.submittedBy = '', this.submittedEmail = '', this.submittedAt = '',
-    this.operations = const [], this.mis,
+    this.operations = const [], this.mis, this.stage = 'GM', this.pmBy = '', this.pmAt = '', this.pmNote = '',
   });
   final String id, srn, styleName, category, type, bulletinFor, date, submittedBy, submittedEmail, submittedAt;
+  /// PM = with Production Manager, DEO = DEO to confirm removals, GM = waiting for GM approval.
+  final String stage, pmBy, pmAt, pmNote;
   final bool isEditMode;
+  bool get pmReviewed => pmBy.isNotEmpty;
   final List<PendingOp> operations;
   final TaskDelay? mis;
   factory MyPending.fromJson(Map<String, dynamic> j) => MyPending(
@@ -146,7 +162,9 @@ class MyPending {
         bulletinFor: s(j['bulletinFor']), date: s(j['date']), isEditMode: b(j['isEditMode']), submittedBy: s(j['submittedBy']),
         submittedEmail: s(j['submittedEmail']), submittedAt: s(j['submittedAt']),
         operations: l(j['operations']).map((e) => PendingOp.fromJson(m(e))).toList(),
-        mis: j['mis'] == null ? null : TaskDelay.fromJson(m(j['mis'])));
+        mis: j['mis'] == null ? null : TaskDelay.fromJson(m(j['mis'])),
+        stage: const ['PM', 'DEO'].contains(s(j['stage']).toUpperCase()) ? s(j['stage']).toUpperCase() : 'GM',
+        pmBy: s(m(j['pm'])['by']), pmAt: s(m(j['pm'])['at']), pmNote: s(m(j['pm'])['note']));
   num get totalTime => operations.fold<num>(0, (a, o) => a + (n(o.time) > 0 ? n(o.time) : 0));
 }
 
@@ -179,8 +197,9 @@ class Payload {
     required this.access, this.srns = const [], this.manpowerTypes = const [], this.machineTypes = const [],
     this.submitted = const [], this.packing = const [], this.pending = const [], this.prodPending = const [],
     this.myPending = const [], this.myRejected = const [], this.notRequired = const [], this.accessUsers = const [], this.allTabs = const [],
-    this.approvalsCount = 0,
+    this.approvalsCount = 0, this.pmQueue = const [],
   });
+  final List<MyPending> pmQueue;
   final Access access;
   final List<SrnInfo> srns;
   final List<ManpowerType> manpowerTypes;
@@ -210,6 +229,7 @@ class Payload {
         accessUsers: l(j['accessUsers']).map((e) => AccessUser.fromJson(m(e))).toList(),
         allTabs: l(j['allTabs']).map(s).toList(),
         approvalsCount: l(j['approvals']).length,
+        pmQueue: l(j['pmQueue']).map((e) => MyPending.fromJson(m(e))).toList(),
       );
 
   SrnInfo? srn(String srn) {
@@ -266,6 +286,28 @@ const roleOrder = ['Operator', 'Paster', 'Helper', 'Hand Niddle Operator', 'Thre
 int roleRank(String role) {
   final i = roleOrder.indexWhere((x) => x.toLowerCase() == role.toLowerCase());
   return i < 0 ? 999 : i;
+}
+
+String stageLabel(String stage) {
+  switch (stage) {
+    case 'PM':
+      return 'With Production Manager';
+    case 'DEO':
+      return 'Confirm removal';
+    default:
+      return 'Waiting for GM';
+  }
+}
+
+Color stageColor(String stage) {
+  switch (stage) {
+    case 'PM':
+      return const Color(0xFF6D28D9);
+    case 'DEO':
+      return const Color(0xFFC2410C);
+    default:
+      return const Color(0xFF0E7490);
+  }
 }
 
 const taskLabels = {'mkRnd': 'Making R&D', 'pkRnd': 'Packing R&D', 'mkProd': 'Making Production', 'pkProd': 'Packing Production'};

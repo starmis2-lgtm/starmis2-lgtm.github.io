@@ -23,10 +23,11 @@ class MyPendingScreen extends StatelessWidget {
           children: [
             const OutboxList(),
             for (final r in st.visibleRejected) ...[_RejectedCard(r: r), const SizedBox(height: 8)],
+            for (final a in st.toConfirm) ...[_ConfirmCard(key: ValueKey('c${a.id}'), a: a), const SizedBox(height: 8)],
             if (list.isEmpty && st.outbox.items.isEmpty && st.visibleRejected.isEmpty)
               const Padding(padding: EdgeInsets.only(top: 90), child: EmptyState(icon: Icons.task_alt_rounded, title: 'No pending submissions', subtitle: 'Submitted bulletins wait here until approved.', color: Color(0xFF047857)))
             else
-              for (final a in list) ...[_MyCard(a: a), const SizedBox(height: 8)],
+              for (final a in list.where((x) => !st.toConfirm.contains(x))) ...[_MyCard(a: a), const SizedBox(height: 8)],
           ],
         ),
       ),
@@ -96,7 +97,12 @@ class _MyCard extends StatelessWidget {
                 Text(a.srn, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                 Text(a.styleName.isEmpty ? '-' : a.styleName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
                 const SizedBox(height: 6),
-                Wrap(spacing: 6, runSpacing: 4, children: [catPill(a.category), typePill(a.type), if (a.isEditMode) const Pill('EDIT', color: Color(0xFF92400E))]),
+                Wrap(spacing: 6, runSpacing: 4, children: [
+                  catPill(a.category),
+                  if (a.type != 'R&D') typePill(a.type),
+                  if (a.isEditMode) const Pill('EDIT', color: Color(0xFF92400E)),
+                  Pill(stageLabel(a.stage), color: stageColor(a.stage), filled: true),
+                ]),
               ]),
             ),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -119,15 +125,101 @@ class _MyCard extends StatelessWidget {
             ),
             IconButton.outlined(tooltip: 'Not required', visualDensity: VisualDensity.compact, onPressed: () => showNotRequired(context, a.srn), icon: const Icon(Icons.block_rounded, size: 18)),
             const SizedBox(width: 6),
-            FilledButton.tonalIcon(
-              onPressed: () {
-                st.entry.loadPending(a, p);
-                st.goToTab(Tabs.entry);
-              },
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              label: const Text('Edit'),
-            ),
+            if (!a.pmReviewed)
+              FilledButton.tonalIcon(
+                onPressed: () {
+                  st.entry.loadPending(a, p);
+                  st.goToTab(Tabs.entry);
+                },
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Edit'),
+              ),
           ]),
+        ]),
+      ),
+    );
+  }
+}
+
+/// The Production Manager asked to remove operations: the DEO removes or keeps each one.
+class _ConfirmCard extends StatefulWidget {
+  const _ConfirmCard({super.key, required this.a});
+  final MyPending a;
+  @override
+  State<_ConfirmCard> createState() => _ConfirmCardState();
+}
+
+class _ConfirmCardState extends State<_ConfirmCard> {
+  final Map<int, bool> dec = {};
+  bool busy = false;
+
+  Future<void> _send() async {
+    final st = context.read<AppState>();
+    setState(() => busy = true);
+    try {
+      final msg = await st.deoConfirm(widget.a.id, {for (final e in dec.entries) '${e.key}': e.value});
+      if (mounted) toast(context, msg);
+    } catch (e) {
+      if (mounted) toast(context, e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.a;
+    final cs = Theme.of(context).colorScheme;
+    const orange = Color(0xFFC2410C);
+    final idx = [for (var i = 0; i < a.operations.length; i++) if (a.operations[i].pmRemove) i];
+    final done = idx.every(dec.containsKey);
+    return Card(
+      color: const Color(0xFFFFF7ED),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Color(0xFFFED7AA))),
+      child: Padding(
+        padding: const EdgeInsets.all(11),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.help_outline_rounded, color: orange, size: 20),
+            const SizedBox(width: 8),
+            Text(a.srn, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            const SizedBox(width: 6),
+            catPill(a.category),
+          ]),
+          const SizedBox(height: 4),
+          Text('Production Manager ${a.pmBy} wants to remove ${idx.length == 1 ? 'this operation' : 'these operations'}. Remove or keep?',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: orange)),
+          if (a.pmNote.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text('Note: ${a.pmNote}', style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant))),
+          const SizedBox(height: 8),
+          for (final i in idx)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(a.operations[i].operationName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    Text('${a.operations[i].manpowerType} · ${a.operations[i].time}s', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+                  ]),
+                ),
+                SegmentedButton<bool>(
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                  emptySelectionAllowed: true,
+                  segments: const [ButtonSegment(value: true, label: Text('Remove')), ButtonSegment(value: false, label: Text('Keep'))],
+                  selected: dec.containsKey(i) ? {dec[i]!} : <bool>{},
+                  onSelectionChanged: busy ? null : (v) => setState(() => v.isEmpty ? dec.remove(i) : dec[i] = v.first),
+                ),
+              ]),
+            ),
+          const SizedBox(height: 2),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: busy || !done ? null : _send,
+              style: FilledButton.styleFrom(backgroundColor: orange),
+              child: Text(busy ? 'Sending…' : (done ? 'Confirm & send to GM' : 'Choose Remove or Keep for each')),
+            ),
+          ),
         ]),
       ),
     );
