@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'models.dart';
@@ -52,11 +53,19 @@ class Outbox extends ChangeNotifier {
     return d;
   }
 
+  static const _webKey = 'pb_outbox';
+
   Future<void> load() async {
     try {
-      final f = await _file();
-      if (await f.exists()) {
-        final list = jsonDecode(await f.readAsString()) as List<dynamic>;
+      String? raw;
+      if (kIsWeb) {
+        raw = (await SharedPreferences.getInstance()).getString(_webKey);
+      } else {
+        final f = await _file();
+        if (await f.exists()) raw = await f.readAsString();
+      }
+      if (raw != null && raw.isNotEmpty) {
+        final list = jsonDecode(raw) as List<dynamic>;
         items
           ..clear()
           ..addAll(list.map((e) => OutboxItem.fromJson(m(e))));
@@ -68,8 +77,13 @@ class Outbox extends ChangeNotifier {
 
   Future<void> _save() async {
     try {
-      final f = await _file();
-      await f.writeAsString(jsonEncode(items.map((i) => i.toJson()).toList()), flush: true);
+      final text = jsonEncode(items.map((i) => i.toJson()).toList());
+      if (kIsWeb) {
+        await (await SharedPreferences.getInstance()).setString(_webKey, text);
+      } else {
+        final f = await _file();
+        await f.writeAsString(text, flush: true);
+      }
     } catch (_) {}
   }
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 class ApiException implements Exception {
@@ -32,6 +33,7 @@ class Api {
   Future<dynamic> _call(String fn, List<dynamic> args, {required bool withToken, required Duration timeout}) async {
     final a = List<dynamic>.from(args);
     if (withToken) a.add(token);
+    if (kIsWeb) return _decodeResult(await _webPost(fn, a, timeout));
     final req = http.Request('POST', Uri.parse(execUrl))
       ..headers['Content-Type'] = 'application/json; charset=utf-8'
       ..followRedirects = false
@@ -57,6 +59,25 @@ class Api {
       throw ApiException('Network error: ${e.message}');
     }
 
+    return _decodeResult(text);
+  }
+
+  /// Browser: a plain-text POST (no CORS preflight); the browser follows Google's redirect itself.
+  Future<String> _webPost(String fn, List<dynamic> a, Duration timeout) async {
+    try {
+      final r = await _client
+          .post(Uri.parse(execUrl), headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: jsonEncode({'fn': fn, 'args': a}))
+          .timeout(timeout);
+      if (r.statusCode >= 400) throw ApiException('Server error ${r.statusCode}');
+      return utf8.decode(r.bodyBytes);
+    } on TimeoutException {
+      throw ApiException('Server took too long to respond. Check your internet.');
+    } on http.ClientException catch (e) {
+      throw ApiException('Network error: ${e.message}');
+    }
+  }
+
+  dynamic _decodeResult(String text) {
     Map<String, dynamic> j;
     try {
       j = jsonDecode(text) as Map<String, dynamic>;
