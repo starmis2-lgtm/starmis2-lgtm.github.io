@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api.dart';
 import '../models.dart';
 import '../state.dart';
+import 'tone.dart';
 
 String driveFileId(String link) {
   final u = link.trim();
@@ -157,16 +158,17 @@ class Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = filled ? color : ink(color);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
       decoration: BoxDecoration(
-        color: filled ? color : color.withValues(alpha: 0.10),
+        color: filled ? c : c.withValues(alpha: darkUi ? 0.14 : 0.10),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: filled ? 1 : 0.35)),
+        border: Border.all(color: c.withValues(alpha: filled ? 1 : 0.35)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (icon != null) ...[Icon(icon, size: 11, color: filled ? Colors.white : color), const SizedBox(width: 4)],
-        Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: filled ? Colors.white : color)),
+        if (icon != null) ...[Icon(icon, size: 11, color: filled ? Colors.white : c), const SizedBox(width: 4)],
+        Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: filled ? Colors.white : c)),
       ]),
     );
   }
@@ -234,7 +236,7 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final c = color ?? cs.primary;
+    final c = ink(color ?? cs.primary);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -287,6 +289,32 @@ void toast(BuildContext context, String msg, {bool error = false}) {
 }
 
 /// App bar action showing the user and a logout menu.
+String _themeName(ThemeMode m) => m == ThemeMode.light ? 'Light' : (m == ThemeMode.dark ? 'Dark' : 'Phone');
+
+/// Light, dark or the phone's own setting.
+Future<void> _pickTheme(BuildContext context, AppState st) async {
+  final picked = await showDialog<ThemeMode>(
+    context: context,
+    builder: (ctx) => SimpleDialog(
+      title: const Text('Theme'),
+      children: [
+        for (final x in const [
+          (ThemeMode.system, 'Same as phone', Icons.phone_android_rounded),
+          (ThemeMode.light, 'Light', Icons.light_mode_rounded),
+          (ThemeMode.dark, 'Dark', Icons.dark_mode_rounded),
+        ])
+          ListTile(
+            leading: Icon(x.$3),
+            title: Text(x.$2),
+            trailing: st.themeMode == x.$1 ? Icon(Icons.check_rounded, color: Theme.of(ctx).colorScheme.primary) : null,
+            onTap: () => Navigator.pop(ctx, x.$1),
+          ),
+      ],
+    ),
+  );
+  if (picked != null) await st.setThemeMode(picked);
+}
+
 class UserMenu extends StatelessWidget {
   const UserMenu({super.key});
   @override
@@ -302,6 +330,7 @@ class UserMenu extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       onSelected: (v) async {
         if (v == 'refresh') await st.load();
+        if (v == 'theme' && context.mounted) await _pickTheme(context, st);
         if (v == 'update') {
           if (st.update == null) await st.checkUpdate(force: true);
           final u = st.update;
@@ -321,6 +350,13 @@ class UserMenu extends StatelessWidget {
         PopupMenuItem(enabled: false, child: ListTile(contentPadding: EdgeInsets.zero, dense: true, title: Text(a?.displayName ?? '', style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${a?.department ?? ''}${a?.email.isNotEmpty == true ? '\n${a!.email}' : ''}'))),
         const PopupMenuDivider(),
         const PopupMenuItem(value: 'refresh', child: ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: Icon(Icons.refresh_rounded), title: Text('Refresh data'))),
+        PopupMenuItem(
+          value: 'theme',
+          child: ListTile(
+            contentPadding: EdgeInsets.zero, dense: true, leading: const Icon(Icons.contrast_rounded), title: const Text('Theme'),
+            trailing: Text(_themeName(st.themeMode), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.primary)),
+          ),
+        ),
         PopupMenuItem(value: 'update', child: ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: Icon(st.update != null ? Icons.system_update_rounded : Icons.verified_rounded, color: st.update != null ? cs.error : null), title: Text(st.update != null ? 'Update to v${st.update!.versionName}' : 'Version ${st.appVersion}'))),
         const PopupMenuItem(value: 'logout', child: ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: Icon(Icons.logout_rounded), title: Text('Logout'))),
       ],

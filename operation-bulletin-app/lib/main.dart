@@ -10,6 +10,7 @@ import 'screens/pm_review.dart';
 import 'screens/settings.dart';
 import 'state.dart';
 import 'widgets/common.dart';
+import 'widgets/tone.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,9 +22,34 @@ void main() {
 
 const kSeed = Color(0xFF0F766E);
 
+/// Dark theme brand bar: deep teal, so the app keeps its identity at night.
+const kDarkBar = Color(0xFF0D3B37);
+
 ThemeData buildTheme(Brightness brightness) {
   final light = brightness == Brightness.light;
-  final scheme = ColorScheme.fromSeed(seedColor: kSeed, brightness: brightness, primary: light ? kSeed : null);
+  final seeded = ColorScheme.fromSeed(seedColor: kSeed, brightness: brightness, primary: light ? kSeed : null);
+  // Dark: near-black teal surfaces with clear steps between page, card and field, and a bright teal accent.
+  final scheme = light
+      ? seeded
+      : seeded.copyWith(
+          primary: const Color(0xFF2DD4BF),
+          onPrimary: const Color(0xFF04201D),
+          primaryContainer: const Color(0xFF134E4A),
+          onPrimaryContainer: const Color(0xFFCCFBF1),
+          secondary: const Color(0xFF7DD3C7),
+          surface: const Color(0xFF0B1416),
+          onSurface: const Color(0xFFE6EEF0),
+          onSurfaceVariant: const Color(0xFF9DB0B5),
+          surfaceContainerLowest: const Color(0xFF0E181A),
+          surfaceContainerLow: const Color(0xFF1A282C),
+          surfaceContainer: const Color(0xFF142024),
+          surfaceContainerHigh: const Color(0xFF22333A),
+          surfaceContainerHighest: const Color(0xFF2A3D44),
+          outline: const Color(0xFF5E747A),
+          outlineVariant: const Color(0xFF2C3D43),
+          error: const Color(0xFFFB7185),
+          onError: const Color(0xFF3B0712),
+        );
   final base = ThemeData(colorScheme: scheme, useMaterial3: true, brightness: brightness, fontFamily: 'Inter');
   final card = light ? Colors.white : scheme.surfaceContainer;
   return base.copyWith(
@@ -32,15 +58,15 @@ ThemeData buildTheme(Brightness brightness) {
     scaffoldBackgroundColor: light ? const Color(0xFFF1F4F8) : scheme.surface,
     // Brand bar: deep teal with white text.
     appBarTheme: AppBarTheme(
-      backgroundColor: light ? kSeed : scheme.surface,
-      foregroundColor: light ? Colors.white : scheme.onSurface,
+      backgroundColor: light ? kSeed : kDarkBar,
+      foregroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 2,
       centerTitle: false,
       toolbarHeight: 54,
       systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent),
-      titleTextStyle: TextStyle(fontFamily: 'Inter', fontSize: 19, fontWeight: FontWeight.w800, color: light ? Colors.white : scheme.onSurface, letterSpacing: -0.2),
+      titleTextStyle: const TextStyle(fontFamily: 'Inter', fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.2),
     ),
     cardTheme: CardThemeData(
       elevation: light ? 1.2 : 0,
@@ -77,12 +103,14 @@ ThemeData buildTheme(Brightness brightness) {
       secondarySelectedColor: scheme.primary,
       backgroundColor: card,
       labelStyle: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: scheme.onSurface),
-      secondaryLabelStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.white),
-      checkmarkColor: Colors.white,
+      secondaryLabelStyle: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: scheme.onPrimary),
+      checkmarkColor: scheme.onPrimary,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       labelPadding: const EdgeInsets.symmetric(horizontal: 2),
     ),
     snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+    popupMenuTheme: PopupMenuThemeData(color: light ? Colors.white : scheme.surfaceContainerHigh, surfaceTintColor: Colors.transparent),
+    listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant),
     filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(minimumSize: const Size(0, 44), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5))),
     outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), side: BorderSide(color: scheme.outlineVariant), textStyle: const TextStyle(fontWeight: FontWeight.w700))),
     bottomSheetTheme: BottomSheetThemeData(backgroundColor: card, surfaceTintColor: Colors.transparent, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22)))),
@@ -96,11 +124,17 @@ class OpBulletinApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mode = context.select<AppState, ThemeMode>((s) => s.themeMode);
     return MaterialApp(
       title: 'Operation Bulletin',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
+      themeMode: mode,
+      builder: (ctx, child) {
+        darkUi = Theme.of(ctx).brightness == Brightness.dark;
+        return child ?? const SizedBox.shrink();
+      },
       home: const RootGate(),
     );
   }
@@ -200,15 +234,15 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
       final go = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          icon: const Icon(Icons.block_rounded, color: Color(0xFFBE123C)),
+          icon: Icon(Icons.block_rounded, color: ink(const Color(0xFFBE123C))),
           title: Text(fresh.length == 1 ? 'Bulletin rejected' : '${fresh.length} bulletins rejected'),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               for (final r in fresh) ...[
                 Text('${r.srn} · ${r.category} ${r.type}', style: const TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 2),
-                Text(r.reason, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFBE123C))),
-                Text('By ${r.rejectedBy} · ${r.rejectedAt}', style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                Text(r.reason, style: TextStyle(fontWeight: FontWeight.w700, color: ink(const Color(0xFFBE123C)))),
+                Text('By ${r.rejectedBy} · ${r.rejectedAt}', style: TextStyle(fontSize: 11, color: ink(const Color(0xFF94A3B8)))),
                 const SizedBox(height: 10),
               ],
             ]),

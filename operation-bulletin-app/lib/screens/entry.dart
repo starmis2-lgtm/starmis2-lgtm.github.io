@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../models.dart';
 import '../state.dart';
 import '../widgets/common.dart';
+import '../widgets/tone.dart';
 
 String _fmtT(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(2).replaceFirst(RegExp(r'0$'), '');
 
@@ -21,7 +22,7 @@ class _Sent {
   int ops = 0;
   num sec = 0;
   String status = '';
-  Color color = const Color(0xFF047857);
+  Color color = ink(const Color(0xFF047857));
   bool approved = false, pending = false;
   VoidCallback? onEdit;
 }
@@ -59,7 +60,7 @@ class _EntryScreenState extends State<EntryScreen> {
         x.sec += op.rndAt100;
         x.approved = true;
         x.status = 'Approved';
-        x.color = const Color(0xFF047857);
+        x.color = ink(const Color(0xFF047857));
         if (!editPending && !e.editingAny) x.onEdit = () => e.startEdit(p, key);
       }
     }
@@ -68,7 +69,7 @@ class _EntryScreenState extends State<EntryScreen> {
       if (a.isDeleteRequest) {
         for (final x in out.values) {
           x.status = 'Delete requested';
-          x.color = const Color(0xFFBE123C);
+          x.color = ink(const Color(0xFFBE123C));
           x.onEdit = null;
         }
         continue;
@@ -104,7 +105,7 @@ class _EntryScreenState extends State<EntryScreen> {
         x.sec += n(m(o)['time']);
         x.pending = true;
         x.status = it.status == 'failed' ? 'Not sent' : 'Sending…';
-        x.color = it.status == 'failed' ? const Color(0xFFBE123C) : const Color(0xFF64748B);
+        x.color = it.status == 'failed' ? ink(const Color(0xFFBE123C)) : ink(const Color(0xFF64748B));
       }
     }
     final order = sectionsFor(e.category).map((x) => x.key).toList();
@@ -113,7 +114,7 @@ class _EntryScreenState extends State<EntryScreen> {
       final x = get(key, '');
       x.notReq = true;
       x.status = 'Not required';
-      x.color = const Color(0xFF64748B);
+      x.color = ink(const Color(0xFF64748B));
       if (!e.editingAny) x.onEdit = () => _setNotRequired(context, st, key, false);
     }
     int rank(String k) {
@@ -250,7 +251,7 @@ class _EntryScreenState extends State<EntryScreen> {
     final why = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.delete_forever_outlined, color: Color(0xFFBE123C)),
+        icon: Icon(Icons.delete_forever_outlined, color: ink(const Color(0xFFBE123C))),
         title: Text('Delete ${e.srn} bulletin?'),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('The whole ${e.category} R&D bulletin of ${e.srn} (all types) is removed once GM approves. It stays in the raw data sheet.',
@@ -298,13 +299,14 @@ class _EntryScreenState extends State<EntryScreen> {
           final c = OpDraft(name: op.name, manpower: op.manpower, machine: op.machine, op1pc: op.op1pcCtl.text, time: op.time, img: op.img, fromHeader: op.fromHeader);
           e.insertAt(i + 1, c);
         },
-        onSave: (name, pc, time, manpower, bytes, fileName, removePhoto) {
-          final target = op ?? e.add(name: name, op1pc: pc, time: time, manpower: manpower);
+        onSave: (name, pc, time, manpower, machine, bytes, fileName, removePhoto) {
+          final target = op ?? e.add(name: name, op1pc: pc, time: time, manpower: manpower, machine: machine);
           if (op != null) {
             op.nameCtl.text = name;
             op.op1pcCtl.text = pc;
             op.timeCtl.text = time;
             if (manpower.isNotEmpty) op.manpower = manpower;
+            if (machine.isNotEmpty && e.needsMachineFor(op.sec)) op.machine = machine;
             op.suggested = false;
           }
           if (removePhoto) target.img = '';
@@ -438,10 +440,20 @@ class _EntryScreenState extends State<EntryScreen> {
                               Text('${g.value.length} ops · ${_fmtT(tt)} s · ${(tt / 60).toStringAsFixed(2)} min', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
                             ]),
                           ),
-                          if (g.value.first.machine.isNotEmpty)
+                          if (g.value.any((o) => o.machine.isNotEmpty))
                             Padding(
                               padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-                              child: Text('Machine: ${g.value.first.machine}', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+                              child: Text(
+                                // e.g. "Stitching Machine: 5 ops · MI machine: 2 ops"
+                                () {
+                                  final byMc = <String, int>{};
+                                  for (final o in g.value) {
+                                    if (o.machine.isNotEmpty) byMc.update(o.machine, (v) => v + 1, ifAbsent: () => 1);
+                                  }
+                                  return byMc.entries.map((x) => '${x.key}: ${x.value} ops').join(' · ');
+                                }(),
+                                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
+                              ),
                             ),
                           for (var i = 0; i < g.value.length; i++)
                             Padding(
@@ -459,12 +471,13 @@ class _EntryScreenState extends State<EntryScreen> {
                                       [
                                         '${g.value[i].op1pcCtl.text.trim().isEmpty ? '1' : g.value[i].op1pcCtl.text.trim()} ops',
                                         if (multi) g.value[i].manpower,
+                                        if (g.value[i].machine.isNotEmpty) g.value[i].machine,
                                       ].join(' · '),
                                       style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                                     ),
                                   ]),
                                 ),
-                                Text('${_fmtT(g.value[i].timeNum)} s', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Color(0xFF3730A3))),
+                                Text('${_fmtT(g.value[i].timeNum)} s', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: ink(const Color(0xFF3730A3)))),
                               ]),
                             ),
                         ]),
@@ -632,7 +645,7 @@ class _Header extends StatelessWidget {
             if (sent.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(
-                decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5))),
+                decoration: BoxDecoration(color: wash(const Color(0xFFF8FAFC)), borderRadius: BorderRadius.circular(10), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5))),
                 padding: const EdgeInsets.fromLTRB(8, 6, 4, 4),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Row(children: [
@@ -645,9 +658,9 @@ class _Header extends StatelessWidget {
                           tooltip: 'More',
                           icon: Icon(Icons.more_horiz_rounded, size: 20, color: cs.onSurfaceVariant),
                           onSelected: (v) => v == 'undo' ? onUndo?.call() : onDelete?.call(),
-                          itemBuilder: (_) => const [
+                          itemBuilder: (_) => [
                             PopupMenuItem(value: 'undo', child: ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: Icon(Icons.undo_rounded), title: Text('Undo last approved edit'))),
-                            PopupMenuItem(value: 'delete', child: ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: Icon(Icons.delete_forever_outlined, color: Color(0xFFBE123C)), title: Text('Delete this bulletin'))),
+                            PopupMenuItem(value: 'delete', child: ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: Icon(Icons.delete_forever_outlined, color: ink(const Color(0xFFBE123C))), title: Text('Delete this bulletin'))),
                           ],
                         ),
                       ),
@@ -736,7 +749,7 @@ class _Header extends StatelessWidget {
             if (dup != null) ...[
               const SizedBox(height: 8),
               _Note(
-                color: dup!.notReq ? const Color(0xFF475569) : const Color(0xFFB45309),
+                color: dup!.notReq ? ink(const Color(0xFF475569)) : ink(const Color(0xFFB45309)),
                 icon: dup!.notReq ? Icons.block_rounded : Icons.info_outline_rounded,
                 text: dup!.notReq
                     ? '${dup!.label} is marked not required for this SRN.'
@@ -797,15 +810,15 @@ class _Drop extends StatelessWidget {
       height: 40,
       padding: const EdgeInsets.only(left: 8, right: 2),
       decoration: BoxDecoration(
-        color: empty ? const Color(0xFFFFFBEB) : cs.surfaceContainerLow,
+        color: empty ? wash(const Color(0xFFFFFBEB)) : cs.surfaceContainerLow,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: empty ? const Color(0xFFFDE68A) : cs.outlineVariant.withValues(alpha: 0.6)),
+        border: Border.all(color: empty ? edge(const Color(0xFFFDE68A)) : cs.outlineVariant.withValues(alpha: 0.6)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: empty ? null : value,
           isExpanded: true, isDense: true,
-          hint: Row(children: [if (icon != null) Icon(icon, size: 15, color: const Color(0xFFB45309)), const SizedBox(width: 4), Text('Select $label', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFFB45309)))]),
+          hint: Row(children: [if (icon != null) Icon(icon, size: 15, color: ink(const Color(0xFFB45309))), const SizedBox(width: 4), Text('Select $label', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: ink(const Color(0xFFB45309))))]),
           style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: cs.onSurface, fontFamily: 'Inter'),
           selectedItemBuilder: (_) => items.map((x) => Row(children: [if (icon != null) Icon(icon, size: 15, color: cs.primary), const SizedBox(width: 4), Flexible(child: Text(x, overflow: TextOverflow.ellipsis))])).toList(),
           items: items.map((x) => DropdownMenuItem(value: x, child: Text(x, overflow: TextOverflow.ellipsis))).toList(),
@@ -824,13 +837,14 @@ class _Note extends StatelessWidget {
   final Widget? action;
   @override
   Widget build(BuildContext context) {
+    final c = ink(color);
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withValues(alpha: 0.25))),
+      decoration: BoxDecoration(color: c.withValues(alpha: darkUi ? 0.12 : 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: c.withValues(alpha: 0.25))),
       child: Row(children: [
-        Icon(icon, size: 16, color: color),
+        Icon(icon, size: 16, color: c),
         const SizedBox(width: 8),
-        Expanded(child: Text(text, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: color))),
+        Expanded(child: Text(text, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: c))),
         if (action != null) action!,
       ]),
     );
@@ -853,7 +867,7 @@ class _OpTile extends StatelessWidget {
     return Dismissible(
       key: ValueKey('d${op.key}'),
       direction: DismissDirection.endToStart,
-      background: Container(color: const Color(0xFFFFE4E6), alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 18), child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFBE123C))),
+      background: Container(color: wash(const Color(0xFFFFE4E6)), alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 18), child: Icon(Icons.delete_outline_rounded, color: ink(const Color(0xFFBE123C)))),
       confirmDismiss: (_) => confirmDelete(),
       onDismissed: (_) => onDelete(),
       child: InkWell(
@@ -875,13 +889,14 @@ class _OpTile extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(op.name.isEmpty ? 'No name' : op.name, maxLines: 2, overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: op.name.isEmpty ? cs.error : cs.onSurface)),
-                Text(op.sec == 'stitching' && op.manpower.isNotEmpty ? '$pc ops · ${op.manpower}' : '$pc ops', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+                Text(op.sec == 'stitching' ? ['$pc ops', if (op.manpower.isNotEmpty) op.manpower, if (op.machine.isNotEmpty) op.machine].join(' · ') : '$pc ops',
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
               ]),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: bad ? const Color(0xFFFFFBEB) : const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(8)),
-              child: Text(op.timeNum > 0 ? '${op.time}s' : 'time?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: bad ? const Color(0xFFB45309) : const Color(0xFF3730A3))),
+              decoration: BoxDecoration(color: bad ? wash(const Color(0xFFFFFBEB)) : wash(const Color(0xFFEEF2FF)), borderRadius: BorderRadius.circular(8)),
+              child: Text(op.timeNum > 0 ? '${op.time}s' : 'time?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: bad ? ink(const Color(0xFFB45309)) : ink(const Color(0xFF3730A3)))),
             ),
             Icon(Icons.chevron_right_rounded, color: cs.outlineVariant),
           ]),
@@ -891,7 +906,7 @@ class _OpTile extends StatelessWidget {
   }
 }
 
-typedef _SaveOp = void Function(String name, String pc, String time, String manpower, Uint8List? bytes, String fileName, bool removePhoto);
+typedef _SaveOp = void Function(String name, String pc, String time, String manpower, String machine, Uint8List? bytes, String fileName, bool removePhoto);
 
 /// Popup to add / edit one operation. "Add & next" keeps it open for the next operation.
 class _OpSheet extends StatefulWidget {
@@ -912,6 +927,8 @@ class _OpSheetState extends State<_OpSheet> {
   late int _pc = int.tryParse(widget.op?.op1pcCtl.text.trim() ?? '') ?? 1;
   /// Manpower of this row (Stitching offers Operator and Helper).
   late String _mp = widget.op?.manpower ?? widget.st.entry.mp;
+  /// Machine of this row (stitching): the row's own, or the one chosen at the top for a new row.
+  late String _mc = (widget.op?.machine.isNotEmpty ?? false) ? widget.op!.machine : widget.st.entry.mc;
   Uint8List? _bytes;
   String _fileName = 'photo.jpg';
   bool _removePhoto = false;
@@ -975,7 +992,11 @@ class _OpSheetState extends State<_OpSheet> {
       return false;
     }
     HapticFeedback.lightImpact();
-    widget.onSave(name, '${_pc < 1 ? 1 : _pc}', _time.text.trim(), _mp, _bytes, _fileName, _removePhoto);
+    if (widget.st.entry.needsMachineFor(widget.op?.sec ?? widget.st.entry.sec) && _mc.isEmpty) {
+      toast(context, 'Select the machine.', error: true);
+      return false;
+    }
+    widget.onSave(name, '${_pc < 1 ? 1 : _pc}', _time.text.trim(), _mp, _mc, _bytes, _fileName, _removePhoto);
     if (next) {
       setState(() {
         _added++;
@@ -1033,6 +1054,14 @@ class _OpSheetState extends State<_OpSheet> {
             Expanded(child: Text(_edit ? 'Edit ${e.labelOf(widget.op!.sec)} operation' : 'Add ${e.labelOf(e.sec)} operation', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
             if (_added > 0) Pill('$_added added', color: const Color(0xFF047857)),
           ]),
+          if (e.needsMachineFor(widget.op?.sec ?? e.sec)) ...[
+            const SizedBox(height: 10),
+            _Drop(
+              label: 'Machine', value: _mc, icon: Icons.precision_manufacturing_outlined,
+              items: {...widget.st.data?.machineTypes ?? const <String>[], if (_mc.isNotEmpty) _mc}.toList(),
+              onChanged: (v) => setState(() => _mc = v),
+            ),
+          ],
           if (mps.length > 1) ...[
             const SizedBox(height: 10),
             Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -1103,8 +1132,8 @@ class _OpSheetState extends State<_OpSheet> {
                       textInputAction: TextInputAction.done,
                       onSubmitted: (_) => _save(next: !_edit),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF3730A3)),
-                      decoration: const InputDecoration(labelText: 'Total time', suffixText: 'sec', fillColor: Color(0xFFEEF2FF)),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: ink(const Color(0xFF3730A3))),
+                      decoration: InputDecoration(labelText: 'Total time', suffixText: 'sec', fillColor: wash(const Color(0xFFEEF2FF))),
                     ),
                   ),
                 ]),

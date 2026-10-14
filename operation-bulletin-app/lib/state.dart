@@ -16,6 +16,7 @@ import 'update.dart';
 const kTokenKey = 'pb_auth_token';
 const kDraftKey = 'pb_entry_draft';
 const kRejSeenKey = 'pb_rej_seen';
+const kThemeKey = 'pb_theme';
 
 enum EntryMode { fresh, editRnd, prod, editPending }
 
@@ -164,8 +165,24 @@ class AppState extends ChangeNotifier {
   /// Parses payload JSON off the UI thread.
   Future<Map<String, dynamic>> _parse(String text) => compute(_decode, text);
 
+  /// Light / dark / follow the phone; kept on this phone.
+  ThemeMode themeMode = ThemeMode.system;
+
+  Future<void> setThemeMode(ThemeMode m) async {
+    themeMode = m;
+    notifyListeners();
+    try {
+      await (await SharedPreferences.getInstance()).setInt(kThemeKey, m.index);
+    } catch (_) {}
+  }
+
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
+    final ti = prefs.getInt(kThemeKey) ?? 0;
+    if (ti > 0 && ti < ThemeMode.values.length) {
+      themeMode = ThemeMode.values[ti];
+      notifyListeners();
+    }
     api.token = prefs.getString(kTokenKey) ?? '';
     await api.loadEndpoint();
     entry.onChanged = _persistDraft;
@@ -716,7 +733,7 @@ class EntryDraft extends ChangeNotifier {
 
   /// Machine already used by the rows of the chosen type.
   String _machineOfSec() {
-    for (final o in ops) {
+    for (final o in ops.reversed) {
       if (o.sec == sec && o.machine.isNotEmpty) return o.machine;
     }
     return '';
@@ -779,10 +796,12 @@ class EntryDraft extends ChangeNotifier {
   }
 
   /// The machine applies to every row of the chosen type.
+  /// Machine for the next rows of the chosen type. Rows keep the machine they were added with
+  /// (5 on Stitching Machine, then 2 on MI machine stay that way); only rows without a machine get it.
   void setMachine(String v) {
     mc = v;
     for (final o in ops) {
-      if (o.sec == sec) o.machine = v;
+      if (o.sec == sec && o.machine.isEmpty) o.machine = v;
     }
     notifyListeners();
   }
@@ -881,7 +900,7 @@ class EntryDraft extends ChangeNotifier {
   static String _fmt(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
   OpDraft add({String name = '', String op1pc = '', String time = '', bool suggested = false, String manpower = '', String machine = '', bool expanded = false}) {
-    final d = OpDraft(name: name, manpower: manpower.isEmpty ? mp : manpower, machine: needsMachine ? mc : '', op1pc: op1pc.isEmpty ? '1' : op1pc, time: time, suggested: suggested, sec: sec);
+    final d = OpDraft(name: name, manpower: manpower.isEmpty ? mp : manpower, machine: needsMachine ? (machine.isEmpty ? mc : machine) : '', op1pc: op1pc.isEmpty ? '1' : op1pc, time: time, suggested: suggested, sec: sec);
     ops.add(d);
     notifyListeners();
     return d;
@@ -897,7 +916,7 @@ class EntryDraft extends ChangeNotifier {
   void copyFrom(List<Op> src, List<String> allowed) {
     for (final op in src) {
       ops.add(OpDraft(
-        name: op.opName, manpower: allowed.contains(op.manpower) ? op.manpower : mp, machine: needsMachine ? mc : '', op1pc: op.op1pc,
+        name: op.opName, manpower: allowed.contains(op.manpower) ? op.manpower : mp, machine: needsMachine ? (op.machine.isNotEmpty ? op.machine : mc) : '', op1pc: op.op1pc,
         time: op.rndAt100 > 0 ? _fmt(op.rndAt100) : '', suggested: op.rndTime > 0, img: op.img, sec: sec,
       ));
     }

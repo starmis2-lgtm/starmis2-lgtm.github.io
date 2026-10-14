@@ -5,6 +5,7 @@ import '../main.dart';
 import '../models.dart';
 import '../state.dart';
 import '../widgets/common.dart';
+import '../widgets/tone.dart';
 
 class MyPendingScreen extends StatelessWidget {
   const MyPendingScreen({super.key});
@@ -41,27 +42,27 @@ class _RejectedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final st = context.read<AppState>();
-    const red = Color(0xFFBE123C);
+    final red = ink(const Color(0xFFBE123C));
     return Card(
-      color: const Color(0xFFFFF1F2),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Color(0xFFFECDD3))),
+      color: wash(const Color(0xFFFFF1F2)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: edge(const Color(0xFFFECDD3)))),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.block_rounded, color: red, size: 20)),
+          Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.block_rounded, color: red, size: 20)),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Text(r.srn, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                 const SizedBox(width: 6),
-                const Pill('REJECTED', color: red),
+                Pill('REJECTED', color: red),
               ]),
-              Text('${r.category} ${r.type}${r.styleName.isNotEmpty ? ' · ${r.styleName}' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+              Text('${r.category} ${r.type}${r.styleName.isNotEmpty ? ' · ${r.styleName}' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: ink(const Color(0xFF64748B)))),
               const SizedBox(height: 4),
-              Text(r.reason, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: red)),
+              Text(r.reason, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: red)),
               const SizedBox(height: 2),
-              Text('By ${r.rejectedBy} · ${r.rejectedAt}', style: const TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
+              Text('By ${r.rejectedBy} · ${r.rejectedAt}', style: TextStyle(fontSize: 10.5, color: ink(const Color(0xFF94A3B8)), fontWeight: FontWeight.w600)),
             ]),
           ),
           Column(mainAxisSize: MainAxisSize.min, children: [
@@ -72,7 +73,7 @@ class _RejectedCard extends StatelessWidget {
                   st.dismissRejected(r.id);
                   st.goToTab(Tabs.entry);
                 },
-                style: FilledButton.styleFrom(visualDensity: VisualDensity.compact, backgroundColor: const Color(0xFFFFE4E6), foregroundColor: red),
+                style: FilledButton.styleFrom(visualDensity: VisualDensity.compact, backgroundColor: wash(const Color(0xFFFFE4E6)), foregroundColor: red),
                 child: const Text('Fix & resend'),
               ),
             TextButton(
@@ -130,8 +131,8 @@ class _MyCard extends StatelessWidget {
             ),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text('${a.operations.length} ops', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
-              Text('${(a.totalTime / 60).toStringAsFixed(2)} min', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF7E22CE))),
-              Text('₹${cost.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF047857))),
+              Text('${(a.totalTime / 60).toStringAsFixed(2)} min', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink(const Color(0xFF7E22CE)))),
+              Text('₹${cost.toStringAsFixed(2)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink(const Color(0xFF047857)))),
             ]),
           ]),
           const Padding(padding: EdgeInsets.symmetric(vertical: 7), child: Divider()),
@@ -201,7 +202,7 @@ void _showDetails(BuildContext context, MyPending a) {
             Pill(stageLabel(a.stage), color: stageColor(a.stage), filled: true),
             if (a.isDeleteRequest) const Pill('DELETE', color: Color(0xFFBE123C)) else if (a.isEditMode) const Pill('EDIT', color: Color(0xFF92400E)),
           ]),
-          if (a.isDeleteRequest) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Reason: ${a.deleteReason}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFFBE123C)))),
+          if (a.isDeleteRequest) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Reason: ${a.deleteReason}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: ink(const Color(0xFFBE123C))))),
           if (a.pmReviewed) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Reviewed by ${a.pmBy} · ${a.pmAt}${a.pmNote.isNotEmpty ? '\nNote: ${a.pmNote}' : ''}', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant))),
           const SizedBox(height: 10),
           for (var i = 0; i < a.operations.length; i++)
@@ -223,8 +224,8 @@ void _showDetails(BuildContext context, MyPending a) {
                   ]),
                 ),
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text('${a.operations[i].time}s', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF3730A3))),
-                  if (a.operations[i].pmTime.isNotEmpty) Text('PM ${a.operations[i].pmTime}s', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF6D28D9))),
+                  Text('${a.operations[i].time}s', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink(const Color(0xFF3730A3)))),
+                  if (a.operations[i].pmTime.isNotEmpty) Text('PM ${a.operations[i].pmTime}s', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ink(const Color(0xFF6D28D9)))),
                 ]),
               ]),
             ),
@@ -263,17 +264,17 @@ class _ConfirmCardState extends State<_ConfirmCard> {
   Widget build(BuildContext context) {
     final a = widget.a;
     final cs = Theme.of(context).colorScheme;
-    const orange = Color(0xFFC2410C);
+    final orange = ink(const Color(0xFFC2410C));
     final idx = [for (var i = 0; i < a.operations.length; i++) if (a.operations[i].pmRemove) i];
     final done = idx.every(dec.containsKey);
     return Card(
-      color: const Color(0xFFFFF7ED),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Color(0xFFFED7AA))),
+      color: wash(const Color(0xFFFFF7ED)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: edge(const Color(0xFFFED7AA)))),
       child: Padding(
         padding: const EdgeInsets.all(11),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Icon(Icons.help_outline_rounded, color: orange, size: 20),
+            Icon(Icons.help_outline_rounded, color: orange, size: 20),
             const SizedBox(width: 8),
             Text(a.srn, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
             const SizedBox(width: 6),
@@ -281,7 +282,7 @@ class _ConfirmCardState extends State<_ConfirmCard> {
           ]),
           const SizedBox(height: 4),
           Text('Production Manager ${a.pmBy} wants to remove ${idx.length == 1 ? 'this operation' : 'these operations'}. Remove or keep?',
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: orange)),
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: orange)),
           if (a.pmNote.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text('Note: ${a.pmNote}', style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant))),
           const SizedBox(height: 8),
           for (final i in idx)

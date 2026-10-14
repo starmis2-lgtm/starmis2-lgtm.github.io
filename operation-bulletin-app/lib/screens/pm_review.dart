@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models.dart';
 import '../state.dart';
 import '../widgets/common.dart';
+import '../widgets/tone.dart';
 
 String _fmtT(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(2).replaceFirst(RegExp(r'0$'), '');
 String _min(num sec) => '${(sec / 60).toStringAsFixed(2)} min';
@@ -68,7 +69,7 @@ class _QueueCard extends StatelessWidget {
             ),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text('${a.operations.length} ops', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
-              Text(_min(a.totalTime), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF3730A3))),
+              Text(_min(a.totalTime), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink(const Color(0xFF3730A3)))),
               const SizedBox(height: 6),
               FilledButton.tonal(
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PmReviewPage(a: a))),
@@ -362,15 +363,15 @@ class _PmReviewPageState extends State<PmReviewPage> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Row(children: [
-                  Expanded(child: Text('DEO ${_min(deoT)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: Color(0xFF3730A3)))),
-                  Text('Yours ${_min(pmT)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: Color(0xFF6D28D9))),
+                  Expanded(child: Text('DEO ${_min(deoT)}', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: ink(const Color(0xFF3730A3))))),
+                  Text('Yours ${_min(pmT)}', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: ink(const Color(0xFF6D28D9)))),
                 ]),
                 if (toDeo || blankCount > 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       [if (blankCount > 0) '$blankCount without your time', if (toDeo) '$removeCount to remove (DEO confirms)'].join(' · '),
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFB45309)),
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: ink(const Color(0xFFB45309))),
                     ),
                   ),
                 const SizedBox(height: 6),
@@ -399,9 +400,9 @@ class _PmReviewPageState extends State<PmReviewPage> {
 
   Widget _opCard(int i, _Row r, ColorScheme cs) {
     final o = r.op;
-    final strike = r.remove ? const TextStyle(decoration: TextDecoration.lineThrough, color: Color(0xFF94A3B8)) : const TextStyle();
+    final strike = r.remove ? TextStyle(decoration: TextDecoration.lineThrough, color: ink(const Color(0xFF94A3B8))) : const TextStyle();
     return Card(
-      color: r.remove ? const Color(0xFFFFF1F2) : null,
+      color: r.remove ? wash(const Color(0xFFFFF1F2)) : null,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
         child: Row(children: [
@@ -420,7 +421,7 @@ class _PmReviewPageState extends State<PmReviewPage> {
               Text(o.operationName, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700).merge(strike)),
               Text([o.manpowerType, if (o.machineType.isNotEmpty) o.machineType, '${o.operation1pc.isEmpty ? '1' : o.operation1pc} pc'].join(' · '),
                   maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
-              if (r.remove) const Text('DEO will confirm the removal', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFFBE123C))),
+              if (r.remove) Text('DEO will confirm the removal', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: ink(const Color(0xFFBE123C)))),
             ]),
           ),
           if (!r.remove) ...[
@@ -429,10 +430,10 @@ class _PmReviewPageState extends State<PmReviewPage> {
               onTap: () => setState(() => r.pm.text = _fmtT(r.deo)),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                decoration: BoxDecoration(color: const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: wash(const Color(0xFFEEF2FF)), borderRadius: BorderRadius.circular(8)),
                 child: Column(children: [
-                  const Text('DEO', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: Color(0xFF6366F1))),
-                  Text('${_fmtT(r.deo)}s', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF3730A3))),
+                  Text('DEO', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: ink(const Color(0xFF6366F1)))),
+                  Text('${_fmtT(r.deo)}s', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ink(const Color(0xFF3730A3)))),
                 ]),
               ),
             ),
@@ -446,12 +447,12 @@ class _PmReviewPageState extends State<PmReviewPage> {
                 textAlign: TextAlign.center,
                 textInputAction: TextInputAction.next,
                 onChanged: (_) => setState(() {}),
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF6D28D9)),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ink(const Color(0xFF6D28D9))),
                 decoration: InputDecoration(
                   labelText: 'Yours', isDense: true, suffixText: 's',
                   labelStyle: const TextStyle(fontSize: 11),
                   contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                  fillColor: r.pmNum > 0 ? const Color(0xFFF5F3FF) : const Color(0xFFFFFBEB),
+                  fillColor: r.pmNum > 0 ? wash(const Color(0xFFF5F3FF)) : wash(const Color(0xFFFFFBEB)),
                 ),
               ),
             ),
@@ -468,11 +469,11 @@ class _PmReviewPageState extends State<PmReviewPage> {
 
   Widget _addedCard(_Added x, ColorScheme cs) {
     return Card(
-      color: const Color(0xFFF5F3FF),
+      color: wash(const Color(0xFFF5F3FF)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
         child: Row(children: [
-          const Icon(Icons.add_circle_outline_rounded, size: 20, color: Color(0xFF6D28D9)),
+          Icon(Icons.add_circle_outline_rounded, size: 20, color: ink(const Color(0xFF6D28D9))),
           const SizedBox(width: 8),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -488,7 +489,7 @@ class _PmReviewPageState extends State<PmReviewPage> {
               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
               textAlign: TextAlign.center,
               onChanged: (_) => setState(() {}),
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF6D28D9)),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ink(const Color(0xFF6D28D9))),
               decoration: const InputDecoration(labelText: 'Yours', isDense: true, suffixText: 's', labelStyle: TextStyle(fontSize: 11), contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4)),
             ),
           ),
