@@ -1,0 +1,470 @@
+<!--
+  Production Manager review in the web app.
+  Add this file to the Apps Script project as an HTML file named "PmReview", then put this line in Index.html
+  just before </body> (after every other include):
+      <?!= include('PmReview'); ?>
+  It needs no server change: the payload already carries pmQueue, and pmReviewSubmit / rejectBulletin already exist.
+-->
+<style>
+  .pmr-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: auto; border-radius: 999px; background: #7c3aed; color: #fff; font-size: 10px; font-weight: 800; }
+  .pmr-badge:empty { display: none; }
+  #pmrModal .pmr-ops td { vertical-align: middle; }
+  #pmrModal .pmr-time { width: 84px; text-align: center; font-weight: 800; color: #6d28d9; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 6px; padding: 4px 6px; }
+  #pmrModal .pmr-time.pmr-empty { background: #fffbeb; border-color: #fde68a; }
+  #pmrModal .pmr-deo { display: inline-flex; flex-direction: column; align-items: center; min-width: 58px; padding: 2px 8px; border-radius: 6px; background: #eef2ff; border: 1px solid #c7d2fe; color: #3730a3; font-weight: 800; cursor: pointer; }
+  #pmrModal .pmr-deo small { font-size: 8.5px; color: #6366f1; letter-spacing: .4px; }
+  #pmrModal .pmr-deo:hover { background: #e0e7ff; }
+  #pmrModal tr.pmr-removed td { background: #fff1f2 !important; }
+  #pmrModal tr.pmr-removed .pmr-name { text-decoration: line-through; color: #94a3b8; }
+  #pmrModal .pmr-rm { width: 30px; height: 30px; border-radius: 999px; border: 1px solid #e2e8f0; color: #94a3b8; background: #fff; }
+  #pmrModal tr.pmr-removed .pmr-rm { border-color: #fecdd3; color: #be123c; background: #ffe4e6; }
+  #pmrModal .pmr-thumb { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; border: 1px solid #e2e8f0; cursor: zoom-in; background: #f1f5f9; }
+  #pmrModal .pmr-chip-sec { padding: 4px 10px; border-radius: 999px; border: 1px solid #cbd5e1; font-size: 11px; font-weight: 700; color: #334155; background: #fff; }
+  #pmrModal .pmr-chip-sec.on { background: #6d28d9; border-color: #6d28d9; color: #fff; }
+  #pmrPhoto { background: rgba(2, 6, 23, .92); }
+</style>
+
+<script>
+(function () {
+  // Photos are read through the Cloudflare Worker, so they show even when Drive sharing would ask for access.
+  var PMR_IMG = 'https://starmis2-lgtm-github-io.star-mis2.workers.dev/';
+
+  // Same operation types and manpower as the mobile app.
+  var PMR_SECTIONS = {
+    Making: [
+      { key: 'stitching', label: 'Stitching', mp: ['operator', 'helper'], machine: true },
+      { key: 'pasting', label: 'Pasting', mp: ['paster'] },
+      { key: 'helper', label: 'Helper', mp: ['helper'] },
+      { key: 'handneedle', label: 'Hand Needle', mp: ['handneedle'] },
+      { key: 'threadcut', label: 'Thread Cutting', mp: ['threadcutter'] },
+      { key: 'endline', label: 'Endline QC', mp: ['endlineqc'] }
+    ],
+    Packing: [
+      { key: 'helper', label: 'Helper', mp: ['helper'] },
+      { key: 'finalqc', label: 'Final QC', mp: ['finalqc'] },
+      { key: 'pressing', label: 'Pressing', mp: ['pressman'] }
+    ]
+  };
+  var PMR_MP_DEFAULT = { operator: 'Operator', helper: 'Helper', paster: 'Paster', handneedle: 'Hand Niddle Operator', threadcutter: 'Thread cutter', endlineqc: 'Endline QC', finalqc: 'Final QC', pressman: 'Press Man' };
+
+  var cur = null;      // request being reviewed
+  var rows = [];       // { op, pm, remove }
+  var added = [];      // { operationName, manpowerType, machineType, operation1pc, pmTime }
+  var addSec = '';
+  var openedOnce = false;
+
+  function h(v) { return typeof esc === 'function' ? esc(v) : String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function a(v) { return typeof attrEsc === 'function' ? attrEsc(v) : h(v); }
+  function num(v) { var x = parseFloat(v); return isNaN(x) ? 0 : x; }
+  function fmtS(v) { var x = num(v); return x > 0 ? (Math.round(x * 100) / 100) + 's' : '—'; }
+  function min(sec) { return (sec / 60).toFixed(2) + ' m'; }
+  function toast(msg, kind) { if (typeof uiToast === 'function') uiToast(msg, kind); else alert(msg); }
+  function token() { return typeof authToken === 'function' ? authToken() : ''; }
+
+  function mpKey(n) {
+    var k = String(n || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (k.indexOf('niddle') >= 0 || k.indexOf('needle') >= 0) return 'handneedle';
+    if (k === 'threadcutting') return 'threadcutter';
+    if (k === 'endlinechecker') return 'endlineqc';
+    return k;
+  }
+  function mpName(key) {
+    var list = (window.masterData && masterData.manpowerTypes) || [];
+    for (var i = 0; i < list.length; i++) {
+      var n = typeof list[i] === 'string' ? list[i] : list[i].name;
+      if (mpKey(n) === key) return n;
+    }
+    return PMR_MP_DEFAULT[key] || key;
+  }
+  function sections(cat) { return PMR_SECTIONS[cat === 'Packing' ? 'Packing' : 'Making']; }
+  function section(cat, key) { var s = sections(cat); for (var i = 0; i < s.length; i++) if (s[i].key === key) return s[i]; return null; }
+
+  function driveId(link) {
+    var u = String(link || '').trim();
+    var m = /\/d\/([A-Za-z0-9_-]{10,})/.exec(u) || /[?&]id=([A-Za-z0-9_-]{10,})/.exec(u);
+    if (m) return m[1];
+    return /^[A-Za-z0-9_-]{20,}$/.test(u) ? u : '';
+  }
+  function imgUrl(link, w) { var id = driveId(link); return id ? PMR_IMG + '?img=' + encodeURIComponent(id) + '&w=' + w : ''; }
+
+  function canSee() { var u = window.userAccess || {}; return !!(u.isPM || u.isManagement); }
+  function queue() {
+    return ((window.masterData && masterData.pmQueue) || []).filter(function (x) {
+      return String(x.stage || '').toUpperCase() === 'PM' && !x.isDeleteRequest;
+    });
+  }
+
+  // ---------------- page parts ----------------
+  function inject() {
+    var my = document.getElementById('tabBtnMyPending');
+    if (my && !document.getElementById('tabBtnPmReview')) {
+      var b = document.createElement('button');
+      b.id = 'tabBtnPmReview';
+      b.className = 'tab-btn side-item hidden';
+      b.setAttribute('onclick', "switchTab('pmReviewTab', this)");
+      b.innerHTML = '<i class="fa-solid fa-user-gear"></i><span>PM Review</span><b class="pmr-badge" id="pmrBadge"></b>';
+      my.parentNode.insertBefore(b, my);
+    }
+    var mp = document.getElementById('myPendingTab');
+    if (mp && !document.getElementById('pmReviewTab')) {
+      var p = document.createElement('div');
+      p.id = 'pmReviewTab';
+      p.className = 'tab-content hidden flex-col min-h-0 flex-grow';
+      p.innerHTML =
+        '<div class="flex justify-between items-center mb-2 shrink-0 gap-3">' +
+          '<div class="search-container"><i class="fa fa-search search-icon"></i><input type="text" id="searchPmrInput" onkeyup="filterTable(\'pmrTbody\', this.value)" placeholder="Search SRN..." class="input-field search-input rounded-md w-64"></div>' +
+          '<span class="text-[10px] text-slate-400 font-semibold">Bulletins sent by DEOs. Write your time next to each DEO time, add or remove operations, then send to GM.</span>' +
+          '<button onclick="fetchViewAndPendingData()" class="text-xs font-bold px-3 py-1 bg-slate-100 rounded border">Refresh</button>' +
+        '</div>' +
+        '<div class="table-scroll-wrapper border border-slate-200 rounded-lg"><table class="data-table w-full"><thead><tr>' +
+          '<th>SRN</th><th>Style Name</th><th class="text-center">Category</th><th class="text-center">Type</th><th class="text-center">Ops</th>' +
+          '<th class="text-center">DEO Time</th><th>Submitted By</th><th>Submitted At</th><th class="text-right">Action</th>' +
+        '</tr></thead><tbody id="pmrTbody"></tbody></table></div>';
+      mp.parentNode.insertBefore(p, mp);
+    }
+    if (!document.getElementById('pmrModal')) {
+      var m = document.createElement('div');
+      m.id = 'pmrModal';
+      m.className = 'hidden fixed inset-0 z-[100] items-center justify-center p-4';
+      m.style.background = 'rgba(15,23,42,0.55)';
+      m.innerHTML =
+        '<div class="bg-white w-full max-w-[1100px] rounded-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col" style="max-height:94vh;">' +
+          '<div class="px-4 py-3 flex justify-between items-center shrink-0" style="background:#4c1d95;">' +
+            '<h3 class="text-sm font-bold text-white"><i class="fa-solid fa-user-gear mr-2"></i>Production Manager Review &#8212; <span id="pmrSrn"></span></h3>' +
+            '<button type="button" onclick="pmrClose()" class="text-white/80 hover:text-white text-lg leading-none">&times;</button>' +
+          '</div>' +
+          '<div class="px-4 py-3 flex-grow min-h-0 flex flex-col gap-2 overflow-y-auto">' +
+            '<div id="pmrHead" class="flex flex-wrap items-center gap-2"></div>' +
+            '<div class="text-[11px] font-semibold text-slate-500">Click the DEO time to copy it into your time. Use the bin to ask the DEO to remove an operation (the DEO confirms it).</div>' +
+            '<div class="border border-slate-200 rounded-lg overflow-auto" style="min-height:140px;">' +
+              '<table class="data-table w-full pmr-ops"><thead><tr>' +
+                '<th class="text-center" style="width:36px;">#</th><th class="text-center" style="width:56px;">Photo</th><th>Operation</th>' +
+                '<th class="text-center">Op/1pc</th><th class="text-center">DEO Time</th><th class="text-center">Your Time (s)</th><th class="text-center" style="width:60px;">Remove</th>' +
+              '</tr></thead><tbody id="pmrOps"></tbody></table>' +
+            '</div>' +
+            '<div class="border border-violet-200 rounded-lg p-3" style="background:#faf5ff;">' +
+              '<div class="text-[11px] font-bold text-violet-800 mb-2"><i class="fa-solid fa-circle-plus mr-1"></i>Add an operation (added directly with your time)</div>' +
+              '<div id="pmrAddSecs" class="flex flex-wrap gap-1.5 mb-2"></div>' +
+              '<div class="flex flex-wrap items-end gap-2">' +
+                '<label class="text-[10px] font-bold text-slate-500 flex flex-col gap-1">Operation name<input id="pmrAddName" class="input-field rounded-md text-xs" style="width:240px;"></label>' +
+                '<label class="text-[10px] font-bold text-slate-500 flex flex-col gap-1">Manpower<select id="pmrAddMp" class="input-field rounded-md text-xs" style="width:170px;"></select></label>' +
+                '<label id="pmrAddMcWrap" class="text-[10px] font-bold text-slate-500 flex flex-col gap-1">Machine<select id="pmrAddMc" class="input-field rounded-md text-xs" style="width:170px;"></select></label>' +
+                '<label class="text-[10px] font-bold text-slate-500 flex flex-col gap-1">Op/1pc<input id="pmrAddPc" type="number" min="1" value="1" class="input-field rounded-md text-xs" style="width:70px;"></label>' +
+                '<label class="text-[10px] font-bold text-slate-500 flex flex-col gap-1">Your total time (s)<input id="pmrAddTime" type="number" min="0" step="0.01" class="input-field rounded-md text-xs" style="width:110px;"></label>' +
+                '<button type="button" onclick="pmrAdd()" class="px-3 py-1.5 rounded text-xs font-bold text-white" style="background:#6d28d9;"><i class="fa-solid fa-plus mr-1"></i>Add</button>' +
+              '</div>' +
+              '<div id="pmrAdded" class="mt-2"></div>' +
+            '</div>' +
+            '<label class="text-[10px] font-bold text-slate-500 flex flex-col gap-1">Note for GM (optional)<textarea id="pmrNote" rows="2" class="input-field rounded-md text-xs"></textarea></label>' +
+          '</div>' +
+          '<div class="px-4 py-3 border-t border-slate-200 flex flex-wrap items-center gap-3 shrink-0">' +
+            '<div id="pmrTotals" class="text-[12px] font-bold text-slate-600"></div>' +
+            '<div class="ml-auto flex gap-2">' +
+              '<button type="button" onclick="pmrReject()" class="px-4 py-2 rounded text-xs font-bold border border-rose-300 text-rose-700 bg-white hover:bg-rose-50"><i class="fa-solid fa-ban mr-1"></i>Reject</button>' +
+              '<button type="button" onclick="pmrClose()" class="px-4 py-2 rounded text-xs font-bold border border-slate-300 text-slate-700 bg-white">Cancel</button>' +
+              '<button type="button" id="pmrSendBtn" onclick="pmrSend()" class="px-5 py-2 rounded text-xs font-bold text-white" style="background:#6d28d9;"><i class="fa-solid fa-paper-plane mr-1"></i>Send to GM</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(m);
+
+      var ph = document.createElement('div');
+      ph.id = 'pmrPhoto';
+      ph.className = 'hidden fixed inset-0 z-[110] items-center justify-center p-6';
+      ph.setAttribute('onclick', 'pmrPhotoClose()');
+      ph.innerHTML = '<img id="pmrPhotoImg" style="max-width:96vw;max-height:90vh;border-radius:10px;" alt="">' +
+        '<button type="button" class="absolute top-3 right-4 text-white text-3xl leading-none">&times;</button>';
+      document.body.appendChild(ph);
+    }
+  }
+
+  // ---------------- list ----------------
+  window.renderPmReview = function () {
+    var tb = document.getElementById('pmrTbody');
+    var badge = document.getElementById('pmrBadge');
+    var list = queue();
+    if (badge) badge.textContent = list.length ? String(list.length) : '';
+    if (!tb) return;
+    if (!canSee()) { tb.innerHTML = '<tr><td colspan="9" class="text-center text-slate-400 font-semibold py-6"><i class="fa-solid fa-lock mr-2"></i>Only the Production Manager reviews here.</td></tr>'; return; }
+    if (!list.length) { tb.innerHTML = '<tr><td colspan="9" class="text-center text-emerald-600 font-bold py-6"><i class="fa-solid fa-check-circle mr-2"></i>Nothing to review. New bulletins from DEOs will show here.</td></tr>'; return; }
+    var html = '';
+    list.forEach(function (x) {
+      var dT = 0;
+      (x.operations || []).forEach(function (o) { dT += num(o.time); });
+      var cat = x.category === 'Packing'
+        ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;">Packing</span>'
+        : '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;">Making</span>';
+      var edit = x.isEditMode ? '<span class="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">EDIT</span>' : '';
+      html += '<tr class="hover:bg-slate-50 transition-colors">' +
+        '<td class="font-bold text-indigo-700">' + h(x.srn) + edit + '</td>' +
+        '<td class="text-xs text-slate-600 font-medium">' + h(x.styleName || '-') + '</td>' +
+        '<td class="text-center">' + cat + '</td>' +
+        '<td class="text-center text-xs font-bold text-slate-600">' + h(x.type || 'R&D') + '</td>' +
+        '<td class="text-center font-bold text-slate-700">' + (x.operations || []).length + '</td>' +
+        '<td class="text-center" style="background:#faf5ff;"><span class="text-[12px] font-bold" style="color:#7e22ce;">' + min(dT) + '</span></td>' +
+        '<td class="text-xs text-slate-600">' + h(x.submittedBy || '-') + '</td>' +
+        '<td class="text-xs text-slate-500">' + h(x.submittedAt || '-') + '</td>' +
+        '<td class="text-right whitespace-nowrap"><button onclick="pmrOpen(\'' + a(x.id) + '\')" class="text-white text-[10px] font-bold py-1 px-3 rounded" style="background:#6d28d9;"><i class="fa-solid fa-pen-to-square mr-1"></i>Review</button></td>' +
+        '</tr>';
+    });
+    tb.innerHTML = html;
+  };
+
+  // ---------------- review popup ----------------
+  window.pmrOpen = function (id) {
+    cur = queue().filter(function (x) { return x.id === id; })[0];
+    if (!cur) { toast('This bulletin is no longer waiting for review. Refresh.', 'warn'); return; }
+    rows = (cur.operations || []).map(function (op) { return { op: op, pm: op.pmTime ? String(op.pmTime) : '', remove: false }; });
+    added = [];
+    addSec = '';
+    document.getElementById('pmrSrn').textContent = cur.srn + (cur.styleName ? ' · ' + cur.styleName : '');
+    document.getElementById('pmrHead').innerHTML =
+      '<span class="am-chip">Category <b>' + h(cur.category) + '</b></span>' +
+      '<span class="am-chip">Type <b>' + h(cur.type || 'R&D') + '</b></span>' +
+      '<span class="am-chip">DEO <b>' + h(cur.submittedBy || '-') + '</b></span>' +
+      '<span class="am-chip">Sent <b>' + h(cur.submittedAt || '-') + '</b></span>' +
+      (cur.isEditMode ? '<span class="am-chip" style="background:#fffbeb;border-color:#fde68a;color:#92400e;"><b style="color:#92400e;">Edit of an approved bulletin</b></span>' : '');
+    document.getElementById('pmrNote').value = '';
+    document.getElementById('pmrAddName').value = '';
+    document.getElementById('pmrAddTime').value = '';
+    document.getElementById('pmrAddPc').value = '1';
+    renderOps();
+    renderAddForm();
+    renderAdded();
+    var m = document.getElementById('pmrModal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+  };
+
+  window.pmrClose = function () {
+    var m = document.getElementById('pmrModal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+    cur = null;
+  };
+
+  function renderOps() {
+    var html = '';
+    rows.forEach(function (r, i) {
+      var o = r.op;
+      var src = imgUrl(o.image, 160);
+      var photo = src ? '<img class="pmr-thumb" src="' + a(src) + '" onclick="pmrPhoto(' + i + ')" alt="">' : '<span class="text-slate-300"><i class="fa-regular fa-image"></i></span>';
+      var sub = [o.manpowerType, o.machineType].filter(function (s) { return s; }).join(' · ');
+      html += '<tr class="' + (r.remove ? 'pmr-removed' : '') + '">' +
+        '<td class="text-center text-xs font-bold text-slate-400">' + (i + 1) + '</td>' +
+        '<td class="text-center">' + photo + '</td>' +
+        '<td><div class="pmr-name text-[12.5px] font-bold text-slate-800">' + h(o.operationName) + '</div><div class="text-[10.5px] text-slate-500 font-semibold">' + h(sub) + '</div>' +
+          (r.remove ? '<div class="text-[10px] font-bold text-rose-700">DEO will confirm the removal</div>' : '') + '</td>' +
+        '<td class="text-center text-xs font-bold text-slate-600">' + h(o.operation1pc || '1') + '</td>' +
+        '<td class="text-center"><span class="pmr-deo" title="Copy to your time" onclick="pmrCopy(' + i + ')"><small>DEO</small>' + fmtS(o.time) + '</span></td>' +
+        '<td class="text-center"><input type="number" min="0" step="0.01" class="pmr-time' + (num(r.pm) > 0 ? '' : ' pmr-empty') + '" value="' + a(r.pm) + '" oninput="pmrTime(' + i + ', this)"' + (r.remove ? ' disabled' : '') + '></td>' +
+        '<td class="text-center"><button type="button" class="pmr-rm" title="' + (r.remove ? 'Keep this operation' : 'Ask DEO to remove') + '" onclick="pmrToggle(' + i + ')"><i class="fa-solid ' + (r.remove ? 'fa-rotate-left' : 'fa-trash-can') + '"></i></button></td>' +
+        '</tr>';
+    });
+    document.getElementById('pmrOps').innerHTML = html;
+    totals();
+  }
+
+  function totals() {
+    var dT = 0, pT = 0, blank = 0;
+    rows.forEach(function (r) {
+      if (r.remove) return;
+      var d = num(r.op.time), p = num(r.pm);
+      dT += d;
+      pT += p > 0 ? p : d;
+      if (!(p > 0)) blank++;
+    });
+    added.forEach(function (x) { pT += num(x.pmTime); });
+    document.getElementById('pmrTotals').innerHTML =
+      '<span style="color:#3730a3;">DEO ' + min(dT) + '</span> &nbsp;·&nbsp; <span style="color:#6d28d9;">Yours ' + min(pT) + '</span>' +
+      (blank ? ' &nbsp;·&nbsp; <span style="color:#b45309;">' + blank + ' without your time</span>' : '') +
+      (added.length ? ' &nbsp;·&nbsp; <span style="color:#047857;">' + added.length + ' added</span>' : '');
+  }
+
+  window.pmrTime = function (i, el) {
+    rows[i].pm = String(el.value || '').trim();
+    el.classList.toggle('pmr-empty', !(num(el.value) > 0));
+    totals();
+  };
+  window.pmrCopy = function (i) {
+    if (rows[i].remove || !(num(rows[i].op.time) > 0)) return;
+    rows[i].pm = String(rows[i].op.time);
+    renderOps();
+  };
+  window.pmrToggle = function (i) {
+    if (!rows[i].remove && !confirm('Ask the DEO to remove "' + rows[i].op.operationName + '"? The DEO confirms the removal.')) return;
+    rows[i].remove = !rows[i].remove;
+    renderOps();
+  };
+  window.pmrPhoto = function (i) {
+    var src = imgUrl(rows[i].op.image, 1400);
+    if (!src) return;
+    document.getElementById('pmrPhotoImg').src = src;
+    var p = document.getElementById('pmrPhoto');
+    p.classList.remove('hidden');
+    p.classList.add('flex');
+  };
+  window.pmrPhotoClose = function () {
+    var p = document.getElementById('pmrPhoto');
+    p.classList.add('hidden');
+    p.classList.remove('flex');
+  };
+
+  // ---------------- add operation ----------------
+  function renderAddForm() {
+    var cat = cur ? cur.category : 'Making';
+    document.getElementById('pmrAddSecs').innerHTML = sections(cat).map(function (s) {
+      return '<button type="button" class="pmr-chip-sec' + (addSec === s.key ? ' on' : '') + '" onclick="pmrSec(\'' + s.key + '\')">' + h(s.label) + '</button>';
+    }).join('');
+    var sec = section(cat, addSec);
+    var mpSel = document.getElementById('pmrAddMp');
+    var keep = mpSel.value;
+    var mps = sec ? sec.mp.map(mpName) : [];
+    mpSel.innerHTML = mps.length ? mps.map(function (n) { return '<option value="' + a(n) + '"' + (n === keep ? ' selected' : '') + '>' + h(n) + '</option>'; }).join('') : '<option value="">Pick the type first</option>';
+    var needMc = !!(sec && sec.machine && cat !== 'Packing');
+    document.getElementById('pmrAddMcWrap').style.display = needMc ? '' : 'none';
+    var mcSel = document.getElementById('pmrAddMc');
+    var mcKeep = mcSel.value;
+    mcSel.innerHTML = '<option value="">Select...</option>' + ((window.masterData && masterData.machineTypes) || []).map(function (n) {
+      return '<option value="' + a(n) + '"' + (n === mcKeep ? ' selected' : '') + '>' + h(n) + '</option>';
+    }).join('');
+  }
+  window.pmrSec = function (k) { addSec = k; renderAddForm(); };
+
+  window.pmrAdd = function () {
+    var cat = cur ? cur.category : 'Making';
+    var sec = section(cat, addSec);
+    var name = document.getElementById('pmrAddName').value.trim();
+    var mp = document.getElementById('pmrAddMp').value;
+    var mc = document.getElementById('pmrAddMc').value;
+    var pc = document.getElementById('pmrAddPc').value || '1';
+    var t = document.getElementById('pmrAddTime').value.trim();
+    if (!sec) { toast('Pick the operation type first.', 'warn'); return; }
+    if (!name || !mp || !(num(t) > 0)) { toast('Enter the operation name, manpower and your total time.', 'warn'); return; }
+    var needMc = sec.machine && cat !== 'Packing';
+    if (needMc && !mc) { toast('Select the machine for stitching.', 'warn'); return; }
+    added.push({ operationName: name, manpowerType: mp, machineType: needMc ? mc : '', operation1pc: String(Math.max(1, parseInt(pc, 10) || 1)), pmTime: t });
+    document.getElementById('pmrAddName').value = '';
+    document.getElementById('pmrAddTime').value = '';
+    document.getElementById('pmrAddPc').value = '1';
+    document.getElementById('pmrAddName').focus();
+    renderAdded();
+  };
+
+  function renderAdded() {
+    var box = document.getElementById('pmrAdded');
+    if (!added.length) { box.innerHTML = ''; totals(); return; }
+    box.innerHTML = added.map(function (x, i) {
+      return '<div class="flex items-center gap-2 px-2 py-1.5 mb-1 rounded border border-violet-200 bg-white text-xs">' +
+        '<i class="fa-solid fa-circle-plus text-violet-600"></i>' +
+        '<b class="text-slate-800">' + h(x.operationName) + '</b>' +
+        '<span class="text-slate-500 font-semibold">' + h([x.manpowerType, x.machineType, x.operation1pc + ' pc'].filter(function (s) { return s; }).join(' · ')) + '</span>' +
+        '<span class="ml-auto font-bold" style="color:#6d28d9;">' + fmtS(x.pmTime) + '</span>' +
+        '<button type="button" class="text-slate-400 hover:text-rose-600 px-1" title="Remove" onclick="pmrUnadd(' + i + ')"><i class="fa-solid fa-xmark"></i></button>' +
+        '</div>';
+    }).join('');
+    totals();
+  }
+  window.pmrUnadd = function (i) {
+    if (!confirm('Remove "' + added[i].operationName + '" that you added?')) return;
+    added.splice(i, 1);
+    renderAdded();
+  };
+
+  // ---------------- send / reject ----------------
+  function busy(on) {
+    var b = document.getElementById('pmrSendBtn');
+    if (b) { b.disabled = on; b.style.opacity = on ? '0.6' : ''; }
+    if (on && typeof showLoader === 'function') showLoader('Saving...');
+    if (!on && typeof hideLoader === 'function') hideLoader();
+  }
+
+  function done(id) {
+    return function (res) {
+      busy(false);
+      var msg = String(res || '');
+      if (msg.indexOf('Error') === 0) { toast(msg, 'error'); return; }
+      toast(msg || 'Saved.', 'success');
+      if (window.masterData && masterData.pmQueue) masterData.pmQueue = masterData.pmQueue.filter(function (x) { return x.id !== id; });
+      pmrClose();
+      window.renderPmReview();
+      if (typeof fetchViewAndPendingData === 'function') fetchViewAndPendingData(true);
+    };
+  }
+  function failed(err) {
+    busy(false);
+    toast('Server error: ' + ((err && err.message) || err), 'error');
+  }
+
+  window.pmrSend = function () {
+    if (!cur) return;
+    if (rows.every(function (r) { return r.remove; }) && !added.length) { toast('All operations are marked for removal. Reject the bulletin instead.', 'warn'); return; }
+    var blank = rows.filter(function (r) { return !r.remove && !(num(r.pm) > 0); }).length;
+    if (blank && !confirm(blank + ' operation(s) have no time from you. GM will only see the DEO time for them. Send anyway?')) return;
+    var review = {
+      ops: rows.map(function (r, i) { return { i: i, pmTime: String(r.pm || '').trim(), remove: !!r.remove }; }),
+      added: added,
+      note: document.getElementById('pmrNote').value.trim()
+    };
+    var id = cur.id;
+    busy(true);
+    google.script.run.withSuccessHandler(done(id)).withFailureHandler(failed).pmReviewSubmit(id, JSON.stringify(review), token());
+  };
+
+  window.pmrReject = function () {
+    if (!cur) return;
+    var why = prompt('Why are you rejecting ' + cur.srn + '? The DEO will see this reason.');
+    if (why === null) return;
+    why = String(why).trim();
+    if (!why) { toast('Please write the reason.', 'warn'); return; }
+    var id = cur.id;
+    busy(true);
+    google.script.run.withSuccessHandler(done(id)).withFailureHandler(failed).rejectBulletin(id, why, token());
+  };
+
+  // ---------------- hook into the page ----------------
+  // Keep pmQueue from every payload the page loads (initApp, refresh, view switch) without a second server call.
+  var parse = JSON.parse;
+  JSON.parse = function () {
+    var o = parse.apply(JSON, arguments);
+    try {
+      if (o && typeof o === 'object' && !Array.isArray(o) && Array.isArray(o.pmQueue) && window.masterData) {
+        masterData.pmQueue = o.pmQueue;
+        setTimeout(window.renderPmReview, 0);
+      }
+    } catch (e) {}
+    return o;
+  };
+
+  function applyPmAccess() {
+    var b = document.getElementById('tabBtnPmReview');
+    if (!b) return;
+    var ok = canSee();
+    b.classList.toggle('hidden', !ok);
+    if (!ok) {
+      var p = document.getElementById('pmReviewTab');
+      if (p) { p.classList.add('hidden'); p.classList.remove('flex'); }
+      return;
+    }
+    var g = b.closest('.side-group');
+    if (g) g.classList.remove('hidden');
+    // A Production Manager lands on this tab the first time when something is waiting.
+    var u = window.userAccess || {};
+    if (!openedOnce && u.isPM && !u.isManagement && queue().length && typeof switchTab === 'function') {
+      openedOnce = true;
+      switchTab('pmReviewTab', b);
+    }
+  }
+
+  if (typeof window.applyAccess === 'function') {
+    var origApply = window.applyAccess;
+    window.applyAccess = function () { var r = origApply.apply(this, arguments); applyPmAccess(); return r; };
+  }
+  if (typeof window.renderAllTables === 'function') {
+    var origRender = window.renderAllTables;
+    window.renderAllTables = function () { var r = origRender.apply(this, arguments); window.renderPmReview(); return r; };
+  }
+
+  inject();
+})();
+</script>
