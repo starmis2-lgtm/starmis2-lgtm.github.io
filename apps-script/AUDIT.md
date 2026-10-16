@@ -76,3 +76,64 @@ One row per user action (login, submit, approve, reject, …) with a short text 
 the audit log has the detail per operation.
 
 Other logs: REJECTED BULLETINS (rejected requests and reasons), EFFICIENCY LOG (efficiency per manpower), MIS SUBMIT LOG.
+
+## Which time the GM sees and which time is saved
+
+Checked against the Apps Script code (`pmReviewSubmit` / `deoConfirmRemoval` in Stage.js, `approveBulletin` /
+`writeBulletinFinal_` in Approval.js, `effAdjustOps_` in Code.js, `auditFillFinal_` in Audit.js, `rawUpsert_` in Raw.js
+and the approval popup in ApprovalJS.html). This is for R&D bulletins (new ones, and edits sent with times @100%).
+
+**a. What the pending request holds after the Production Manager's review**
+
+Each operation keeps three values: `deoTime`, `pmTime` and `time`.
+
+| Operation | `time` | `deoTime` | `pmTime` |
+|---|---|---|---|
+| Normal operation with a PM time | **DEO time** (not changed) | DEO time | PM time |
+| Normal operation without a PM time | DEO time | DEO time | empty |
+| Added by the PM | **PM time** | empty | PM time |
+| PM asked to remove, DEO kept it | DEO time | DEO time | PM time, if he gave one |
+
+So the PM review never replaces `time`; the PM time is stored next to it. Operations the DEO agreed to remove leave the
+request (they are kept in `removedOps` for the logs).
+
+**b. The GM approval popup**
+
+- The final time box is pre-filled with `time`, so with the **DEO time** (the PM time only for operations the PM added).
+- Under the box are two buttons: **DEO 60s** and **PM 50s**. Clicking one copies that time into the box (and updates
+  target and cost). A button is greyed out when that time is empty. The button that matches the box is highlighted.
+- "Use DEO time for all" / "Use PM time for all" do the same for every operation.
+- The buttons only show when the PM has reviewed the request.
+
+**c. What is saved when the GM approves**
+
+The value in the box is a time **@100% efficiency**. For each manpower, efficiency = what the GM sets in the popup, else the
+efficiency approved before for that SRN, else 100%.
+
+| Where | What is saved |
+|---|---|
+| Making / Packing Bulletin Data | Time = **box × 100 ÷ efficiency** (2 decimals). Hr Target = 3600 ÷ that time. Cost = (wage ÷ 8) ÷ target. Efficiency column = that efficiency. |
+| BULLETIN RAW DATA | Time (s) = box value. "DEO Time @100% (s)" = box value (note: the column name says DEO, but it holds the final time @100%). Efficiency %, Time after Efficiency = box × 100 ÷ efficiency, Cost after Efficiency. "DEO Entered Time (s)" = DEO time, "Production Manager Time (s)" = PM time, "Final Time From". |
+| BULLETIN AUDIT LOG (GM APPROVED rows) | DEO Time = DEO time, PM Time = PM time, **Final Time = box value @100%** (not after efficiency), Final Time From, Efficiency %. |
+
+"Final Time From" is worked out by comparing the box to the two times: equal to the DEO time → **DEO**; else equal to the PM
+time → **Production Manager**; else **Changed by GM**. If both times are the same, it says DEO. A row the GM added in the
+popup says **Added / renamed by GM**.
+
+**d. When the GM types a time that matches neither**
+
+It is saved like any other value: that number @100%, then divided by the efficiency in the main sheet. Final Time From =
+**Changed by GM**. The DEO and PM times are still kept in the raw sheet and the audit log, so the change can be seen.
+
+**Example** — DEO 60 s, PM 50 s, efficiency 80%:
+
+| GM does | Box | Main sheet time | Hr target | Audit Final Time | Final Time From |
+|---|---|---|---|---|---|
+| Approves as shown | 60 | 75 s | 48 | 60 | DEO |
+| Clicks PM | 50 | 62.5 s | 57.6 | 50 | Production Manager |
+| Types 55 | 55 | 68.75 s | 52.36 | 55 | Changed by GM |
+
+In all three rows the audit log and the raw sheet also keep DEO Time 60 and PM Time 50, Efficiency 80.
+
+Older edit requests (sent before times were @100%) are written to the main sheet as typed and the efficiency is applied
+to the sheet afterwards.
