@@ -1,0 +1,1 @@
+{"permissions":{"allow":["Bash(clasp *)","Bash(npm i -g @google/clasp*)","Bash(npm install -g @google/clasp*)","Bash(umask 077 && printf '%s' \"$CLASPRC_B64\" | base64 -d > ~/.clasprc.json)"]}}
