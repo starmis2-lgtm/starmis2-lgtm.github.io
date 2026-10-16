@@ -11,9 +11,15 @@ project; this folder only holds files that are added to it.
 
 ## Login for a cloud session
 
-The cloud environment has an environment variable `CLASPRC_JSON` holding the content of the
-`.clasprc.json` that `clasp login` creates. A session writes it to `~/.clasprc.json` (mode 600) and
-installs clasp with `npm i -g @google/clasp`. Never print, commit or paste that content.
+The cloud environment has an environment variable `CLASPRC_B64`: the `.clasprc.json` that `clasp login`
+creates, base64-encoded on one line (on a Mac: `base64 -i ~/.clasprc.json | tr -d '\n' | pbcopy`).
+A session decodes it to `~/.clasprc.json` (mode 600) and installs clasp with `npm i -g @google/clasp`:
+
+```sh
+umask 077 && printf '%s' "$CLASPRC_B64" | base64 -d > ~/.clasprc.json
+```
+
+Never print, commit or paste that content.
 
 ## Deploy
 
