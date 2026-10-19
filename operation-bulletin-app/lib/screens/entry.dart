@@ -354,11 +354,9 @@ class _EntryScreenState extends State<EntryScreen> {
     toast(context, 'Copied ${list.length} operations from $from. Check the times.');
   }
 
-  /// Shows operation type [key] with its first allowed manpower.
+  /// Shows operation type [key]; the manpower is always picked by hand.
   static void _showType(Payload p, EntryDraft e, String key) {
-    final allowed = p.sectionManpower(e.category, key);
-    final first = e.ops.where((o) => o.sec == key).firstOrNull;
-    e.setType(key, allowed.isNotEmpty ? allowed.first : (first?.manpower ?? ''));
+    e.setType(key, '');
   }
 
   /// Marks the operation type [key] of the selected SRN as not required ([on]) or required again.
@@ -530,7 +528,7 @@ class _EntryScreenState extends State<EntryScreen> {
     if (bad != null) {
       _showType(p, e, bad.sec);
       final i = e.visibleOps.indexOf(bad);
-      toast(context, '${e.labelOf(bad.sec)} row ${i + 1}${bad.name.isEmpty ? '' : ' "${bad.name}"'} needs a name and a time.', error: true);
+      toast(context, '${e.labelOf(bad.sec)} row ${i + 1}${bad.name.isEmpty ? '' : ' "${bad.name}"'} ${bad.manpower.isEmpty ? 'needs a manpower' : 'needs a name and a time'}.', error: true);
       return;
     }
     final counts = e.typeCounts;
@@ -706,11 +704,7 @@ class _Header extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                     showCheckmark: false,
                     avatar: done == null ? null : Icon(done.notReq ? Icons.block_rounded : Icons.check_rounded, size: 14, color: done.color),
-                    onSelected: (_) {
-                      final allowed = p.sectionManpower(e.category, k);
-                      final first = e.ops.where((o) => o.sec == k).firstOrNull;
-                      e.setType(k, allowed.isNotEmpty ? allowed.first : (first?.manpower ?? ''));
-                    },
+                    onSelected: (_) => e.setType(k, ''),
                   );
                 }),
             ]),
@@ -991,6 +985,10 @@ class _OpSheetState extends State<_OpSheet> {
       _timeFocus.requestFocus();
       return false;
     }
+    if (_mp.isEmpty) {
+      toast(context, 'Select the manpower.', error: true);
+      return false;
+    }
     HapticFeedback.lightImpact();
     if (widget.st.entry.needsMachineFor(widget.op?.sec ?? widget.st.entry.sec) && _mc.isEmpty) {
       toast(context, 'Select the machine.', error: true);
@@ -1062,7 +1060,7 @@ class _OpSheetState extends State<_OpSheet> {
               onChanged: (v) => setState(() => _mc = v),
             ),
           ],
-          if (mps.length > 1) ...[
+          if (mps.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
               Text('Manpower', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
