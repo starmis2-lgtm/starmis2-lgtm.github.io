@@ -781,7 +781,7 @@ class EntryDraft extends ChangeNotifier {
   }
 
   /// Shows the rows of operation type [section]; rows of the other types stay in the form.
-  /// [manpower] is given to new rows (the first manpower allowed in the type).
+  /// [manpower] is given to new rows ('' = the user picks it).
   void setType(String section, String manpower) {
     sec = section;
     mp = manpower;
@@ -789,9 +789,12 @@ class EntryDraft extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Manpower for the next rows of the chosen type.
+  /// Manpower for the next rows of the chosen type; rows of the type still without a manpower get it too.
   void setManpower(String v) {
     mp = v;
+    for (final o in ops) {
+      if (o.sec == sec && o.manpower.isEmpty) o.manpower = v;
+    }
     notifyListeners();
   }
 
@@ -842,13 +845,10 @@ class EntryDraft extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Chooses [section] after rows were loaded: manpower of its first row (or the type's first manpower) and its machine.
+  /// Chooses [section] after rows were loaded. The manpower for new rows is not pre-filled: it is picked by hand.
   void _showSec(Payload p, String section) {
     sec = section;
-    final first = ops.where((o) => o.sec == section).firstOrNull;
-    final allowed = p.sectionManpower(category, section);
-    mp = first?.manpower ?? (allowed.isNotEmpty ? allowed.first : '');
-    if (allowed.isNotEmpty && !allowed.contains(mp)) mp = allowed.first;
+    mp = '';
     mc = needsMachine ? _machineOfSec() : '';
   }
 
@@ -933,7 +933,7 @@ class EntryDraft extends ChangeNotifier {
   /// A new entry checks every type; an edit checks only the type on screen, like before.
   OpDraft? firstInvalid() {
     for (final o in mode == EntryMode.fresh ? ops : visibleOps) {
-      if (_filled(o) && (o.name.isEmpty || o.timeNum <= 0)) return o;
+      if (_filled(o) && (o.name.isEmpty || o.timeNum <= 0 || o.manpower.isEmpty)) return o;
     }
     return null;
   }
