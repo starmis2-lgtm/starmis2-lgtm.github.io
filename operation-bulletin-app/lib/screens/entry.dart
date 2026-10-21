@@ -334,24 +334,49 @@ class _EntryScreenState extends State<EntryScreen> {
   Future<void> _copyFrom(BuildContext context, AppState st) async {
     final e = st.entry;
     final p = st.data!;
-    final src = e.category == 'Packing' ? p.packing : p.submitted;
     final opts = <SrnInfo>[];
-    for (final bl in src) {
-      if (bl.srn == e.srn) continue;
-      final k = bl.ops.where((o) => sectionOf(e.category, o.manpower, o.machine) == e.sec).length;
-      if (k > 0) opts.add(SrnInfo(srn: bl.srn, styleName: '${bl.styleName} · $k ${e.labelOf(e.sec)} ops', imageLink: bl.imageLink));
+    final srns = p.copySrns(e.category).entries.toList()..sort((a, b) => b.key.compareTo(a.key));
+    for (final x in srns) {
+      if (x.key == e.srn) continue;
+      final list = p.copyOps(e.category, x.key);
+      if (list.isEmpty) continue;
+      final k = list.where((o) => sectionOf(e.category, o.manpower, o.machine) == e.sec).length;
+      final info = p.srn(x.key);
+      opts.add(SrnInfo(srn: x.key, styleName: '${info?.styleName ?? ''} · ${list.length} ops${k > 0 ? ' ($k ${e.labelOf(e.sec)})' : ''}${x.value ? ' · not approved yet' : ''}', imageLink: info?.imageLink ?? ''));
     }
     if (opts.isEmpty) {
-      toast(context, 'No other SRN has ${e.labelOf(e.sec)} operations.', error: true);
+      toast(context, 'No other ${e.category} SRN has operations to copy.', error: true);
       return;
     }
-    final from = await pickSrn(context, options: opts, title: 'Copy ${e.labelOf(e.sec)} operations from');
+    final from = await pickSrn(context, options: opts, title: 'Copy operations from');
     if (from == null || !context.mounted) return;
-    final bl = p.bulletin(e.category, from);
-    if (bl == null) return;
-    final list = bl.ops.where((o) => sectionOf(e.category, o.manpower, o.machine) == e.sec).toList();
-    e.copyFrom(list, p.sectionManpower(e.category, e.sec));
-    toast(context, 'Copied ${list.length} operations from $from. Check the times.');
+    final list = p.copyOps(e.category, from);
+    final mine = list.where((o) => sectionOf(e.category, o.manpower, o.machine) == e.sec).toList();
+    var all = true;
+    if (e.sec.isNotEmpty && mine.isNotEmpty && mine.length < list.length) {
+      final pick = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Copy from $from'),
+          content: Text('${list.length} operations of all types (${e.labelOf(e.sec)}: ${mine.length}).'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Only ${e.labelOf(e.sec)}')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('All types')),
+          ],
+        ),
+      );
+      if (pick == null || !context.mounted) return;
+      all = pick;
+    } else if (e.sec.isNotEmpty && mine.length == list.length) {
+      all = false;
+    }
+    if (all) {
+      e.copyAll(list, p);
+      toast(context, 'Copied ${list.length} operations of all types from $from. Check the times.');
+    } else {
+      e.copyFrom(mine, p.sectionManpower(e.category, e.sec));
+      toast(context, 'Copied ${mine.length} operations from $from. Check the times.');
+    }
   }
 
   /// Shows operation type [key]; the manpower is always picked by hand.

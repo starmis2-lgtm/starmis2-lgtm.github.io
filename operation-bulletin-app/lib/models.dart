@@ -278,6 +278,33 @@ class Payload {
     return null;
   }
 
+  /// Operations to copy from [srn] (one category): the latest edit still waiting for approval if there is one,
+  /// else the approved bulletin plus every new request of that SRN still waiting for approval.
+  List<Op> copyOps(String category, String srn) {
+    final pend = myPending
+        .where((x) => x.srn == srn && !x.isDeleteRequest && x.type != 'Production' && (x.category == 'Packing' ? 'Packing' : 'Making') == category)
+        .toList()
+      ..sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+    Op toOp(PendingOp o) => Op(opName: o.operationName, manpower: o.manpowerType, machine: o.machineType,
+        op1pc: o.operation1pc.isEmpty ? '1' : o.operation1pc, rndTime: n(o.time), img: o.image, v1: o.video1);
+    final edits = pend.where((x) => x.isEditMode).toList();
+    if (edits.isNotEmpty) return edits.last.operations.map(toOp).toList();
+    return [...?bulletin(category, srn)?.ops, for (final r in pend) ...r.operations.map(toOp)];
+  }
+
+  /// SRNs (one category) that have operations to copy; true = some of them are not approved yet.
+  Map<String, bool> copySrns(String category) {
+    final out = <String, bool>{};
+    for (final b in category == 'Packing' ? packing : submitted) {
+      if (b.ops.isNotEmpty) out[b.srn] = false;
+    }
+    for (final x in myPending) {
+      if (x.isDeleteRequest || x.type == 'Production' || (x.category == 'Packing' ? 'Packing' : 'Making') != category || x.operations.isEmpty) continue;
+      out[x.srn] = true;
+    }
+    return out;
+  }
+
   Bulletin? bulletin(String category, String srn) {
     final src = category == 'Packing' ? packing : submitted;
     for (final b in src) {

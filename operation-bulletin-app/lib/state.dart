@@ -936,6 +936,20 @@ class EntryDraft extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Copies operations of every type: each row goes to its own operation type.
+  void copyAll(List<Op> src, Payload p) {
+    for (final op in src) {
+      final sc = sectionOf(category, op.manpower, op.machine);
+      final allowed = p.sectionManpower(category, sc);
+      ops.add(OpDraft(
+        name: op.opName, manpower: allowed.isEmpty || allowed.contains(op.manpower) ? op.manpower : '',
+        machine: needsMachineFor(sc) ? op.machine : '', op1pc: op.op1pc.isEmpty ? '1' : op.op1pc,
+        time: op.rndAt100 > 0 ? _fmt(op.rndAt100) : '', suggested: op.rndTime > 0, img: op.img, sec: sc,
+      ));
+    }
+    notifyListeners();
+  }
+
   void touch() => notifyListeners();
 
   Set<String> get haveKeys => visibleOps.map((o) => o.name.toLowerCase().replaceAll(RegExp(r'\s+'), ' ')).where((k) => k.isNotEmpty).toSet();
