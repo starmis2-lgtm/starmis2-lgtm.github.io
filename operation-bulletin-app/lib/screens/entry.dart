@@ -962,16 +962,6 @@ class _OpSheetState extends State<_OpSheet> {
     });
   }
 
-  void _useLib(LibOp x) {
-    setState(() {
-      _name.text = x.name;
-      _pc = int.tryParse(x.op1pc) ?? 1;
-      if (x.time > 0 && _time.text.trim().isEmpty) _time.text = _fmtT(x.time);
-    });
-    _timeFocus.requestFocus();
-    _time.selection = TextSelection(baseOffset: 0, extentOffset: _time.text.length);
-  }
-
   bool _save({required bool next}) {
     final name = _name.text.trim();
     final t = num.tryParse(_time.text.trim()) ?? 0;
@@ -1015,13 +1005,7 @@ class _OpSheetState extends State<_OpSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final e = widget.st.entry;
-    final q = _name.text.trim().toLowerCase();
-    final libAll = widget.st.library(e.category);
-    final libType = libAll.where((x) => sectionOf(e.category, x.manpower, x.machine) == e.sec).toList();
     final mps = widget.st.data?.sectionManpower(e.category, e.sec) ?? const <String>[];
-    final lib = libType.isEmpty ? libAll : libType;
-    final terms = q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-    final hits = q.length < 2 ? <LibOp>[] : lib.where((x) => terms.every(x.key.contains) && x.key != q.replaceAll(RegExp(r'\s+'), ' ')).take(4).toList();
     final curImg = widget.op?.img ?? '';
     final showOld = _bytes == null && !_removePhoto && curImg.isNotEmpty;
 
@@ -1138,13 +1122,6 @@ class _OpSheetState extends State<_OpSheet> {
               ]),
             ),
           ]),
-          if (hits.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text('FROM PAST BULLETINS', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: cs.onSurfaceVariant)),
-            const SizedBox(height: 4),
-            for (final x in hits)
-              _SugRow(title: x.name, sub: '${x.op1pc} ops · ${x.time > 0 ? '${_fmtT(x.time)}s' : '—'} · used ${x.count}×', onTap: () => _useLib(x)),
-          ],
           const SizedBox(height: 14),
           if (_edit)
             Row(children: [
@@ -1191,40 +1168,6 @@ class _OpSheetState extends State<_OpSheet> {
               ),
             ]),
         ]),
-      ),
-    );
-  }
-}
-
-class _SugRow extends StatelessWidget {
-  const _SugRow({required this.title, required this.sub, required this.onTap});
-  final String title, sub;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Material(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5))),
-            child: Row(children: [
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface)),
-                  Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
-                ]),
-              ),
-              Icon(Icons.north_west_rounded, color: cs.primary, size: 18),
-            ]),
-          ),
-        ),
       ),
     );
   }
