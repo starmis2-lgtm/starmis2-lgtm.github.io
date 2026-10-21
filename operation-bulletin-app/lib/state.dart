@@ -435,6 +435,19 @@ class AppState extends ChangeNotifier {
   /// Take back my request before it is approved (any stage).
   Future<String> withdraw(String id) => _write(() => api.callMsg('withdrawRequest', [id]));
 
+  /// Requests I withdrew (all of them for Management) that can be sent for approval again.
+  Future<List<Map<String, dynamic>>> withdrawnList() async {
+    final j = await api.callJson('getWithdrawnRequests', []);
+    if (j['error'] != null) throw ApiException(j['error'].toString());
+    return [for (final x in l(j['list'])) m(x)];
+  }
+
+  /// Sends a withdrawn request back for approval (fresh Production Manager review).
+  Future<String> restoreWithdrawn(String id) => _write(() => api.callMsg('restoreWithdrawnRequest', [id]));
+
+  /// Photo / video links of a request that is still waiting for approval; the request stays at its stage.
+  Future<String> updatePendingMedia(String id, List<Map<String, String>> changes) => _write(() => api.callMsg('updatePendingMedia', [id, jsonEncode(changes)]));
+
   /// Ask GM to delete the whole approved R&D bulletin of an SRN (one category).
   Future<String> requestDelete(String srn, String category, String reason) => _write(() => api.callMsg('requestDeleteBulletin', [srn, category, reason]));
 

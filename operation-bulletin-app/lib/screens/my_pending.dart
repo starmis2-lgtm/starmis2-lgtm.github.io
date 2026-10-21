@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart';
@@ -23,6 +24,14 @@ class MyPendingScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
           children: [
             const OutboxList(),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _openWithdrawn(context),
+                icon: const Icon(Icons.restore_rounded, size: 18),
+                label: const Text('Withdrawn requests'),
+              ),
+            ),
             for (final r in st.visibleRejected) ...[_RejectedCard(r: r), const SizedBox(height: 8)],
             for (final a in st.toConfirm) ...[_ConfirmCard(key: ValueKey('c${a.id}'), a: a), const SizedBox(height: 8)],
             if (list.isEmpty && st.outbox.items.isEmpty && st.visibleRejected.isEmpty)
@@ -149,6 +158,18 @@ class _MyCard extends StatelessWidget {
             ),
             IconButton.outlined(tooltip: 'Not required', visualDensity: VisualDensity.compact, onPressed: () => showNotRequired(context, a.srn), icon: const Icon(Icons.block_rounded, size: 18)),
             const SizedBox(width: 6),
+            if ((mine || p.access.isManagement) && !a.isDeleteRequest && a.operations.isNotEmpty) ...[
+              IconButton.outlined(
+                tooltip: 'Add photos', visualDensity: VisualDensity.compact,
+                onPressed: () => _openPhotos(context, a),
+                icon: Badge(
+                  isLabelVisible: a.operations.any((o) => o.image.isEmpty),
+                  smallSize: 7,
+                  child: const Icon(Icons.add_a_photo_outlined, size: 18),
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
             if (mine)
               IconButton.outlined(
                 tooltip: 'Delete this request', visualDensity: VisualDensity.compact,
@@ -316,6 +337,237 @@ class _ConfirmCardState extends State<_ConfirmCard> {
           ),
         ]),
       ),
+    );
+  }
+}
+
+
+/// Withdrawn requests: Restore sends one back for approval (Production Manager review again).
+void _openWithdrawn(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context, isScrollControlled: true, useSafeArea: true, showDragHandle: true,
+    builder: (ctx) => const _WithdrawnSheet(),
+  );
+}
+
+class _WithdrawnSheet extends StatefulWidget {
+  const _WithdrawnSheet();
+  @override
+  State<_WithdrawnSheet> createState() => _WithdrawnSheetState();
+}
+
+class _WithdrawnSheetState extends State<_WithdrawnSheet> {
+  List<Map<String, dynamic>>? _list;
+  String _error = '';
+  String _busy = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final l = await context.read<AppState>().withdrawnList();
+      if (mounted) setState(() { _list = l; _error = ''; });
+    } catch (e) {
+      if (mounted) setState(() { _list = const []; _error = e.toString(); });
+    }
+  }
+
+  Future<void> _restore(Map<String, dynamic> w) async {
+    final id = s(w['id']);
+    final ok = await confirm(context, 'Restore ${s(w['srn'])}?',
+        '${s(w['category'])} ${s(w['type'])} · ${n(w['ops']).toInt()} operations will go for approval again (Production Manager review).', yes: 'Restore');
+    if (!ok || !mounted) return;
+    setState(() => _busy = id);
+    try {
+      final msg = await context.read<AppState>().restoreWithdrawn(id);
+      if (mounted) toast(context, msg);
+      await _load();
+    } catch (e) {
+      if (mounted) toast(context, e.toString(), error: true);
+    }
+    if (mounted) setState(() => _busy = '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final orange = ink(const Color(0xFF9A3412));
+    return DraggableScrollableSheet(
+      expand: false, initialChildSize: 0.7, minChildSize: 0.4, maxChildSize: 0.95,
+      builder: (ctx, sc) => ListView(
+        controller: sc,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        children: [
+          Text('Withdrawn requests', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: orange)),
+          const SizedBox(height: 4),
+          Text('Restore sends the request back for approval with the same operations and photos.', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+          const SizedBox(height: 12),
+          if (_list == null)
+            const Padding(padding: EdgeInsets.only(top: 40), child: Center(child: CircularProgressIndicator()))
+          else if (_error.isNotEmpty)
+            Text(_error, style: TextStyle(color: cs.error))
+          else if (_list!.isEmpty)
+            const Padding(padding: EdgeInsets.only(top: 40), child: EmptyState(icon: Icons.inbox_outlined, title: 'No withdrawn requests', subtitle: 'Requests you take back appear here.', color: Color(0xFF64748B)))
+          else
+            for (final w in _list!)
+              Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(s(w['srn']), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                        Text('${s(w['category'])} ${s(w['type'])}${b(w['isEditMode']) ? ' · EDIT' : ''} · ${n(w['ops']).toInt()} ops · photos ${n(w['photos']).toInt()}/${n(w['ops']).toInt()}',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+                        Text('Withdrawn ${s(w['withdrawnAt'])}', style: TextStyle(fontSize: 11, color: cs.outline)),
+                      ]),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: _busy.isNotEmpty ? null : () => _restore(w),
+                      icon: _busy == s(w['id']) ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.restore_rounded, size: 18),
+                      label: const Text('Restore'),
+                    ),
+                  ]),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Add / change photos of the operations of a request that is still waiting for approval.
+void _openPhotos(BuildContext context, MyPending a) {
+  showModalBottomSheet<void>(
+    context: context, isScrollControlled: true, useSafeArea: true, showDragHandle: true,
+    builder: (ctx) => _PhotoSheet(a: a),
+  );
+}
+
+class _PhotoSheet extends StatefulWidget {
+  const _PhotoSheet({required this.a});
+  final MyPending a;
+  @override
+  State<_PhotoSheet> createState() => _PhotoSheetState();
+}
+
+class _PhotoSheetState extends State<_PhotoSheet> {
+  final Map<int, String> _img = {};
+  int _uploading = -1;
+  bool _saving = false;
+
+  Future<void> _pick(int i) async {
+    final src = await showModalBottomSheet<ImageSource>(
+      context: context, showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: const Icon(Icons.photo_camera_rounded), title: const Text('Take photo'), onTap: () => Navigator.pop(ctx, ImageSource.camera)),
+          ListTile(leading: const Icon(Icons.photo_library_rounded), title: const Text('Choose from gallery'), onTap: () => Navigator.pop(ctx, ImageSource.gallery)),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (src == null || !mounted) return;
+    final x = await ImagePicker().pickImage(source: src, maxWidth: 1200, maxHeight: 1200, imageQuality: 85);
+    if (x == null || !mounted) return;
+    final bytes = await x.readAsBytes();
+    if (!mounted) return;
+    setState(() => _uploading = i);
+    try {
+      final op = widget.a.operations[i];
+      final url = await context.read<AppState>().uploadImage(bytes, 'image/jpeg', x.name, widget.a.srn, op.operationName);
+      if (url.startsWith('local:')) throw Exception('No internet. Connect and add the photo again.');
+      if (mounted) setState(() => _img[i] = url);
+    } catch (e) {
+      if (mounted) toast(context, e.toString().replaceFirst('Exception: ', ''), error: true);
+    }
+    if (mounted) setState(() => _uploading = -1);
+  }
+
+  Future<void> _save() async {
+    if (_img.isEmpty) { Navigator.pop(context); return; }
+    setState(() => _saving = true);
+    try {
+      final ops = widget.a.operations;
+      final changes = [for (final e in _img.entries) {'i': '${e.key}', 'name': ops[e.key].operationName, 'img': e.value}];
+      final msg = await context.read<AppState>().updatePendingMedia(widget.a.id, changes);
+      if (!mounted) return;
+      toast(context, msg);
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) toast(context, e.toString(), error: true);
+    }
+    if (mounted) setState(() => _saving = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final ops = widget.a.operations;
+    final missing = [for (var i = 0; i < ops.length; i++) if (ops[i].image.isEmpty && !_img.containsKey(i)) i].length;
+    return DraggableScrollableSheet(
+      expand: false, initialChildSize: 0.8, minChildSize: 0.4, maxChildSize: 0.95,
+      builder: (ctx, sc) => Column(children: [
+        Expanded(
+          child: ListView(
+            controller: sc,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            children: [
+              Text('Photos · ${widget.a.srn}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text('${widget.a.category} ${widget.a.type} · $missing without photo. The request stays where it is (no new approval).',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+              const SizedBox(height: 10),
+              for (var i = 0; i < ops.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(children: [
+                    SizedBox(
+                      width: 52, height: 52,
+                      child: (_img[i] ?? ops[i].image).isNotEmpty
+                          ? SrnThumb(_img[i] ?? ops[i].image, size: 52, radius: 10)
+                          : Container(decoration: BoxDecoration(color: wash(const Color(0xFFFFFBEB)), borderRadius: BorderRadius.circular(10), border: Border.all(color: edge(const Color(0xFFFDE68A)))),
+                              child: Icon(Icons.no_photography_outlined, size: 20, color: ink(const Color(0xFFB45309)))),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('${i + 1}. ${ops[i].operationName}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                        Text(ops[i].manpowerType, style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant)),
+                      ]),
+                    ),
+                    _uploading == i
+                        ? const Padding(padding: EdgeInsets.all(10), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+                        : TextButton.icon(
+                            onPressed: _uploading >= 0 || _saving ? null : () => _pick(i),
+                            icon: Icon((_img[i] ?? ops[i].image).isEmpty ? Icons.add_a_photo_outlined : Icons.cameraswitch_outlined, size: 18),
+                            label: Text((_img[i] ?? ops[i].image).isEmpty ? 'Add' : 'Change'),
+                          ),
+                  ]),
+                ),
+            ],
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _saving || _uploading >= 0 ? null : _save,
+                icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_outlined),
+                label: Text(_img.isEmpty ? 'Close' : 'Save ${_img.length} photo${_img.length == 1 ? '' : 's'}'),
+              ),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }
