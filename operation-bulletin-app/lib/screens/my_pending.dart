@@ -15,7 +15,8 @@ class MyPendingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final st = context.watch<AppState>();
     final p = st.data!;
-    final list = p.myPending;
+    // SRN order (SRN0644A, SRN0644B, SRN0645A...), then Making before Packing, R&D before Production
+    final list = [...p.myPending]..sort(_byPendingOrder);
     return Scaffold(
       appBar: AppBar(title: const Text('My Pending'), actions: const [UserMenu()]),
       body: RefreshIndicator(
@@ -570,4 +571,18 @@ class _PhotoSheetState extends State<_PhotoSheet> {
       ]),
     );
   }
+}
+
+
+int _srnNum(String srn) => int.tryParse(RegExp(r'\d+').firstMatch(srn)?.group(0) ?? '') ?? 0;
+
+int _byPendingOrder(MyPending a, MyPending b) {
+  final n = _srnNum(a.srn).compareTo(_srnNum(b.srn));
+  if (n != 0) return n;
+  final srn = a.srn.compareTo(b.srn);
+  if (srn != 0) return srn;
+  int rank(MyPending x) => (x.category == 'Packing' ? 2 : 0) + (x.type == 'Production' ? 1 : 0);
+  final r = rank(a).compareTo(rank(b));
+  if (r != 0) return r;
+  return a.submittedAt.compareTo(b.submittedAt);
 }
