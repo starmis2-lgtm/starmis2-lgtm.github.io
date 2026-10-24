@@ -149,8 +149,14 @@ class MyPending {
     required this.id, required this.srn, this.styleName = '', this.category = 'Making', this.type = 'R&D', this.bulletinFor = '',
     this.date = '', this.isEditMode = false, this.submittedBy = '', this.submittedEmail = '', this.submittedAt = '',
     this.operations = const [], this.mis, this.stage = 'GM', this.pmBy = '', this.pmAt = '', this.pmNote = '',
-    this.isDeleteRequest = false, this.deleteReason = '',
+    this.isDeleteRequest = false, this.deleteReason = '', this.groupSrns = const [],
   });
+  /// Master SRN request (634 = 634A / 634B / 634C): one approval saves the bulletin into all of them.
+  final List<String> groupSrns;
+  bool get isGroup => groupSrns.length > 1;
+  /// Every SRN this request is for.
+  List<String> get srns => isGroup ? groupSrns : [srn];
+  bool covers(String s) => srns.contains(s);
   /// Request to delete the whole approved bulletin (GM approves it in the web app).
   final bool isDeleteRequest;
   final String deleteReason;
@@ -169,7 +175,8 @@ class MyPending {
         mis: j['mis'] == null ? null : TaskDelay.fromJson(m(j['mis'])),
         stage: const ['PM', 'DEO'].contains(s(j['stage']).toUpperCase()) ? s(j['stage']).toUpperCase() : 'GM',
         pmBy: s(m(j['pm'])['by']), pmAt: s(m(j['pm'])['at']), pmNote: s(m(j['pm'])['note']),
-        isDeleteRequest: b(j['isDeleteRequest']), deleteReason: s(j['deleteReason']));
+        isDeleteRequest: b(j['isDeleteRequest']), deleteReason: s(j['deleteReason']),
+        groupSrns: l(j['groupSrns']).map((e) => s(e)).where((e) => e.isNotEmpty).toList());
   num get totalTime => operations.fold<num>(0, (a, o) => a + (n(o.time) > 0 ? n(o.time) : 0));
 }
 
@@ -282,7 +289,7 @@ class Payload {
   /// else the approved bulletin plus every new request of that SRN still waiting for approval.
   List<Op> copyOps(String category, String srn) {
     final pend = myPending
-        .where((x) => x.srn == srn && !x.isDeleteRequest && x.type != 'Production' && (x.category == 'Packing' ? 'Packing' : 'Making') == category)
+        .where((x) => x.covers(srn) && !x.isDeleteRequest && x.type != 'Production' && (x.category == 'Packing' ? 'Packing' : 'Making') == category)
         .toList()
       ..sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
     Op toOp(PendingOp o) => Op(opName: o.operationName, manpower: o.manpowerType, machine: o.machineType,
@@ -300,7 +307,9 @@ class Payload {
     }
     for (final x in myPending) {
       if (x.isDeleteRequest || x.type == 'Production' || (x.category == 'Packing' ? 'Packing' : 'Making') != category || x.operations.isEmpty) continue;
-      out[x.srn] = true;
+      for (final s in x.srns) {
+        out[s] = true;
+      }
     }
     return out;
   }

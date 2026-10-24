@@ -129,6 +129,7 @@ class _MyCard extends StatelessWidget {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(a.srn, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                if (a.isGroup) Text('Master SRN · ${a.groupSrns.join(', ')}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.purple.shade700)),
                 Text(a.styleName.isEmpty ? '-' : a.styleName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, runSpacing: 4, children: [

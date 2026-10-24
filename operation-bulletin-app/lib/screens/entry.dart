@@ -49,7 +49,7 @@ class _EntryScreenState extends State<EntryScreen> {
     final out = <String, _Sent>{};
     _Sent get(String key, String manpower) => out.putIfAbsent(key, () => _Sent(key, sectionLabel(e.category, key, manpower)));
     final bl = p.bulletin(e.category, e.srn);
-    final pend = p.myPending.where((a) => a.srn == e.srn && a.category == e.category && a.type == 'R&D').toList();
+    final pend = p.myPending.where((a) => a.covers(e.srn) && a.category == e.category && a.type == 'R&D').toList();
     final editPending = pend.any((a) => a.isEditMode);
     if (bl != null) {
       for (final op in bl.ops) {
@@ -163,7 +163,7 @@ class _EntryScreenState extends State<EntryScreen> {
                 children: [
                   _Header(
                     e: e, p: p, sent: sent, dup: dup,
-                    canManage: !e.editingAny && p.bulletin(e.category, e.srn) != null && !p.myPending.any((a) => a.srn == e.srn && a.category == e.category && a.type == 'R&D'),
+                    canManage: !e.editingAny && p.bulletin(e.category, e.srn) != null && !p.myPending.any((a) => a.covers(e.srn) && a.category == e.category && a.type == 'R&D'),
                     onUndo: () => _undoLastEdit(context, st),
                     onDelete: () => _requestDelete(context, st),
                     onNotRequired: () => _setNotRequired(context, st, e.sec, true),
