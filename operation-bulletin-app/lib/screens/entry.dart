@@ -663,6 +663,10 @@ class _Header extends StatelessWidget {
               e.setCategory(v, p);
             }),
           ]),
+          if (e.srn.isNotEmpty && !lockTop && _siblings(p, e.srn).length > 1) ...[
+            const SizedBox(height: 6),
+            _MasterNote(srn: e.srn, siblings: _siblings(p, e.srn), onlySrn: e.onlySrn, onChanged: e.setOnlySrn),
+          ],
           if (e.srn.isNotEmpty) ...[
             // 2. What is already sent for this SRN
             if (sent.isNotEmpty) ...[
@@ -1245,6 +1249,52 @@ class _BottomBar extends StatelessWidget {
           ]),
         ),
       ),
+    );
+  }
+}
+
+
+String _srnBase(String srn) {
+  final s = srn.trim().toUpperCase();
+  final b = s.replaceAll(RegExp(r'[A-Z]+$'), '');
+  return RegExp(r'\d$').hasMatch(b) ? b : s;
+}
+
+/// Every SRN of the order list with the same master number (634A, 634B, 634C), sorted.
+List<String> _siblings(Payload p, String srn) {
+  final base = _srnBase(srn);
+  final out = p.srns.where((o) => _srnBase(o.srn) == base).map((o) => o.srn).toSet()..add(srn);
+  return out.toList()..sort();
+}
+
+/// Master SRN note with the "Only this SRN" switch (the A / B / C bulletins differ now and then).
+class _MasterNote extends StatelessWidget {
+  const _MasterNote({required this.srn, required this.siblings, required this.onlySrn, required this.onChanged});
+  final String srn;
+  final List<String> siblings;
+  final bool onlySrn;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final base = _srnBase(srn);
+    return Container(
+      decoration: BoxDecoration(color: wash(const Color(0xFFFDF4FF)), borderRadius: BorderRadius.circular(10), border: Border.all(color: ink(const Color(0xFFF5D0FE)))),
+      padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(onlySrn ? 'Only $srn' : 'Master SRN $base', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: ink(const Color(0xFFA21CAF)))),
+            Text(onlySrn ? 'Saved in $srn only. The other SRNs of $base keep their own bulletin.' : 'One request for ${siblings.join(', ')}. On approval it is saved in all of them.',
+                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+          ]),
+        ),
+        Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Only this SRN', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)),
+          Switch(value: onlySrn, onChanged: onChanged),
+        ]),
+      ]),
     );
   }
 }
