@@ -31,12 +31,17 @@ class Access {
 }
 
 class SrnInfo {
-  SrnInfo({required this.srn, this.orderDate = '', this.shippingQty = 0, this.exFactoryDate = '', this.styleName = '', this.imageLink = ''});
+  SrnInfo({required this.srn, this.orderDate = '', this.shippingQty = 0, this.exFactoryDate = '', this.styleName = '', this.imageLink = '',
+      this.repeatNo = false, this.cancelled = false});
   final String srn, orderDate, exFactoryDate, styleName, imageLink;
   final num shippingQty;
+  /// All Order column J "Repeat" = NO: this SRN has its own bulletin (not joined to the master SRN).
+  final bool repeatNo;
+  final bool cancelled;
   factory SrnInfo.fromJson(Map<String, dynamic> j) => SrnInfo(
         srn: s(j['srn']), orderDate: s(j['orderDate']), shippingQty: n(j['shippingQty']),
-        exFactoryDate: s(j['exFactoryDate']), styleName: s(j['styleName']), imageLink: s(j['imageLink']));
+        exFactoryDate: s(j['exFactoryDate']), styleName: s(j['styleName']), imageLink: s(j['imageLink']),
+        repeatNo: b(j['repeatNo']), cancelled: b(j['cancelled']));
 }
 
 class ManpowerType {

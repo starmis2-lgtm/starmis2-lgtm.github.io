@@ -705,9 +705,6 @@ class EntryDraft extends ChangeNotifier {
   EntryMode mode = EntryMode.fresh;
   String pendingId = '';
   String bulletinFor = '';
-  /// Master SRN rule: a request covers every SRN of the master (634A / 634B / 634C). Ticked = this SRN only (its bulletin differs).
-  bool onlySrn = false;
-  void setOnlySrn(bool v) { onlySrn = v; notifyListeners(); }
   final List<OpDraft> ops = [];
 
   bool get isProd => false;
@@ -781,7 +778,6 @@ class EntryDraft extends ChangeNotifier {
     mode = EntryMode.fresh;
     pendingId = '';
     bulletinFor = '';
-    onlySrn = false;
     notifyListeners();
   }
 
@@ -1006,7 +1002,6 @@ class EntryDraft extends ChangeNotifier {
           {'srn': srn, 'styleName': info?.styleName ?? '', 'styleImage': info?.imageLink ?? ''}
         ],
         'isEditMode': isEdit,
-        'onlySrn': onlySrn,
         'editSrn': isEdit ? srn : null,
         'timesAt100': isEdit,
       },
