@@ -1,5 +1,5 @@
 // ===== GITHUB REPO  ·  file name: sw.js =====
-const CACHE = 'checklist-v28';
+const CACHE = 'checklist-v29';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (e) {
